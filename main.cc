@@ -17,14 +17,6 @@ bool gCameraPanning = false;
 
 auto gCamera = std::make_unique<Camera<float>>();
 
-constexpr std::array<Real, 4> gAmbientFull = {{0.4, 0.4, 0.4, 1.0}};
-constexpr std::array<Real, 4> gSpecularFull = {1.0, 1.0, 1.0, 1.0};
-constexpr std::array<Real, 1> gShininess = {50.0};
-constexpr std::array<Real, 4> gLightPosition = {1.0, 1.0, 1.0, 1.0};
-constexpr std::array<Real, 4> gDiffuseBlue = {0.3, 0.6, 1.0, 1.0};
-constexpr std::array<Real, 4> gDiffuseGray = {0.8, 0.8, 0.8, 1.0};
-constexpr std::array<Real, 4> gDiffuseOther = {0.3, 0.3, 1.0, 1.0};
-
 TetMesh gMesh(Meshes / "bunny_oded.obj");
 
 void GlutMotionFunc(int x, int y) {
@@ -85,7 +77,12 @@ void GlutReshapeFunc(int width, int height) {
   glutPostRedisplay();
 }
 
-void GlutKeyboardFunc(unsigned char key, int x, int y) { glutPostRedisplay(); }
+void GlutKeyboardFunc(unsigned char key, int x, int y) {
+  if (key == 'n') {
+    gMesh.ToggleNormals();
+  }
+  glutPostRedisplay();
+}
 
 static void DrawGLGrid(int size, float spacing) {
   glColor3f(0.5, 0.5, 0.5);
@@ -160,16 +157,6 @@ auto main(int argc, char **argv) -> int {
   glPointSize(4.0f);
   glEnable(GL_DEPTH_TEST);
 
-  // USE THESE TO SHADE MATERIALS
-  // glShadeModel(GL_SMOOTH);
-  // glMaterialfv(GL_FRONT, GL_DIFFUSE, kDiffuseGray.data());
-  // glMaterialfv(GL_FRONT, GL_AMBIENT, kAmbientFull.data());
-  // glMaterialfv(GL_FRONT, GL_SPECULAR, kSpecularFull.data());
-  // glMaterialfv(GL_FRONT, GL_SHININESS, kShininess.data());
-  // glLightfv(GL_LIGHT0, GL_POSITION, kLightPosition.data());
-
-  // glEnable(GL_LIGHTING);
-  // glEnable(GL_LIGHT0);
   glClearColor(0.15, 0.15, 0.15, 1.0f);
 
   GLfloat lightPosition[] = {0.0, 0.0, 0.0, 1.0};
