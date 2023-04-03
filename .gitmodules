@@ -1,0 +1,6 @@
+[submodule "ext/tetgen"]
+	path = ext/tetgen
+	url = git@github.com:libigl/tetgen.git
+[submodule "ext/eigen"]
+	path = ext/eigen
+	url = https://gitlab.com/libeigen/eigen.git

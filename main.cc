@@ -2,9 +2,7 @@
 #include "Math.h"
 #include "OpenGL.h"
 #include <array>
-#include <iostream>
 #include <memory>
-#include <vector>
 
 using Real = float;
 
