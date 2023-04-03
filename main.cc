@@ -1,10 +1,9 @@
 #include "Camera.h"
 #include "Math.h"
 #include "OpenGL.h"
+#include "TetMesh.h"
 #include <array>
 #include <memory>
-
-using Real = float;
 
 Eigen::Vector2i gMouseDiff;
 Eigen::Vector2i gMouseLast;
@@ -16,7 +15,7 @@ bool gCameraRotating = false;
 bool gCameraZooming = false;
 bool gCameraPanning = false;
 
-auto gCamera = std::make_unique<Camera<Real>>();
+auto gCamera = std::make_unique<Camera<float>>();
 
 constexpr std::array<Real, 4> gAmbientFull = {{0.4, 0.4, 0.4, 1.0}};
 constexpr std::array<Real, 4> gSpecularFull = {1.0, 1.0, 1.0, 1.0};
@@ -25,6 +24,8 @@ constexpr std::array<Real, 4> gLightPosition = {1.0, 1.0, 1.0, 1.0};
 constexpr std::array<Real, 4> gDiffuseBlue = {0.3, 0.6, 1.0, 1.0};
 constexpr std::array<Real, 4> gDiffuseGray = {0.8, 0.8, 0.8, 1.0};
 constexpr std::array<Real, 4> gDiffuseOther = {0.3, 0.3, 1.0, 1.0};
+
+TetMesh gMesh(Meshes / "bunny_oded.obj");
 
 void GlutMotionFunc(int x, int y) {
   gMouseCur[0] = x;
@@ -86,6 +87,19 @@ void GlutReshapeFunc(int width, int height) {
 
 void GlutKeyboardFunc(unsigned char key, int x, int y) { glutPostRedisplay(); }
 
+static void DrawGLGrid(int size, float spacing) {
+  glColor3f(0.5, 0.5, 0.5);
+  glBegin(GL_LINES);
+  for (float ii = -size; ii < size; ii += spacing) {
+    glVertex3f(ii, 0, -size);
+    glVertex3f(ii, 0, size);
+
+    glVertex3f(size, 0, ii);
+    glVertex3f(-size, 0, ii);
+  }
+  glEnd();
+}
+
 void Display() {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -108,6 +122,21 @@ void Display() {
   glVertex3f(0, 0, 0);
   glVertex3f(0, 0, 1);
   glEnd();
+
+  float density = 0.15;
+  float fogColor[4] = {0.15, 0.15, 0.15, 1.0};
+  float fogStart[1] = {0.0f};
+  float fogEnd[1] = {800.0f};
+
+  glFogi(GL_FOG_MODE, GL_LINEAR);
+  glFogfv(GL_FOG_START, fogStart);
+  glFogfv(GL_FOG_END, fogEnd);
+  glFogfv(GL_FOG_COLOR, fogColor);
+  glFogf(GL_FOG_DENSITY, density);
+  glHint(GL_FOG_HINT, GL_NICEST);
+  DrawGLGrid(100, 0.25);
+
+  gMesh.Draw();
 
   glPopMatrix();
   glFlush();
@@ -141,6 +170,12 @@ auto main(int argc, char **argv) -> int {
 
   // glEnable(GL_LIGHTING);
   // glEnable(GL_LIGHT0);
+  glClearColor(0.15, 0.15, 0.15, 1.0f);
+
+  GLfloat lightPosition[] = {0.0, 0.0, 0.0, 1.0};
+  glLightfv(GL_LIGHT0, GL_POSITION, lightPosition);
+
+  glEnable(GL_FOG);
 
   glutMainLoop();
 }
