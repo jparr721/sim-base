@@ -10,15 +10,11 @@ find_package(GLUT REQUIRED)
 find_package(OpenGL REQUIRED)
 
 file(GLOB SOURCES *.cc)
-
-# Eigen
-#option(EIGEN_BUILD_DOC "Enable creation of Eigen documentation" OFF)
-#option(EIGEN_BUILD_TESTING "Enable creation of Eigen tests." OFF)
-#add_subdirectory(ext/eigen)
+file(GLOB HEADERS *.h)
 
 include(FetchContent)
 
-option(LIBIGL_COPYLEFT_TETGEN  "Build target igl_copyleft::tetgen" ON)
+option(LIBIGL_COPYLEFT_TETGEN "Build target igl_copyleft::tetgen" ON)
 FetchContent_Declare(
         libigl
         GIT_REPOSITORY https://github.com/libigl/libigl.git
@@ -26,7 +22,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(libigl)
 
-add_executable(${PROJECT_NAME} ${SOURCES} main.cc)
+add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
         igl::core

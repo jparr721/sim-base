@@ -1,8 +1,9 @@
 #include "Camera.h"
 #include "Math.h"
 #include "OpenGL.h"
+#include "SNH.h"
+#include "STVK.h"
 #include "TetMesh.h"
-#include <array>
 #include <memory>
 
 Eigen::Vector2i gMouseDiff;
@@ -140,6 +141,26 @@ void Display() {
 }
 
 auto main(int argc, char **argv) -> int {
+  bool isTesting = argc > 1 && std::string(argv[1]) == "test";
+  if (argc > 1 && !isTesting) {
+    gMesh = TetMesh(argv[1]);
+  }
+
+  if (isTesting) {
+    // Test energy functions
+    auto stvkEnergy = std::make_unique<STVK>(1, 1);
+    if (!stvkEnergy->FiniteDifferenceTestPk1(Mat3<Real>::Random() * 10)) {
+      return EXIT_FAILURE;
+    }
+
+    auto snhEnergy = std::make_unique<SNH>(1, 1);
+    if (!snhEnergy->FiniteDifferenceTestPk1(Mat3<Real>::Random())) {
+      return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+  }
+
   // Set initial camera zoom
   gCamera->Zoom(10);
 
