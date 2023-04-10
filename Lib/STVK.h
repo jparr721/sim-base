@@ -19,9 +19,9 @@ public:
     return F * (2.0 * mu * E + lambda * E.trace() * Mat3<Real>::Identity());
 
     // F-based Pk1, this one doesn't work though, not sure why.
-    //    Mat3<Real> E = 0.5 * (F.transpose() * F - Mat3<Real>::Identity());
-    //    auto trE = E.trace();
-    //    return mu * F * E + lambda * trE * F;
+    //        Mat3<Real> E = 0.5 * (F.transpose() * F - Mat3<Real>::Identity());
+    //        auto trE = E.trace();
+    //        return mu * F * E + lambda * trE * F;
   }
 
   [[nodiscard]] INLINE auto Hessian(const Mat3<Real> &F) const

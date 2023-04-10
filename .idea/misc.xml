@@ -6,6 +6,7 @@
       <file path="$PROJECT_DIR$/ext" />
     </libraryRoots>
     <excludeRoots>
+      <file path="$PROJECT_DIR$/bin" />
       <file path="$PROJECT_DIR$/cmake-build-debug" />
     </excludeRoots>
   </component>

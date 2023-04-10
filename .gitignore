@@ -37,3 +37,6 @@ cmake-build-*
 
 # Clangd
 .cache
+!Meshes/*
+
+bin/

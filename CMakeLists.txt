@@ -9,8 +9,15 @@ set(CMAKE_CXX_STANDARD 17)
 find_package(GLUT REQUIRED)
 find_package(OpenGL REQUIRED)
 
-file(GLOB SOURCES *.cc)
-file(GLOB HEADERS *.h)
+set(CMAKE_BINARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/bin)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+set(TARGET_NAME ${PROJECT_NAME}_${CMAKE_BUILD_TYPE})
+set(GL_SILENCE_DEPRECATION ON)
+set(INSTALL_LIB_DIR lib CACHE PATH "Install directory for library code")
+set(INSTALL_BIN_DIR CACHE PATH "Install directory for executables")
+set(INSTALL_INCLUDE_DIR include CACHE PATH "Install directory for header files")
 
 include(FetchContent)
 
@@ -22,11 +29,15 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(libigl)
 
-add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
+option(BUILD_TESTING "Build tests" ON)
+if (BUILD_TESTING)
+    enable_testing()
+    include(GoogleTest)
+    add_subdirectory(Tests)
+endif ()
 
-target_link_libraries(${PROJECT_NAME} PRIVATE
-        igl::core
-        igl_copyleft::tetgen
-        Eigen3::Eigen
-        GLUT::GLUT
-        "-framework OpenGL")
+find_package(OpenGL REQUIRED)
+add_subdirectory(Lib)
+add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+add_executable(${TARGET_NAME} main.cc)
+target_link_libraries(${TARGET_NAME} PRIVATE ${OPENGL_LIBRARIES} GLUT::GLUT ${PROJECT_NAME})

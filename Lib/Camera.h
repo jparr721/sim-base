@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Math.h"
+#include "LibMath.h"
 
 template <typename Real> class Camera {
 public:

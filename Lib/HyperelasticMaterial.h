@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Math.h"
+#include "LibMath.h"
 #include "Settings.h"
 #include <cfloat>
 

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Math.h"
+#include "LibMath.h"
 #include "OpenGL.h"
 #include "Settings.h"
 #include <igl/per_vertex_normals.h>

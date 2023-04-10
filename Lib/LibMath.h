@@ -6,6 +6,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <cmath>
 
 using Real = double;
 using Float = float;
@@ -19,10 +20,6 @@ constexpr Real E = Real(2.71828182845904523536);
 constexpr Real DEGREE_180 = Real(180);
 constexpr Real DegToRadConv = Real(PI) / DEGREE_180;
 constexpr Real RadToDegConv = DEGREE_180 / Real(PI);
-
-enum Axis { X, Y, Z, NX, NY, NZ, NO_AXIS };
-enum class AxisPlane { XY, YZ, XZ, NO_AXISPLANE };
-enum Dimension { DIM1 = 1, DIM2 = 2, DIM3 = 3, DIM4 = 4 };
 
 template <typename Real> inline auto DegreesToRadians(Real degrees) -> Real {
   return degrees * Real(DegToRadConv);

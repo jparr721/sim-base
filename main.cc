@@ -1,5 +1,5 @@
 #include "Camera.h"
-#include "Math.h"
+#include "LibMath.h"
 #include "OpenGL.h"
 #include "SNH.h"
 #include "STVK.h"
@@ -18,7 +18,7 @@ bool gCameraPanning = false;
 
 auto gCamera = std::make_unique<Camera<float>>();
 
-TetMesh gMesh(Meshes / "bunny_oded.obj");
+TetMesh gMesh(Meshes / "bunny.obj");
 
 void GlutMotionFunc(int x, int y) {
   gMouseCur[0] = x;
@@ -141,24 +141,11 @@ void Display() {
 }
 
 auto main(int argc, char **argv) -> int {
-  bool isTesting = argc > 1 && std::string(argv[1]) == "test";
-  if (argc > 1 && !isTesting) {
+  if (argc > 1) {
     gMesh = TetMesh(argv[1]);
-  }
-
-  if (isTesting) {
-    // Test energy functions
-    auto stvkEnergy = std::make_unique<STVK>(1, 1);
-    if (!stvkEnergy->FiniteDifferenceTestPk1(Mat3<Real>::Random() * 10)) {
-      return EXIT_FAILURE;
-    }
-
-    auto snhEnergy = std::make_unique<SNH>(1, 1);
-    if (!snhEnergy->FiniteDifferenceTestPk1(Mat3<Real>::Random())) {
-      return EXIT_FAILURE;
-    }
-
-    return EXIT_SUCCESS;
+  } else {
+    std::cout << "No mesh specified, defaulting to Meshes/bunny.obj"
+              << std::endl;
   }
 
   // Set initial camera zoom
