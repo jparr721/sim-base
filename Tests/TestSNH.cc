@@ -1,5 +1,4 @@
-#include "../Lib/SNH.h"
-#include "../Lib/Settings.h"
+#include <SNH.h>
 #include <gtest/gtest.h>
 #include <memory>
 

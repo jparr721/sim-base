@@ -68,23 +68,23 @@ public:
   auto GetNear() const -> const Real &;
   auto GetFar() const -> const Real &;
 
-  auto GetViewMatrix() -> const Matrix4<Real> &;
-  auto GetProjectionMatrix() -> const Matrix4<Real> &;
+  auto GetViewMatrix() -> const Mat4<Real> &;
+  auto GetProjectionMatrix() -> const Mat4<Real> &;
 
-  auto ToViewMatrix() -> Matrix4<Real>;
-  auto ToProjectionMatrix() -> Matrix4<Real>;
+  auto ToViewMatrix() -> Mat4<Real>;
+  auto ToProjectionMatrix() -> Mat4<Real>;
 
   static auto LookAt(const Vec3<Real> &eye, const Vec3<Real> &lookAt,
-                     const Vec3<Real> &up) -> Matrix4<Real>;
+                     const Vec3<Real> &up) -> Mat4<Real>;
   static auto LookAt(Real eyex, Real eyey, Real eyez, Real atx, Real aty,
-                     Real atz, Real upx, Real upy, Real upz) -> Matrix4<Real>;
+                     Real atz, Real upx, Real upy, Real upz) -> Mat4<Real>;
 
   static auto PerspectiveMatrix(Real fov, std::size_t width, std::size_t height,
                                 Real nearPlane, Real farPlane) noexcept
-      -> Matrix4<Real>;
+      -> Mat4<Real>;
   static auto OrthographicMatrix(Real left, Real right, Real bottom, Real top,
                                  Real nearPlane, Real farPlane) noexcept
-      -> Matrix4<Real>;
+      -> Mat4<Real>;
 
   static auto SphereicalToCartesian(Real r, Real theta, Real phi)
       -> Vec3<Real>;
@@ -99,8 +99,8 @@ protected:
   void compile() noexcept;
 
 protected:
-  Matrix4<Real> viewMatrix;
-  Matrix4<Real> projectionMatrix;
+  Mat4<Real> viewMatrix;
+  Mat4<Real> projectionMatrix;
   Real nearPlane, farPlane;
 
   std::size_t width, height;
@@ -138,8 +138,8 @@ const Real MAX_FOV = Real(120.0);
 const Real MIN_FOV = Real(10.0);
 
 template <typename Real> Camera<Real>::Camera() {
-  this->viewMatrix = Matrix4<Real>::Identity();
-  this->projectionMatrix = Matrix4<Real>::Identity();
+  this->viewMatrix = Mat4<Real>::Identity();
+  this->projectionMatrix = Mat4<Real>::Identity();
 
   this->eye = Vec3<Real>::UnitZ();
   this->lookAt = Vec3<Real>::Zero();
@@ -394,8 +394,8 @@ template <typename Real> void Camera<Real>::ResetView() {
 }
 
 template <typename Real> void Camera<Real>::ResetMatrices() {
-  this->viewMatrix = Matrix4<Real>::Identity();
-  this->projectionMatrix = Matrix4<Real>::Identity();
+  this->viewMatrix = Mat4<Real>::Identity();
+  this->projectionMatrix = Mat4<Real>::Identity();
 }
 
 template <typename Real> void Camera<Real>::ResetSensitivities() {
@@ -487,31 +487,31 @@ template <typename Real> auto Camera<Real>::GetFar() const -> const Real & {
 }
 
 template <typename Real>
-auto Camera<Real>::GetViewMatrix() -> const Matrix4<Real> & {
+auto Camera<Real>::GetViewMatrix() -> const Mat4<Real> & {
   this->compile();
   return this->viewMatrix;
 }
 
 template <typename Real>
-auto Camera<Real>::GetProjectionMatrix() -> const Matrix4<Real> & {
+auto Camera<Real>::GetProjectionMatrix() -> const Mat4<Real> & {
   this->compile();
   return this->projectionMatrix;
 }
 
-template <typename Real> auto Camera<Real>::ToViewMatrix() -> Matrix4<Real> {
+template <typename Real> auto Camera<Real>::ToViewMatrix() -> Mat4<Real> {
   this->compile();
   return this->viewMatrix;
 }
 
 template <typename Real>
-auto Camera<Real>::ToProjectionMatrix() -> Matrix4<Real> {
+auto Camera<Real>::ToProjectionMatrix() -> Mat4<Real> {
   this->compile();
   return this->projectionMatrix;
 }
 
 template <typename Real>
 auto Camera<Real>::LookAt(const Vec3<Real> &eye, const Vec3<Real> &lookAt,
-                          const Vec3<Real> &up) -> Matrix4<Real> {
+                          const Vec3<Real> &up) -> Mat4<Real> {
   return Camera<Real>::LookAt(eye.x(), eye.y(), eye.z(), lookAt.x(), lookAt.y(),
                               lookAt.z(), up.x(), up.y(), up.z());
 }
@@ -519,8 +519,8 @@ auto Camera<Real>::LookAt(const Vec3<Real> &eye, const Vec3<Real> &lookAt,
 template <typename Real>
 auto Camera<Real>::LookAt(Real eyex, Real eyey, Real eyez, Real atx, Real aty,
                           Real atz, Real upx, Real upy, Real upz)
-    -> Matrix4<Real> {
-  Matrix4<Real> matrix;
+    -> Mat4<Real> {
+  Mat4<Real> matrix;
   Vec3<Real> x, y, z;
   Vec3<Real> eye(eyex, eyey, eyez);
 
@@ -556,8 +556,8 @@ auto Camera<Real>::LookAt(Real eyex, Real eyey, Real eyez, Real atx, Real aty,
 template <typename Real>
 auto Camera<Real>::PerspectiveMatrix(Real fov, std::size_t width,
                                      std::size_t height, Real nearPlane,
-                                     Real farPlane) noexcept -> Matrix4<Real> {
-  Matrix4<Real> proj;
+                                     Real farPlane) noexcept -> Mat4<Real> {
+  Mat4<Real> proj;
   proj.setZero();
 
   Real aspectRatio = static_cast<Real>(width) / static_cast<Real>(height);
@@ -588,8 +588,8 @@ auto Camera<Real>::PerspectiveMatrix(Real fov, std::size_t width,
 template <typename Real>
 auto Camera<Real>::OrthographicMatrix(Real left, Real right, Real bottom,
                                       Real top, Real nearPlane,
-                                      Real farPlane) noexcept -> Matrix4<Real> {
-  Matrix4<Real> proj;
+                                      Real farPlane) noexcept -> Mat4<Real> {
+  Mat4<Real> proj;
 
   Real x = Real(2) / (right - left);
   Real y = Real(2) / (top - bottom);

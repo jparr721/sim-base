@@ -11,7 +11,9 @@ public:
               std::shared_ptr<HyperelasticMaterial> material)
       : tetMesh(std::move(tetMesh)), material(std::move(material)) {}
 
-private:
+  virtual void Step() = 0;
+
+protected:
   std::shared_ptr<TetMesh> tetMesh;
   std::shared_ptr<HyperelasticMaterial> material;
 };

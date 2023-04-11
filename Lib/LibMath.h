@@ -3,10 +3,11 @@
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
+#include <Settings.h>
+#include <cmath>
 #include <iostream>
 #include <string>
 #include <vector>
-#include <cmath>
 
 using Real = double;
 using Float = float;
@@ -21,55 +22,40 @@ constexpr Real DEGREE_180 = Real(180);
 constexpr Real DegToRadConv = Real(PI) / DEGREE_180;
 constexpr Real RadToDegConv = DEGREE_180 / Real(PI);
 
-template <typename Real> inline auto DegreesToRadians(Real degrees) -> Real {
+template <typename Real> INLINE auto DegreesToRadians(Real degrees) -> Real {
   return degrees * Real(DegToRadConv);
 }
 
-template <typename Real> inline auto RadiansToDegrees(Real radians) -> Real {
+template <typename Real> INLINE auto RadiansToDegrees(Real radians) -> Real {
   return radians * Real(RadToDegConv);
 }
 
 template <typename Real> using Vec2 = Eigen::Matrix<Real, 2, 1>;
-
-template <typename Real> using Normal2 = Eigen::Matrix<Real, 2, 1>;
-
 template <typename Real> using Vec3 = Eigen::Matrix<Real, 3, 1>;
-
-template <typename Real> using Normal3 = Eigen::Matrix<Real, 3, 1>;
-
 template <typename Real> using Vec4 = Eigen::Matrix<Real, 4, 1>;
-
-template <typename Real> using Normal4 = Eigen::Matrix<Real, 4, 1>;
+template <typename Real> using Vec9 = Eigen::Matrix<Real, 9, 1>;
+template <typename Real> using Vec = Eigen::Matrix<Real, -1, 1>;
 
 template <typename Real> using Mat2 = Eigen::Matrix<Real, 2, 2>;
-
 template <typename Real> using Mat3 = Eigen::Matrix<Real, 3, 3>;
-
-template <typename Real> using Vec = Eigen::Matrix<Real, Eigen::Dynamic, 1>;
-
-template <typename Real> using Matrix4 = Eigen::Matrix<Real, 4, 4>;
-
-template <typename Real>
-using Mat = Eigen::Matrix<Real, Eigen::Dynamic, Eigen::Dynamic>;
-
-template <typename Real> using Quaternion = Eigen::Quaternion<Real>;
-
-template <typename Real> using AngleAxis = Eigen::AngleAxis<Real>;
+template <typename Real> using Mat4 = Eigen::Matrix<Real, 4, 4>;
+template <typename Real> using Mat9x12 = Eigen::Matrix<Real, 9, 12>;
+template <typename Real> using Mat = Eigen::Matrix<Real, -1, -1>;
 
 template <typename Real>
-inline auto Normalize(const Real &value, const Real &min, const Real &max)
+INLINE auto Normalize(const Real &value, const Real &min, const Real &max)
     -> Real {
   return (value - min) / (max - min);
 }
 
 template <typename Real>
-inline auto Denormalize(const Real &value, const Real &min, const Real &max)
+INLINE auto Denormalize(const Real &value, const Real &min, const Real &max)
     -> Real {
   return value * (max - min) + min;
 }
 
 template <typename Real>
-inline auto ComputeAverage(const std::vector<Real> &values) -> Real {
+INLINE auto ComputeAverage(const std::vector<Real> &values) -> Real {
   Real sum = Real(0);
   std::size_t n = values.size();
   for (std::size_t i = 0; i < n; i++)
@@ -108,13 +94,13 @@ auto Equivalent(const Vec3<Real> &a, const Vec3<Real> &b,
 }
 
 template <typename Real>
-inline auto AngleBetweenVectors(const Vec2<Real> &a, const Vec2<Real> &b)
+INLINE auto AngleBetweenVectors(const Vec2<Real> &a, const Vec2<Real> &b)
     -> Real {
   return std::acos((a.x() * b.x() + a.y() * b.y()) / (a.norm() * b.norm()));
 }
 
 template <typename Real>
-inline auto AngleBetweenVectors(const Vec3<Real> &a, const Vec3<Real> &b)
+INLINE auto AngleBetweenVectors(const Vec3<Real> &a, const Vec3<Real> &b)
     -> Real {
   return std::acos((a.x() * b.x() + a.y() * b.y() + a.z() * b.z()) /
                    (a.norm() * b.norm()));
@@ -157,7 +143,7 @@ auto Distance(const Vec3<Real> &a, const Vec3<Real> &b) -> Real {
  * value = 0.5
  */
 template <typename Real>
-inline auto Scale(Real &v, Real sourceMin, Real sourceMax, Real targetMin,
+INLINE auto Scale(Real &v, Real sourceMin, Real sourceMax, Real targetMin,
                   Real targetMax) -> bool {
   Real l = (targetMax - targetMin);
   Real m = l / Real(sourceMax - sourceMin);
@@ -196,7 +182,7 @@ inline auto Scale(Real &v, Real sourceMin, Real sourceMax, Real targetMin,
  * values = 0.0, 0.25, 0.5, 0.75, 1.0
  */
 template <typename Real>
-inline auto ScaleArray(Real *&array, unsigned int n, Real sourceMin,
+INLINE auto ScaleArray(Real *&array, unsigned int n, Real sourceMin,
                        Real sourceMax, Real targetMin, Real targetMax) -> bool {
   if (array == nullptr)
     return false;
@@ -213,8 +199,7 @@ inline auto ScaleArray(Real *&array, unsigned int n, Real sourceMin,
 }
 
 template <typename Real>
-auto CartesianToSpherical(const Vec3<Real> &cartesianCoord)
-    -> Vec3<Real> {
+auto CartesianToSpherical(const Vec3<Real> &cartesianCoord) -> Vec3<Real> {
   Vec3<Real> sphericalCoord;
 
   Real x = cartesianCoord.x();
@@ -233,8 +218,7 @@ auto CartesianToSpherical(const Vec3<Real> &cartesianCoord)
 }
 
 template <typename Real>
-auto SphericalToCartesian(const Vec3<Real> &sphericalCoord)
-    -> Vec3<Real> {
+auto SphericalToCartesian(const Vec3<Real> &sphericalCoord) -> Vec3<Real> {
   Vec3<Real> cartesianCoord;
   Real r = sphericalCoord.x();
   Real theta = sphericalCoord.z();
@@ -252,8 +236,14 @@ auto SphericalToCartesian(const Vec3<Real> &sphericalCoord)
   return cartesianCoord;
 }
 
+template <typename T, int dx, int dy>
+INLINE auto Flatten(const Eigen::Matrix<T, dx, dy> &in)
+    -> Eigen::Matrix<T, dx * dy, 1> {
+  return Eigen::Map<const Eigen::Matrix<T, dx * dy, 1>>(in.data(), in.size());
+}
+
 template <typename T, typename Derived>
-inline void HStack(const std::vector<T> &values,
+INLINE void HStack(const std::vector<T> &values,
                    Eigen::PlainObjectBase<Derived> &stacked) {
   if (values.size() == 0) {
     return;
@@ -268,7 +258,7 @@ inline void HStack(const std::vector<T> &values,
 }
 
 template <typename T, typename Fn, typename Derived>
-inline void HStack(const std::vector<T> &values, const Fn &extractor,
+INLINE void HStack(const std::vector<T> &values, const Fn &extractor,
                    Eigen::PlainObjectBase<Derived> &stacked) {
   if (values.size() == 0) {
     return;
@@ -283,7 +273,7 @@ inline void HStack(const std::vector<T> &values, const Fn &extractor,
 }
 
 template <typename DerivedIn, typename DerivedOut>
-inline void Unstack(const Eigen::MatrixBase<DerivedIn> &stacked,
+INLINE void Unstack(const Eigen::MatrixBase<DerivedIn> &stacked,
                     std::vector<Vec3<DerivedOut>> &rows) {
   rows.resize(stacked.rows());
   for (int row = 0; row < stacked.rows(); ++row) {
@@ -292,7 +282,7 @@ inline void Unstack(const Eigen::MatrixBase<DerivedIn> &stacked,
 }
 
 template <typename Derived>
-inline void MatrixToVector(const Eigen::MatrixBase<Derived> &in,
+INLINE void MatrixToVector(const Eigen::MatrixBase<Derived> &in,
                            Eigen::PlainObjectBase<Derived> &out) {
   const typename Derived::Scalar *data = in.data();
   const auto shape = in.rows() * in.cols();
@@ -300,12 +290,12 @@ inline void MatrixToVector(const Eigen::MatrixBase<Derived> &in,
 }
 
 template <typename T>
-inline auto IsApprox(const T &lhs, const T &rhs, const Real epsilon) -> bool {
+INLINE auto IsApprox(const T &lhs, const T &rhs, const Real epsilon) -> bool {
   return std::abs(lhs - rhs) < epsilon;
 }
 
 template <typename T>
-inline auto CloserTo(const T &lhs, const T &rhs, const T &value) -> T {
+INLINE auto CloserTo(const T &lhs, const T &rhs, const T &value) -> T {
   const auto labsdiff = std::abs(lhs - value);
   const auto rabsdiff = std::abs(rhs - value);
 
@@ -313,12 +303,12 @@ inline auto CloserTo(const T &lhs, const T &rhs, const T &value) -> T {
 }
 
 template <typename T>
-inline auto PointIsOnLine(const Vec2<T> &point, const Vec2<T> &start,
+INLINE auto PointIsOnLine(const Vec2<T> &point, const Vec2<T> &start,
                           const Vec3<T> &direction) -> bool {
   return direction.cross(point - start) == Vec2<T>::Zero();
 }
 
-inline auto PointLineDistanceSquared3D(const Vec3<Real> &point,
+INLINE auto PointLineDistanceSquared3D(const Vec3<Real> &point,
                                        const Vec3<Real> &start,
                                        const Vec3<Real> &direction, Real &t)
     -> Real {
@@ -329,7 +319,7 @@ inline auto PointLineDistanceSquared3D(const Vec3<Real> &point,
   return distanceSquared;
 }
 
-inline auto PointRayDistanceSquared3D(const Vec3<Real> &point,
+INLINE auto PointRayDistanceSquared3D(const Vec3<Real> &point,
                                       const Vec3<Real> &start,
                                       const Vec3<Real> &direction, Real &t)
     -> Real {
@@ -346,7 +336,7 @@ inline auto PointRayDistanceSquared3D(const Vec3<Real> &point,
 }
 
 template <typename T>
-inline auto JointPointPointAngleRad(const Vec3<T> &jointPos,
+INLINE auto JointPointPointAngleRad(const Vec3<T> &jointPos,
                                     const Vec3<T> &neighborOnePos,
                                     const Vec3<T> &neighborTwoPos) -> float {
   const Vec3<Real> neighborOneDir = (neighborOnePos - jointPos).normalized();
