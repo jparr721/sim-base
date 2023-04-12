@@ -48,6 +48,23 @@ public:
   void ResetMatrices();
   void ResetSensitivities();
 
+  auto GetR() const -> Real { return r; }
+  auto GetTheta() const -> Real { return theta; }
+  auto GetPhi() const -> Real { return phi; }
+
+  void SetR(Real newValue) {
+    r = newValue;
+    Compile();
+  }
+  void SetTheta(Real newValue) {
+    theta = newValue;
+    Compile();
+  }
+  void SetPhi(Real newValue) {
+    phi = newValue;
+    Compile();
+  }
+
   auto GetRotationSensitivity() const -> Real;
   auto GetPanSensitivity() const -> Real;
   auto GetZoomSensitivity() const -> Real;
@@ -86,8 +103,7 @@ public:
                                  Real nearPlane, Real farPlane) noexcept
       -> Mat4<Real>;
 
-  static auto SphereicalToCartesian(Real r, Real theta, Real phi)
-      -> Vec3<Real>;
+  static auto SphereicalToCartesian(Real r, Real theta, Real phi) -> Vec3<Real>;
   static auto SphereicalToCartesian_dTheta(Real r, Real theta, Real phi)
       -> Vec3<Real>;
   static auto SphereicalToCartesian_dPhi(Real r, Real theta, Real phi)
@@ -96,7 +112,7 @@ public:
                                                     Real phi) -> Vec3<Real>;
 
 protected:
-  void compile() noexcept;
+  void Compile() noexcept;
 
 protected:
   Mat4<Real> viewMatrix;
@@ -119,7 +135,6 @@ protected:
   Real rotationSensitivity;
   Real scopeSensitivity;
 };
-
 const Real CAMERA_EPSILON = Real(0.00001);
 const Real DEFAULT_NEAR_PLANE = Real(0.1);
 const Real DEFAULT_FAR_PLANE = Real(1000.0);
@@ -170,7 +185,7 @@ auto Camera<Real>::Resize(std::size_t width, std::size_t height) noexcept
     -> bool {
   this->SetPerspective(this->fov, width, height, this->nearPlane,
                        this->farPlane);
-  this->compile();
+  this->Compile();
   return true;
 }
 
@@ -179,14 +194,14 @@ auto Camera<Real>::Resize(std::size_t width, std::size_t height, Real nearPlane,
                           Real farPlane) noexcept -> bool {
   this->SetPerspective(this->fov, width, height, this->nearPlane,
                        this->farPlane);
-  this->compile();
+  this->Compile();
   return true;
 }
 
 template <typename Real> auto Camera<Real>::Rotate(Real du, Real dv) -> bool {
   this->theta -= (du * this->rotationSensitivity);
   this->phi += (dv * this->rotationSensitivity);
-  this->compile();
+  this->Compile();
   return true;
 }
 
@@ -199,22 +214,22 @@ template <typename Real> auto Camera<Real>::Pan(Real du, Real dv) -> bool {
   Vec3<Real> panDisp = uDisp + vDisp;
 
   this->displacement += panDisp;
-  this->compile();
+  this->Compile();
   return true;
 }
 
 template <typename Real> auto Camera<Real>::Zoom(Real dr) -> bool {
   if (this->r + dr > this->maxRadius) {
     this->r = this->maxRadius;
-    this->compile();
+    this->Compile();
     return false;
   } else if (this->r + dr < this->minRadius) {
     this->r = this->minRadius;
-    this->compile();
+    this->Compile();
     return false;
   } else {
     this->r += dr;
-    this->compile();
+    this->Compile();
     return true;
   }
 
@@ -263,12 +278,11 @@ void Camera<Real>::SetFrustum(Real left, Real right, Real top, Real bottom,
   this->projectionMatrix(14) = (-temp * farPlane) / temp4;
 }
 
-template <typename Real>
-void Camera<Real>::SetPosition(const Vec3<Real> &pos) {
+template <typename Real> void Camera<Real>::SetPosition(const Vec3<Real> &pos) {
   this->position.x() = pos.x();
   this->position.y() = pos.y();
   this->position.z() = pos.z();
-  this->compile();
+  this->Compile();
 }
 
 template <typename Real>
@@ -276,13 +290,13 @@ void Camera<Real>::SetPosition(Real x, Real y, Real z) {
   this->position.x() = x;
   this->position.y() = y;
   this->position.z() = z;
-  this->compile();
+  this->Compile();
 }
 
 template <typename Real>
 void Camera<Real>::AddPosition(const Vec3<Real> &displacement) {
   this->position += displacement;
-  this->compile();
+  this->Compile();
 }
 
 template <typename Real>
@@ -290,23 +304,23 @@ void Camera<Real>::AddPosition(Real dx, Real dy, Real dz) {
   this->displacement.x() += dx;
   this->displacement.y() += dy;
   this->displacement.z() += dz;
-  this->compile();
+  this->Compile();
 }
 
 template <typename Real> void Camera<Real>::SetRotation(Real theta, Real phi) {
   this->theta = theta;
   this->phi = phi;
-  this->compile();
+  this->Compile();
 }
 
 template <typename Real> void Camera<Real>::SetHorizontalRotation(Real theta) {
   this->theta = theta;
-  this->compile();
+  this->Compile();
 }
 
 template <typename Real> void Camera<Real>::SetVerticalRotation(Real phi) {
   this->phi = phi;
-  this->compile();
+  this->Compile();
 }
 
 template <typename Real>
@@ -314,17 +328,17 @@ void Camera<Real>::SetSphericalPosition(Real r, Real theta, Real phi) {
   this->r = r;
   this->theta = theta;
   this->phi = phi;
-  this->compile();
+  this->Compile();
 }
 
 template <typename Real> void Camera<Real>::AddRadius(Real dRadius) {
   this->r += dRadius;
-  this->compile();
+  this->Compile();
 }
 
 template <typename Real> void Camera<Real>::SetRadius(Real radius) {
   this->r = radius;
-  this->compile();
+  this->Compile();
 }
 
 template <typename Real> void Camera<Real>::SetFieldOfView(Real fov) {
@@ -379,7 +393,7 @@ template <typename Real> void Camera<Real>::Reset() {
   this->ResetPlanes();
   this->ResetView();
   this->ResetSensitivities();
-  this->compile();
+  this->Compile();
 }
 
 template <typename Real> void Camera<Real>::ResetPlanes() {
@@ -425,33 +439,33 @@ auto Camera<Real>::GetScopeSensitivity() const -> Real {
 
 template <typename Real>
 inline auto Camera<Real>::GetViewDirection() -> Vec3<Real> {
-  this->compile();
+  this->Compile();
   return (this->lookAt - this->eye).normalized();
 }
 
 template <typename Real>
 inline auto Camera<Real>::GetRightDirection() -> Vec3<Real> {
-  this->compile();
+  this->Compile();
   Vec3<Real> dir = (this->lookAt - this->eye).normalized();
   return (this->up.cross(dir)).normalized();
 }
 
 template <typename Real>
 inline auto Camera<Real>::GetLeftDirection() -> Vec3<Real> {
-  this->compile();
+  this->Compile();
   Vec3<Real> dir = (this->lookAt - this->eye).normalized();
   return (dir.cross(this->up)).normalized();
 }
 
 template <typename Real>
 inline auto Camera<Real>::GetUpDirection() -> Vec3<Real> {
-  this->compile();
+  this->Compile();
   return this->up;
 }
 
 template <typename Real>
 inline auto Camera<Real>::GetDownDirection() -> Vec3<Real> {
-  this->compile();
+  this->Compile();
   return -this->up;
 }
 
@@ -488,24 +502,23 @@ template <typename Real> auto Camera<Real>::GetFar() const -> const Real & {
 
 template <typename Real>
 auto Camera<Real>::GetViewMatrix() -> const Mat4<Real> & {
-  this->compile();
+  this->Compile();
   return this->viewMatrix;
 }
 
 template <typename Real>
 auto Camera<Real>::GetProjectionMatrix() -> const Mat4<Real> & {
-  this->compile();
+  this->Compile();
   return this->projectionMatrix;
 }
 
 template <typename Real> auto Camera<Real>::ToViewMatrix() -> Mat4<Real> {
-  this->compile();
+  this->Compile();
   return this->viewMatrix;
 }
 
-template <typename Real>
-auto Camera<Real>::ToProjectionMatrix() -> Mat4<Real> {
-  this->compile();
+template <typename Real> auto Camera<Real>::ToProjectionMatrix() -> Mat4<Real> {
+  this->Compile();
   return this->projectionMatrix;
 }
 
@@ -645,8 +658,7 @@ inline auto Camera<Real>::SphereicalToCartesian(Real r, Real theta, Real phi)
 /* Unswapped: Rt(r, t, p) = -rsin(phi)sin(theta)i + rsin(phi)cos(theta)j + 0k */
 template <typename Real>
 inline auto Camera<Real>::SphereicalToCartesian_dTheta(Real r, Real theta,
-                                                       Real phi)
-    -> Vec3<Real> {
+                                                       Real phi) -> Vec3<Real> {
   Vec3<Real> result;
 
   Real sinPhi = std::sin(phi);
@@ -664,8 +676,7 @@ inline auto Camera<Real>::SphereicalToCartesian_dTheta(Real r, Real theta,
  * rsin(phi)k */
 template <typename Real>
 inline auto Camera<Real>::SphereicalToCartesian_dPhi(Real r, Real theta,
-                                                     Real phi)
-    -> Vec3<Real> {
+                                                     Real phi) -> Vec3<Real> {
   Vec3<Real> result;
 
   Real sinPhi = std::sin(phi);
@@ -700,7 +711,7 @@ inline auto Camera<Real>::SphereicalToCartesian_dPhiCrossdTheta(Real r,
   return result;
 }
 
-template <typename Real> inline void Camera<Real>::compile() noexcept {
+template <typename Real> inline void Camera<Real>::Compile() noexcept {
   this->lookAt = Vec3<Real>::Zero();
   this->eye =
       Camera<Real>::SphereicalToCartesian(this->r, this->theta, this->phi);

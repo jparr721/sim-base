@@ -1,5 +1,6 @@
 #pragma once
 
+#include "HyperelasticMaterial.h"
 #include "LibMath.h"
 #include "OpenGL.h"
 #include "Settings.h"
@@ -28,6 +29,17 @@ public:
   // Vertex normals
   Mat<T> n;
 
+  // Mass Matrix
+  SparseMat<T> m;
+  SparseMat<T> mInv;
+
+  // Rayleigh Damping
+  SparseMat<T> rayleighDamping;
+
+  // N x 1 boolean vector indicating whether a vertex is pinned. This matches
+  // the dimension of v.
+  Vec<T> pinned;
+
   // Per-element deformation gradients
   std::vector<Mat<T>> fs;
 
@@ -35,16 +47,52 @@ public:
     igl::read_triangle_mesh(file.string(), v, f);
     Tetrahedralize();
     igl::per_vertex_normals(v, f, n);
+    InitializeDataStructures();
   }
   TetMesh(const Mat<T> &v, const Mat<int> &f) : v(v), f(f) {
     Tetrahedralize();
     igl::per_vertex_normals(v, f, n);
+    InitializeDataStructures();
   }
   TetMesh(const Mat<T> &v, const Mat<int> &f, const Mat<int> &t)
       : v(v), f(f), t(t) {
     igl::per_vertex_normals(v, f, n);
+    InitializeDataStructures();
   }
 
+  INLINE auto
+  ComputeMaterialForces(const std::shared_ptr<HyperelasticMaterial> &material)
+      -> Vec<T> {
+    ComputeDeformationGradients();
+
+    std::vector<Vec12<T>> perElementForces;
+    for (int tt = 0; tt < t.rows(); ++tt) {
+      const Mat3<T> &F = fs[tt];
+      const Mat3<T> &P = material->Pk1(F);
+      const Vec12<T> forceDensity =
+          partialFPartialxs.at(tt).transpose() * Flatten(P);
+      const Vec12<T> force = -volumes.at(tt) * forceDensity;
+      perElementForces.emplace_back(force);
+    }
+
+    // Scatter global forces
+    Vec<T> forces = Vec<T>::Zero(DOFs());
+    for (int tt = 0; tt < t.rows(); ++tt) {
+      const Vec4<int> tet = t.row(tt);
+      const Vec12<T> force = perElementForces.at(tt);
+
+      for (int ii = 0; ii < 4; ++ii) {
+        int index = 3 * tet(ii);
+        forces(index) += force(3 * ii);
+        forces(index + 1) += force(3 * ii + 1);
+        forces(index + 2) += force(3 * ii + 2);
+      }
+    }
+
+    return forces;
+  }
+
+  // UI Stuff - Maybe this should move
   INLINE void Draw() {
     GLOBAL GLfloat lightAmbient[] = {0.2f, 0.2f, 0.2f, 1.0f};
     GLOBAL GLfloat lightDiffuse[] = {0.8f, 0.8f, 0.8f, 1.0f};
@@ -120,20 +168,47 @@ public:
       }
       glEnd();
     }
-  }
-  INLINE void ToggleNormals() { drawNormals = !drawNormals; }
-  INLINE auto FlatPositions() -> Vec<T> {
-    Vec<T> fv(3 * v.rows());
-    for (int ii = 0; ii < v.rows(); ++ii) {
-      fv.segment<3>(3 * ii) = v.row(ii);
+
+    if (drawPinned) {
+      glColor3d(1.0, 0.0, 0.0);
+      glPointSize(5.0);
+      glBegin(GL_POINTS);
+      for (int ii = 0; ii < pinned.size(); ++ii) {
+        if (pinned(ii) == 1) {
+          const Vec3<T> a = v.row(ii);
+          glVertex3dv(a.data());
+        }
+      }
+      glEnd();
     }
-    return fv;
   }
-  INLINE static auto EvalPartialFPartialx(int index, const Mat3<Real> &dmInv) -> Mat3<T> {
+  INLINE void ToggleDrawNormals() { drawNormals = !drawNormals; }
+  INLINE void ToggleDrawPinned() { drawPinned = !drawPinned; }
+
+  // Trivial Getters/Setters
+  INLINE auto FlatPositions() -> Vec<T> { return Flatten(v, v.size()); }
+  INLINE auto FlatDisplacement() -> Vec<T> { return Flatten(v - rv); }
+  INLINE void SetPositions(const Vec<T> &x) {
+    v = UnFlatten(x, v.rows(), v.cols());
+  }
+  INLINE void SetDisplacement(const Vec<T> &u) {
+    v = rv + UnFlatten(u, v.rows(), v.cols());
+  }
+  INLINE void AddDisplacement(const Vec<T> &u) {
+    v += UnFlatten(u, v.rows(), v.cols());
+  }
+  INLINE void PinVertex(int index) { pinned(index) = 1; }
+  INLINE void UnPinVertex(int index) { pinned(index) = 0; }
+  INLINE auto DOFs() -> int { return v.rows() * 3; }
+  INLINE auto OneRingArea(int ii) -> int { return oneRingAreas.at(ii); }
+
+  // Sim initializers
+  INLINE static auto EvalPartialFPartialx(int index, const Mat3<T> &dmInv)
+      -> Mat3<T> {
     ASSERT(index >= 0 && index <= 11, "Index: " + std::to_string(index) +
                                           " invalid. Must be in range[0, 11].");
 
-    Mat3<T> ret = Mat3<Real>::Zero();
+    Mat3<T> ret = Mat3<T>::Zero();
     switch (index) {
     case 0: // pfpx0x
       ret.row(0) << -1, -1, -1;
@@ -171,24 +246,46 @@ public:
     case 11: // pfpx3z
       ret(2, 2) = 1;
       break;
+    default:
+      ASSERT(ASSERT_ALWAYS_FALSE_V, "Unreachable");
     }
     return ret * dmInv;
   }
-  INLINE static auto PartialFPartialx(const Mat3<Real>& dmInv) -> Mat9x12<T> {
+  INLINE static auto PartialFPartialx(const Mat3<T> &dmInv) -> Mat9x12<T> {
     Mat9x12<T> ret = Mat9x12<T>::Zero();
     for (int ii = 0; ii < 12; ++ii) {
       ret.col(ii) = Flatten(EvalPartialFPartialx(ii, dmInv));
     }
     return ret;
   }
+  INLINE static auto TetVolume(const Vec3<T> &a, const Vec3<T> &b,
+                               const Vec3<T> &c, const Vec3<T> &d) -> T {
+    const auto d1 = b - a;
+    const auto d2 = c - a;
+    const auto d3 = d - a;
+    return d3.dot(d1.cross(d2)) / 6.0;
+  }
 
 private:
   bool drawNormals = false;
+  bool drawPinned = true;
 
   // Per-element dm-inverses (for computing the deformation gradients)
   std::vector<Mat<T>> dmInvs;
+  std::vector<Mat9x12<T>> partialFPartialxs;
 
-  void InitializeDataStructures() { ComputeDeformationGradients(); }
+  std::vector<T> volumes;
+  std::vector<T> oneRingAreas;
+
+  void InitializeDataStructures() {
+    rv = v;
+    pinned = Vec<T>::Zero(this->v.rows());
+
+    ComputeDeformationGradients();
+    ComputeTetVolumes();
+    ComputeVertexAreas();
+    BuildMassMatrix();
+  }
 
   void Tetrahedralize() {
     static const std::string switches = "zpQ";
@@ -201,6 +298,57 @@ private:
     // this fixes that.
     f.rowwise().reverseInPlace();
   }
+
+  INLINE void BuildMassMatrix() {
+    m.resize(DOFs(), DOFs());
+    mInv.resize(DOFs(), DOFs());
+    m.setZero();
+    mInv.setZero();
+
+    std::vector<Eigen::Triplet<Real>> mTriplet;
+    std::vector<Eigen::Triplet<Real>> mInvTriplet;
+    for (int ii = 0; ii < v.rows(); ++ii) {
+      const auto &oneRing = oneRingAreas.at(ii);
+      const int index = ii * 3;
+      mTriplet.emplace_back(index, index, oneRing);
+      mTriplet.emplace_back(index + 1, index + 1, oneRing);
+      mTriplet.emplace_back(index + 2, index + 2, oneRing);
+      mInvTriplet.emplace_back(index, index, 1.0 / oneRing);
+      mInvTriplet.emplace_back(index + 1, index + 1, 1.0 / oneRing);
+      mInvTriplet.emplace_back(index + 2, index + 2, 1.0 / oneRing);
+    }
+
+    m.setFromTriplets(mTriplet.begin(), mTriplet.end());
+    mInv.setFromTriplets(mInvTriplet.begin(), mInvTriplet.end());
+  }
+  void BuildRayleighDampingMatrix() {}
+
+  void ComputeTetVolumes() {
+    volumes.resize(t.rows());
+    for (int ii = 0; ii < t.rows(); ++ii) {
+      volumes.at(ii) = TetVolume(v.row(t(ii, 0)), v.row(t(ii, 1)),
+                                 v.row(t(ii, 2)), v.row(t(ii, 3)));
+      // Prevent negative volumes
+      ASSERT2(volumes.at(ii) >= 0.0);
+    }
+  }
+
+  void ComputeVertexAreas() {
+    oneRingAreas.resize(v.rows());
+    for (int ii = 0; ii < t.rows(); ++ii) {
+      const Vec4<int> tet = t.row(ii);
+      const Vec3<T> a = v.row(tet(0));
+      const Vec3<T> b = v.row(tet(1));
+      const Vec3<T> c = v.row(tet(2));
+      const Vec3<T> d = v.row(tet(3));
+      const T volume = TetVolume(a, b, c, d);
+      oneRingAreas.at(tet(0)) += volume / 4.0;
+      oneRingAreas.at(tet(1)) += volume / 4.0;
+      oneRingAreas.at(tet(2)) += volume / 4.0;
+      oneRingAreas.at(tet(3)) += volume / 4.0;
+    }
+  }
+
   void ComputeDmInverses() {
     for (int ii = 0; ii < t.rows(); ++ii) {
       const Vec4<int> tet = t.row(ii);
@@ -215,9 +363,20 @@ private:
       dmInvs.emplace_back(dm.inverse());
     }
   }
+
+  void ComputePartialFPartialxs() {
+    for (int ii = 0; ii < t.rows(); ++ii) {
+      partialFPartialxs.emplace_back(PartialFPartialx(dmInvs[ii]));
+    }
+  }
+
   void ComputeDeformationGradients() {
     if (dmInvs.empty()) {
       ComputeDmInverses();
+    }
+
+    if (partialFPartialxs.empty()) {
+      ComputePartialFPartialxs();
     }
 
     // Compute Ds values for each tet

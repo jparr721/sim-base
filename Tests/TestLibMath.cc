@@ -1,8 +1,7 @@
 #include <LibMath.h>
 #include <gtest/gtest.h>
 
-TEST(TestLibMath, TestFlatten) {
-
+TEST(TestLibMath, Flatten) {
   Mat2<Real> mat = Mat2<Real>::Random();
   Vec4<Real> comp;
   comp[0] = mat(0, 0);
@@ -12,4 +11,12 @@ TEST(TestLibMath, TestFlatten) {
 
   Vec4<Real> vec = Flatten(mat);
   EXPECT_EQ(vec, comp);
+}
+
+TEST(TestLibMath, UnFlatten) {
+  Mat2<Real> mat = Mat2<Real>::Random();
+  Vec4<Real> vec = Flatten(mat);
+  Mat2<Real> comp = UnFlatten<2, 2>(vec);
+
+  EXPECT_EQ(mat, comp);
 }

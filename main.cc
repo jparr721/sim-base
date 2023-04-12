@@ -1,9 +1,11 @@
 #include "Camera.h"
+#include "ForwardEuler.h"
 #include "LibMath.h"
 #include "OpenGL.h"
 #include "SNH.h"
 #include "STVK.h"
 #include "TetMesh.h"
+#include <igl/writeOBJ.h>
 #include <memory>
 
 Eigen::Vector2i gMouseDiff;
@@ -15,10 +17,16 @@ Eigen::Vector2i screenSize(1000, 800);
 bool gCameraRotating = false;
 bool gCameraZooming = false;
 bool gCameraPanning = false;
+bool animating = false;
+bool singleStep = false;
 
 auto gCamera = std::make_unique<Camera<float>>();
 
-TetMesh gMesh(Meshes / "bunny.obj");
+std::shared_ptr<TetMesh<Real>> gMesh =
+    std::make_shared<TetMesh<Real>>(Meshes / "bunny.obj");
+std::shared_ptr<SNH> gMaterial = std::make_shared<SNH>(5.0, 0.45);
+std::unique_ptr<ForwardEuler<Real>> gIntegrator =
+    std::make_unique<ForwardEuler<Real>>(gMesh, gMaterial);
 
 void GlutMotionFunc(int x, int y) {
   gMouseCur[0] = x;
@@ -80,8 +88,23 @@ void GlutReshapeFunc(int width, int height) {
 
 void GlutKeyboardFunc(unsigned char key, int x, int y) {
   if (key == 'n') {
-    gMesh.ToggleNormals();
+    gMesh->ToggleDrawNormals();
   }
+
+  if (key == ' ') {
+    singleStep = !singleStep;
+  }
+
+  if (key == 'a') {
+    animating = !animating;
+  }
+
+  if (key == 'c') {
+    std::cout << "Radius " << gCamera->GetR() << std::endl;
+    std::cout << "Theta " << gCamera->GetTheta() << std::endl;
+    std::cout << "Phi " << gCamera->GetPhi() << std::endl;
+  }
+
   glutPostRedisplay();
 }
 
@@ -134,18 +157,41 @@ void Display() {
   glHint(GL_FOG_HINT, GL_NICEST);
   DrawGLGrid(100, 0.25);
 
-  gMesh.Draw();
+  gMesh->Draw();
 
   glPopMatrix();
   glFlush();
 }
 
+static void GlutIdle() {
+  if (animating || singleStep) {
+    gIntegrator->AddGravity(Vec3<Real>(0, -1, 0));
+    gIntegrator->Step();
+
+    if (singleStep) {
+      singleStep = !singleStep;
+    }
+  }
+  glutPostRedisplay();
+}
+
 auto main(int argc, char **argv) -> int {
   if (argc > 1) {
-    gMesh = TetMesh(argv[1]);
+    gMesh = std::make_shared<TetMesh<Real>>(argv[1]);
+
   } else {
     std::cout << "No mesh specified, defaulting to Meshes/bunny.obj"
               << std::endl;
+  }
+
+  // gCamera->Set
+
+  // Pin the top vertices of the mesh in gMesh
+  for (int ii = 0; ii < gMesh->v.rows(); ++ii) {
+    // Find the top vertices
+    if (gMesh->v(ii, 1) > 0.8) {
+      gMesh->PinVertex(ii);
+    }
   }
 
   // Set initial camera zoom
@@ -160,6 +206,7 @@ auto main(int argc, char **argv) -> int {
   glutMotionFunc(GlutMotionFunc);
   glutReshapeFunc(GlutReshapeFunc);
   glutKeyboardFunc(GlutKeyboardFunc);
+  glutIdleFunc(GlutIdle);
 
   glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
   glPointSize(4.0f);

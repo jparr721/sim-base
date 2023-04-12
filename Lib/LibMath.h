@@ -3,6 +3,7 @@
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
+#include <Eigen/Sparse>
 #include <Settings.h>
 #include <cmath>
 #include <iostream>
@@ -34,6 +35,7 @@ template <typename Real> using Vec2 = Eigen::Matrix<Real, 2, 1>;
 template <typename Real> using Vec3 = Eigen::Matrix<Real, 3, 1>;
 template <typename Real> using Vec4 = Eigen::Matrix<Real, 4, 1>;
 template <typename Real> using Vec9 = Eigen::Matrix<Real, 9, 1>;
+template <typename Real> using Vec12 = Eigen::Matrix<Real, 12, 1>;
 template <typename Real> using Vec = Eigen::Matrix<Real, -1, 1>;
 
 template <typename Real> using Mat2 = Eigen::Matrix<Real, 2, 2>;
@@ -41,6 +43,8 @@ template <typename Real> using Mat3 = Eigen::Matrix<Real, 3, 3>;
 template <typename Real> using Mat4 = Eigen::Matrix<Real, 4, 4>;
 template <typename Real> using Mat9x12 = Eigen::Matrix<Real, 9, 12>;
 template <typename Real> using Mat = Eigen::Matrix<Real, -1, -1>;
+
+template <typename Real> using SparseMat = Eigen::SparseMatrix<Real>;
 
 template <typename Real>
 INLINE auto Normalize(const Real &value, const Real &min, const Real &max)
@@ -240,6 +244,18 @@ template <typename T, int dx, int dy>
 INLINE auto Flatten(const Eigen::Matrix<T, dx, dy> &in)
     -> Eigen::Matrix<T, dx * dy, 1> {
   return Eigen::Map<const Eigen::Matrix<T, dx * dy, 1>>(in.data(), in.size());
+}
+template <typename T>
+INLINE auto Flatten(const Mat<T> &in, int rows) -> Vec<T> {
+  return Eigen::Map<const Vec<T>>(in.data(), in.size());
+}
+template <int dx, int dy, typename T>
+INLINE auto UnFlatten(const Eigen::Matrix<T, dx * dy, 1> &in) {
+  return Eigen::Map<const Eigen::Matrix<T, dx, dy>>(in.data(), dx, dy);
+}
+template <typename T>
+INLINE auto UnFlatten(const Vec<T> &in, int rows, int cols) {
+  return Eigen::Map<const Mat<T>>(in.data(), rows, cols);
 }
 
 template <typename T, typename Derived>
