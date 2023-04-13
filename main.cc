@@ -12,21 +12,21 @@ Eigen::Vector2i gMouseDiff;
 Eigen::Vector2i gMouseLast;
 Eigen::Vector2i gMouseCur;
 
-Eigen::Vector2i screenSize(1000, 800);
+Eigen::Vector2i gScreenSize(1000, 800);
 
 bool gCameraRotating = false;
 bool gCameraZooming = false;
 bool gCameraPanning = false;
-bool animating = false;
-bool singleStep = false;
+bool gAnimating = false;
+bool gSingleStep = false;
 
 auto gCamera = std::make_unique<Camera<float>>();
 
 std::shared_ptr<TetMesh<Real>> gMesh =
     std::make_shared<TetMesh<Real>>(Meshes / "bunny.obj");
-std::shared_ptr<SNH> gMaterial = std::make_shared<SNH>(5.0, 0.45);
+std::shared_ptr<SNH> gMaterial = std::make_shared<SNH>(10.0, 0.40);
 std::unique_ptr<ForwardEuler<Real>> gIntegrator =
-    std::make_unique<ForwardEuler<Real>>(gMesh, gMaterial);
+    std::make_unique<ForwardEuler<Real>>(gMesh, gMaterial, 1.0 / 300.0);
 
 void GlutMotionFunc(int x, int y) {
   gMouseCur[0] = x;
@@ -92,11 +92,11 @@ void GlutKeyboardFunc(unsigned char key, int x, int y) {
   }
 
   if (key == ' ') {
-    singleStep = !singleStep;
+    gSingleStep = !gSingleStep;
   }
 
   if (key == 'a') {
-    animating = !animating;
+    gAnimating = !gAnimating;
   }
 
   if (key == 'c') {
@@ -164,12 +164,12 @@ void Display() {
 }
 
 static void GlutIdle() {
-  if (animating || singleStep) {
+  if (gAnimating || gSingleStep) {
     gIntegrator->AddGravity(Vec3<Real>(0, -1, 0));
     gIntegrator->Step();
 
-    if (singleStep) {
-      singleStep = !singleStep;
+    if (gSingleStep) {
+      gSingleStep = !gSingleStep;
     }
   }
   glutPostRedisplay();
@@ -199,7 +199,7 @@ auto main(int argc, char **argv) -> int {
 
   glutInit(&argc, argv);
   glutInitDisplayMode(GLUT_DEPTH | GLUT_RGBA);
-  glutInitWindowSize(screenSize.x(), screenSize.y());
+  glutInitWindowSize(gScreenSize.x(), gScreenSize.y());
   glutCreateWindow("Testing");
   glutDisplayFunc(Display);
   glutMouseFunc(GlutMouseFunc);

@@ -18,7 +18,7 @@ public:
   virtual void Step() = 0;
   INLINE void AddGravity(const Vec3<T> &gravity) {
     for (int ii = 0; ii < tetMesh->v.rows(); ++ii) {
-      const auto area = tetMesh->OneRingArea(ii);
+      const T area = tetMesh->OneRingArea(ii);
       this->externalForce.template segment<3>(3 * ii) = area * gravity;
     }
   }

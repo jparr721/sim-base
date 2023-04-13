@@ -202,107 +202,15 @@ INLINE auto ScaleArray(Real *&array, unsigned int n, Real sourceMin,
   return true;
 }
 
-template <typename Real>
-auto CartesianToSpherical(const Vec3<Real> &cartesianCoord) -> Vec3<Real> {
-  Vec3<Real> sphericalCoord;
-
-  Real x = cartesianCoord.x();
-  Real z = cartesianCoord.y();
-  Real y = cartesianCoord.z();
-
-  Real r = std::sqrt(x * x + y * y + z * z);
-  Real theta = std::atan2(y, x);
-  Real phi = std::acos(z / r);
-
-  sphericalCoord.x() = r;
-  sphericalCoord.y() = theta;
-  sphericalCoord.z() = phi;
-
-  return sphericalCoord;
-}
-
-template <typename Real>
-auto SphericalToCartesian(const Vec3<Real> &sphericalCoord) -> Vec3<Real> {
-  Vec3<Real> cartesianCoord;
-  Real r = sphericalCoord.x();
-  Real theta = sphericalCoord.z();
-  Real phi = sphericalCoord.y();
-
-  Real cosTheta = std::cos(theta);
-  Real cosPhi = std::cos(phi);
-  Real sinTheta = std::sin(theta);
-  Real sinPhi = std::sin(phi);
-
-  cartesianCoord.x() = r * (cosTheta * sinPhi);
-  cartesianCoord.y() = r * (sinTheta * sinPhi);
-  cartesianCoord.z() = r * cosPhi;
-
-  return cartesianCoord;
-}
-
-template <typename T, int dx, int dy>
-INLINE auto Flatten(const Eigen::Matrix<T, dx, dy> &in)
-    -> Eigen::Matrix<T, dx * dy, 1> {
-  return Eigen::Map<const Eigen::Matrix<T, dx * dy, 1>>(in.data(), in.size());
-}
-template <typename T>
-INLINE auto Flatten(const Mat<T> &in, int rows) -> Vec<T> {
-  return Eigen::Map<const Vec<T>>(in.data(), in.size());
-}
-template <int dx, int dy, typename T>
-INLINE auto UnFlatten(const Eigen::Matrix<T, dx * dy, 1> &in) {
-  return Eigen::Map<const Eigen::Matrix<T, dx, dy>>(in.data(), dx, dy);
-}
-template <typename T>
-INLINE auto UnFlatten(const Vec<T> &in, int rows, int cols) {
-  return Eigen::Map<const Mat<T>>(in.data(), rows, cols);
-}
-
-template <typename T, typename Derived>
-INLINE void HStack(const std::vector<T> &values,
-                   Eigen::PlainObjectBase<Derived> &stacked) {
-  if (values.size() == 0) {
-    return;
+template <typename T> INLINE auto Flatten(const Mat3<T> &mat) -> Vec9<T> {
+  Vec9<T> flattened;
+  unsigned int index = 0;
+  for (int jj = 0; jj < mat.cols(); ++jj) {
+    for (int ii = 0; ii < mat.rows(); ++ii, ++index) {
+      flattened(index) = mat(ii, jj);
+    }
   }
-  const uint64_t cols = values.at(0).transpose().cols();
-  const uint64_t rows = values.size();
-
-  stacked.resize(rows, cols);
-  for (auto i = 0u; i < values.size(); ++i) {
-    stacked.row(i) = values.at(i);
-  }
-}
-
-template <typename T, typename Fn, typename Derived>
-INLINE void HStack(const std::vector<T> &values, const Fn &extractor,
-                   Eigen::PlainObjectBase<Derived> &stacked) {
-  if (values.size() == 0) {
-    return;
-  }
-  const uint64_t cols = extractor(values.at(0)).transpose().cols();
-  const uint64_t rows = values.size();
-
-  stacked.resize(rows, cols);
-  for (auto i = 0u; i < values.size(); ++i) {
-    stacked.row(i) = extractor(values.at(i));
-  }
-}
-
-template <typename DerivedIn, typename DerivedOut>
-INLINE void Unstack(const Eigen::MatrixBase<DerivedIn> &stacked,
-                    std::vector<Vec3<DerivedOut>> &rows) {
-  rows.resize(stacked.rows());
-  for (int row = 0; row < stacked.rows(); ++row) {
-    rows.at(row) = stacked.row(row);
-  }
-}
-
-template <typename Derived>
-INLINE void MatrixToVector(const Eigen::MatrixBase<Derived> &in,
-                           Eigen::PlainObjectBase<Derived> &out) {
-  const typename Derived::Scalar *data = in.data();
-  const auto shape = in.rows() * in.cols();
-  out = Eigen::Map<Eigen::PlainObjectBase<Derived>>(data, shape);
+  return flattened;
 }
 
 template <typename T>
@@ -316,46 +224,4 @@ INLINE auto CloserTo(const T &lhs, const T &rhs, const T &value) -> T {
   const auto rabsdiff = std::abs(rhs - value);
 
   return labsdiff > rabsdiff ? rhs : lhs;
-}
-
-template <typename T>
-INLINE auto PointIsOnLine(const Vec2<T> &point, const Vec2<T> &start,
-                          const Vec3<T> &direction) -> bool {
-  return direction.cross(point - start) == Vec2<T>::Zero();
-}
-
-INLINE auto PointLineDistanceSquared3D(const Vec3<Real> &point,
-                                       const Vec3<Real> &start,
-                                       const Vec3<Real> &direction, Real &t)
-    -> Real {
-  t = (direction.dot(point - start) / direction.dot(direction));
-  const Vec3<Real> pointPrime = start + t * direction;
-  const Vec3<Real> rightAngle = point - pointPrime;
-  const Real distanceSquared = rightAngle.dot(rightAngle);
-  return distanceSquared;
-}
-
-INLINE auto PointRayDistanceSquared3D(const Vec3<Real> &point,
-                                      const Vec3<Real> &start,
-                                      const Vec3<Real> &direction, Real &t)
-    -> Real {
-  Real distanceSquared;
-  distanceSquared = PointLineDistanceSquared3D(point, start, direction, t);
-
-  if (t < 0) {
-    t = 0;
-    Vec3<Real> v = point - start;
-    distanceSquared = v.dot(v);
-  }
-
-  return distanceSquared;
-}
-
-template <typename T>
-INLINE auto JointPointPointAngleRad(const Vec3<T> &jointPos,
-                                    const Vec3<T> &neighborOnePos,
-                                    const Vec3<T> &neighborTwoPos) -> float {
-  const Vec3<Real> neighborOneDir = (neighborOnePos - jointPos).normalized();
-  const Vec3<Real> neighborTwoDir = (neighborTwoPos - jointPos).normalized();
-  return AngleBetweenVectors(neighborOneDir, neighborTwoDir);
 }

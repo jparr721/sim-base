@@ -60,19 +60,36 @@ public:
     InitializeDataStructures();
   }
 
+  INLINE void ComputeDeformationGradients() {
+    ASSERT2(!dmInvs.empty());
+    ASSERT2(!partialFPartialxs.empty());
+
+    // Compute Ds values for each tet
+    for (int ii = 0; ii < t.rows(); ++ii) {
+      const Vec4<int> tet = t.row(ii);
+      const Vec3<T> a = v.row(tet(0));
+      const Vec3<T> b = v.row(tet(1));
+      const Vec3<T> c = v.row(tet(2));
+      const Vec3<T> d = v.row(tet(3));
+      Mat<T> ds(3, 3);
+      ds.col(0) = b - a;
+      ds.col(1) = c - a;
+      ds.col(2) = d - a;
+      fs.at(ii) = ds * dmInvs[ii];
+    }
+  }
+
   INLINE auto
   ComputeMaterialForces(const std::shared_ptr<HyperelasticMaterial> &material)
       -> Vec<T> {
-    ComputeDeformationGradients();
-
-    std::vector<Vec12<T>> perElementForces;
+    std::vector<Vec12<T>> perElementForces(t.rows());
     for (int tt = 0; tt < t.rows(); ++tt) {
       const Mat3<T> &F = fs[tt];
       const Mat3<T> &P = material->Pk1(F);
       const Vec12<T> forceDensity =
           partialFPartialxs.at(tt).transpose() * Flatten(P);
       const Vec12<T> force = -volumes.at(tt) * forceDensity;
-      perElementForces.emplace_back(force);
+      perElementForces.at(tt) = force;
     }
 
     // Scatter global forces
@@ -186,10 +203,25 @@ public:
   INLINE void ToggleDrawPinned() { drawPinned = !drawPinned; }
 
   // Trivial Getters/Setters
-  INLINE auto FlatPositions() -> Vec<T> { return Flatten(v, v.size()); }
-  INLINE auto FlatDisplacement() -> Vec<T> { return Flatten(v - rv); }
+  INLINE auto Positions() -> Vec<T> {
+    Vec<T> out(DOFs());
+    for (int ii = 0; ii < v.rows(); ++ii) {
+      out[3 * ii] = v(ii, 0);
+      out[3 * ii + 1] = v(ii, 1);
+      out[3 * ii + 2] = v(ii, 2);
+    }
+
+    return out;
+  }
+  INLINE auto Displacements() -> Vec<T> { return Flatten(v - rv); }
   INLINE void SetPositions(const Vec<T> &x) {
-    v = UnFlatten(x, v.rows(), v.cols());
+    ASSERT(x.size() == DOFs(), "x.size(): " + std::to_string(x.size()) +
+                                   " DOFs(): " + std::to_string(DOFs()));
+    for (int ii = 0; ii < v.rows(); ++ii) {
+      v(ii, 0) = x[3 * ii];
+      v(ii, 1) = x[3 * ii + 1];
+      v(ii, 2) = x[3 * ii + 2];
+    }
   }
   INLINE void SetDisplacement(const Vec<T> &u) {
     v = rv + UnFlatten(u, v.rows(), v.cols());
@@ -200,7 +232,7 @@ public:
   INLINE void PinVertex(int index) { pinned(index) = 1; }
   INLINE void UnPinVertex(int index) { pinned(index) = 0; }
   INLINE auto DOFs() -> int { return v.rows() * 3; }
-  INLINE auto OneRingArea(int ii) -> int { return oneRingAreas.at(ii); }
+  INLINE auto OneRingArea(int ii) -> T { return oneRingAreas.at(ii); }
 
   // Sim initializers
   INLINE static auto EvalPartialFPartialx(int index, const Mat3<T> &dmInv)
@@ -281,9 +313,24 @@ private:
     rv = v;
     pinned = Vec<T>::Zero(this->v.rows());
 
-    ComputeDeformationGradients();
+    dmInvs.resize(t.rows());
+    partialFPartialxs.resize(t.rows());
+    volumes.resize(t.rows());
+    oneRingAreas.resize(v.rows());
+    fs.resize(t.rows());
+
+    // Precompute the Dm Inverses
+    ComputeDmInverses();
+
+    // Precompute the change-of-basis matrices
+    ComputePartialFPartialxs();
+
+    // Compute the tet volumes
     ComputeTetVolumes();
+
+    // Compute the one-ring areas
     ComputeVertexAreas();
+
     BuildMassMatrix();
   }
 
@@ -323,8 +370,7 @@ private:
   }
   void BuildRayleighDampingMatrix() {}
 
-  void ComputeTetVolumes() {
-    volumes.resize(t.rows());
+  INLINE void ComputeTetVolumes() {
     for (int ii = 0; ii < t.rows(); ++ii) {
       volumes.at(ii) = TetVolume(v.row(t(ii, 0)), v.row(t(ii, 1)),
                                  v.row(t(ii, 2)), v.row(t(ii, 3)));
@@ -333,8 +379,7 @@ private:
     }
   }
 
-  void ComputeVertexAreas() {
-    oneRingAreas.resize(v.rows());
+  INLINE void ComputeVertexAreas() {
     for (int ii = 0; ii < t.rows(); ++ii) {
       const Vec4<int> tet = t.row(ii);
       const Vec3<T> a = v.row(tet(0));
@@ -349,7 +394,7 @@ private:
     }
   }
 
-  void ComputeDmInverses() {
+  INLINE void ComputeDmInverses() {
     for (int ii = 0; ii < t.rows(); ++ii) {
       const Vec4<int> tet = t.row(ii);
       const Vec3<T> a = rv.row(tet(0));
@@ -360,37 +405,13 @@ private:
       dm.col(0) = b - a;
       dm.col(1) = c - a;
       dm.col(2) = d - a;
-      dmInvs.emplace_back(dm.inverse());
+      dmInvs.at(ii) = dm.inverse();
     }
   }
 
-  void ComputePartialFPartialxs() {
+  INLINE void ComputePartialFPartialxs() {
     for (int ii = 0; ii < t.rows(); ++ii) {
-      partialFPartialxs.emplace_back(PartialFPartialx(dmInvs[ii]));
-    }
-  }
-
-  void ComputeDeformationGradients() {
-    if (dmInvs.empty()) {
-      ComputeDmInverses();
-    }
-
-    if (partialFPartialxs.empty()) {
-      ComputePartialFPartialxs();
-    }
-
-    // Compute Ds values for each tet
-    for (int ii = 0; ii < t.rows(); ++ii) {
-      const Vec4<int> tet = t.row(ii);
-      const Vec3<T> a = v.row(tet(0));
-      const Vec3<T> b = v.row(tet(1));
-      const Vec3<T> c = v.row(tet(2));
-      const Vec3<T> d = v.row(tet(3));
-      Mat<T> ds(3, 3);
-      ds.col(0) = b - a;
-      ds.col(1) = c - a;
-      ds.col(2) = d - a;
-      fs.emplace_back(ds * dmInvs[ii]);
+      partialFPartialxs.at(ii) = PartialFPartialx(dmInvs[ii]);
     }
   }
 };
