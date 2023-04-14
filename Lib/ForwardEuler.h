@@ -18,7 +18,7 @@ public:
     const Vec<T> &R = this->tetMesh->ComputeMaterialForces(this->material);
 
     // If in debug, print out R norm to get an idea of the intensity
-#ifndef N_DEBUG
+#ifndef NDEBUG
     std::cout << "R norm: " << R.norm() << std::endl;
     std::cout << "Velocity norm: " << this->velocity.norm() << std::endl;
 #endif

@@ -88,6 +88,14 @@ void GlutReshapeFunc(int width, int height) {
   glutPostRedisplay();
 }
 
+static void KeyboardControls() {
+  std::cout << "Keyboard Controls:" << std::endl;
+  std::cout << "  n: Toggle drawing normals" << std::endl;
+  std::cout << "  a: Toggle animation" << std::endl;
+  std::cout << "  c: Print camera info" << std::endl;
+  std::cout << "  space: Single step of animation" << std::endl;
+}
+
 void GlutKeyboardFunc(unsigned char key, int x, int y) {
   if (key == 'n') {
     gMesh->ToggleDrawNormals();
@@ -181,7 +189,7 @@ static void GlutIdle() {
     }
   }
 
-  if (gSteps % 100 == 0) {
+  if (gSteps % 200 == 0) {
     glutPostRedisplay();
   }
 }
@@ -202,6 +210,8 @@ auto main(int argc, char **argv) -> int {
       gMesh->PinVertex(ii);
     }
   }
+
+  KeyboardControls();
 
   // Set initial camera zoom
   gCamera->Zoom(10);
