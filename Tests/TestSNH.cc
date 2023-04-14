@@ -8,3 +8,10 @@ TEST(TestSNH, TestPK1Converges) {
     FAIL();
   }
 }
+
+TEST(TestSNH, TestHessianConverges) {
+  auto snhEnergy = std::make_unique<SNH>(1, 1);
+  if (!snhEnergy->FiniteDifferenceTestHessian(Mat3<Real>::Random())) {
+    FAIL();
+  }
+}

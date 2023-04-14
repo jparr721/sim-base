@@ -86,6 +86,58 @@ public:
   }
 
   virtual auto FiniteDifferenceTestHessian(const Mat3<Real> &F) -> bool {
+    std::cout << "===========" << std::endl;
+    std::cout << "Hessian Test for " << Name() << std::endl;
+    std::cout << "===========" << std::endl;
+
+    Mat<Real> hessian = Hessian(F);
+    Mat<Real> P = Pk1(F);
+
+    auto eps = 1e-4;
+    int e = 0;
+    auto minSeen = DBL_MAX;
+    while (eps > 1e-8) {
+      Mat9<Real> finiteDiff;
+      int col = 0;
+
+      for (int jj = 0; jj < 3; ++jj) {
+        for (int ii = 0; ii < 3; ++ii, ++col) {
+          Mat3<Real> Fnew = F;
+
+          // Perturb the input slightly
+          Fnew(ii, jj) += eps;
+
+          // Compute the new energy
+          auto Pnew = Pk1(Fnew);
+
+          // Store the finite difference
+          Mat3<Real> diff = (Pnew - P) / eps;
+          finiteDiff.col(col) = Flatten(diff);
+        }
+      }
+
+      // Compute the error
+      Mat<Real> error = hessian - finiteDiff;
+      Real diffNorm = fabs(error.norm() / P.norm()) / 81.0;
+
+      std::cout << "eps: " << eps << " diffNorm: " << diffNorm << std::endl;
+
+      if (diffNorm < minSeen) {
+        minSeen = diffNorm;
+      }
+
+      if (e == 4 && minSeen > 1e-6) {
+        std::cout << "Hessian finite difference test failed" << std::endl;
+        std::cout << "hessian: " << hessian << std::endl;
+        std::cout << "finiteDiff: " << finiteDiff << std::endl;
+        std::cout << "error: " << error << std::endl;
+        return false;
+      } else {
+        eps *= 0.1;
+      }
+      ++e;
+    }
+
     return true;
   }
 

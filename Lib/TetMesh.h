@@ -77,18 +77,21 @@ public:
       ds.col(2) = d - a;
       fs.at(ii) = ds * dmInvs[ii];
     }
+
+    needsNewDeformationGradients = false;
   }
 
   INLINE auto
   ComputeMaterialForces(const std::shared_ptr<HyperelasticMaterial> &material)
       -> Vec<T> {
+    ASSERT2(!needsNewDeformationGradients);
     std::vector<Vec12<T>> perElementForces(t.rows());
     for (int tt = 0; tt < t.rows(); ++tt) {
       const Mat3<T> &F = fs[tt];
-      const Mat3<T> &P = material->Pk1(F);
+      const Mat3<T> P = material->Pk1(F);
       const Vec12<T> forceDensity =
           partialFPartialxs.at(tt).transpose() * Flatten(P);
-      const Vec12<T> force = -volumes.at(tt) * forceDensity;
+      const Vec12<T> force = -restVolumes.at(tt) * forceDensity;
       perElementForces.at(tt) = force;
     }
 
@@ -222,12 +225,16 @@ public:
       v(ii, 1) = x[3 * ii + 1];
       v(ii, 2) = x[3 * ii + 2];
     }
+
+    needsNewDeformationGradients = true;
   }
   INLINE void SetDisplacement(const Vec<T> &u) {
     v = rv + UnFlatten(u, v.rows(), v.cols());
+    needsNewDeformationGradients = true;
   }
   INLINE void AddDisplacement(const Vec<T> &u) {
     v += UnFlatten(u, v.rows(), v.cols());
+    needsNewDeformationGradients = true;
   }
   INLINE void PinVertex(int index) { pinned(index) = 1; }
   INLINE void UnPinVertex(int index) { pinned(index) = 0; }
@@ -302,11 +309,13 @@ private:
   bool drawNormals = false;
   bool drawPinned = true;
 
+  bool needsNewDeformationGradients = false;
+
   // Per-element dm-inverses (for computing the deformation gradients)
   std::vector<Mat<T>> dmInvs;
   std::vector<Mat9x12<T>> partialFPartialxs;
 
-  std::vector<T> volumes;
+  std::vector<T> restVolumes;
   std::vector<T> oneRingAreas;
 
   void InitializeDataStructures() {
@@ -315,7 +324,7 @@ private:
 
     dmInvs.resize(t.rows());
     partialFPartialxs.resize(t.rows());
-    volumes.resize(t.rows());
+    restVolumes.resize(t.rows());
     oneRingAreas.resize(v.rows());
     fs.resize(t.rows());
 
@@ -326,12 +335,15 @@ private:
     ComputePartialFPartialxs();
 
     // Compute the tet volumes
-    ComputeTetVolumes();
+    ComputeTetRestVolumes();
 
     // Compute the one-ring areas
     ComputeVertexAreas();
 
+    // Construct the mass matrix and inverse mass matrix
     BuildMassMatrix();
+
+    needsNewDeformationGradients = true;
   }
 
   void Tetrahedralize() {
@@ -368,18 +380,22 @@ private:
     m.setFromTriplets(mTriplet.begin(), mTriplet.end());
     mInv.setFromTriplets(mInvTriplet.begin(), mInvTriplet.end());
   }
+
   void BuildRayleighDampingMatrix() {}
 
-  INLINE void ComputeTetVolumes() {
+  INLINE void ComputeTetRestVolumes() {
     for (int ii = 0; ii < t.rows(); ++ii) {
-      volumes.at(ii) = TetVolume(v.row(t(ii, 0)), v.row(t(ii, 1)),
-                                 v.row(t(ii, 2)), v.row(t(ii, 3)));
+      restVolumes.at(ii) = TetVolume(v.row(t(ii, 0)), v.row(t(ii, 1)),
+                                     v.row(t(ii, 2)), v.row(t(ii, 3)));
       // Prevent negative volumes
-      ASSERT2(volumes.at(ii) >= 0.0);
+      ASSERT2(restVolumes.at(ii) >= 0.0);
     }
   }
 
   INLINE void ComputeVertexAreas() {
+    // Fill the vector with zeroes
+    oneRingAreas.assign(t.rows(), 0.0);
+
     for (int ii = 0; ii < t.rows(); ++ii) {
       const Vec4<int> tet = t.row(ii);
       const Vec3<T> a = v.row(tet(0));

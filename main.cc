@@ -24,9 +24,9 @@ auto gCamera = std::make_unique<Camera<float>>();
 
 std::shared_ptr<TetMesh<Real>> gMesh =
     std::make_shared<TetMesh<Real>>(Meshes / "bunny.obj");
-std::shared_ptr<SNH> gMaterial = std::make_shared<SNH>(10.0, 0.40);
+std::shared_ptr<SNH> gMaterial = std::make_shared<SNH>(30.0, 0.40);
 std::unique_ptr<ForwardEuler<Real>> gIntegrator =
-    std::make_unique<ForwardEuler<Real>>(gMesh, gMaterial, 1.0 / 300.0);
+    std::make_unique<ForwardEuler<Real>>(gMesh, gMaterial, 1.0 / 2000.0);
 
 void GlutMotionFunc(int x, int y) {
   gMouseCur[0] = x;
@@ -92,6 +92,8 @@ void GlutKeyboardFunc(unsigned char key, int x, int y) {
   }
 
   if (key == ' ') {
+    // Pause the animation too
+    if (gAnimating) { gAnimating = false; }
     gSingleStep = !gSingleStep;
   }
 
@@ -165,7 +167,7 @@ void Display() {
 
 static void GlutIdle() {
   if (gAnimating || gSingleStep) {
-    gIntegrator->AddGravity(Vec3<Real>(0, -1, 0));
+    gIntegrator->AddGravity(Vec3<Real>(0, -9, 0));
     gIntegrator->Step();
 
     if (gSingleStep) {
@@ -184,12 +186,10 @@ auto main(int argc, char **argv) -> int {
               << std::endl;
   }
 
-  // gCamera->Set
-
   // Pin the top vertices of the mesh in gMesh
   for (int ii = 0; ii < gMesh->v.rows(); ++ii) {
     // Find the top vertices
-    if (gMesh->v(ii, 1) > 0.8) {
+    if (gMesh->v(ii, 1) > 0.9) {
       gMesh->PinVertex(ii);
     }
   }

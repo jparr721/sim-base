@@ -20,6 +20,7 @@ public:
     // If in debug, print out R norm to get an idea of the intensity
 #ifndef N_DEBUG
     std::cout << "R norm: " << R.norm() << std::endl;
+    std::cout << "Velocity norm: " << this->velocity.norm() << std::endl;
 #endif
 
     // Compute the update
@@ -38,13 +39,13 @@ public:
 
     Vec<T> positions = this->tetMesh->Positions();
     u = filter * u;
+    Vec<T> dx = u;
     u += positions;
-    Vec<T> diff = u - positions;
 
     this->tetMesh->SetPositions(u);
-    //        this->tetMesh->AddDisplacement(diff);
 
     // Update the velocity
-    this->velocity = diff / this->dt;
+    this->velocity = dx / this->dt;
+    this->velocity = filter * this->velocity;
   }
 };

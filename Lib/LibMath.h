@@ -41,6 +41,7 @@ template <typename Real> using Vec = Eigen::Matrix<Real, -1, 1>;
 template <typename Real> using Mat2 = Eigen::Matrix<Real, 2, 2>;
 template <typename Real> using Mat3 = Eigen::Matrix<Real, 3, 3>;
 template <typename Real> using Mat4 = Eigen::Matrix<Real, 4, 4>;
+template <typename Real> using Mat9 = Eigen::Matrix<Real, 9, 9>;
 template <typename Real> using Mat9x12 = Eigen::Matrix<Real, 9, 12>;
 template <typename Real> using Mat = Eigen::Matrix<Real, -1, -1>;
 
