@@ -23,9 +23,9 @@ public:
     const Real alpha = 1.0 + mu / lambda;
     Real Jminus1 = F.determinant() - alpha;
     const Mat3<Real> pJpF = PJPF(F);
-    return mu * F + lambda * Jminus1 * pJpF;
+    //    return mu * F + lambda * Jminus1 * pJpF;
 
-    //    return mu * F - mu * pJpF + lambda * (J - 1) * pJpF;
+    return mu * F - mu * pJpF + lambda * (J - 1) * pJpF;
   }
 
   [[nodiscard]] auto Hessian(const Mat3<Real> &F) const -> Mat<Real> override {

@@ -20,11 +20,13 @@ bool gCameraPanning = false;
 bool gAnimating = false;
 bool gSingleStep = false;
 
+int gSteps = 0;
+
 auto gCamera = std::make_unique<Camera<float>>();
 
 std::shared_ptr<TetMesh<Real>> gMesh =
     std::make_shared<TetMesh<Real>>(Meshes / "bunny.obj");
-std::shared_ptr<SNH> gMaterial = std::make_shared<SNH>(30.0, 0.40);
+std::shared_ptr<SNH> gMaterial = std::make_shared<SNH>(30.0, 0.45);
 std::unique_ptr<ForwardEuler<Real>> gIntegrator =
     std::make_unique<ForwardEuler<Real>>(gMesh, gMaterial, 1.0 / 2000.0);
 
@@ -93,7 +95,9 @@ void GlutKeyboardFunc(unsigned char key, int x, int y) {
 
   if (key == ' ') {
     // Pause the animation too
-    if (gAnimating) { gAnimating = false; }
+    if (gAnimating) {
+      gAnimating = false;
+    }
     gSingleStep = !gSingleStep;
   }
 
@@ -170,11 +174,16 @@ static void GlutIdle() {
     gIntegrator->AddGravity(Vec3<Real>(0, -9, 0));
     gIntegrator->Step();
 
+    ++gSteps;
+
     if (gSingleStep) {
       gSingleStep = !gSingleStep;
     }
   }
-  glutPostRedisplay();
+
+  if (gSteps % 100 == 0) {
+    glutPostRedisplay();
+  }
 }
 
 auto main(int argc, char **argv) -> int {
