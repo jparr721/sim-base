@@ -24,8 +24,8 @@ int gSteps = 0;
 
 auto gCamera = std::make_unique<Camera<float>>();
 
-std::shared_ptr<TetMesh<Real>> gMesh =
-    std::make_shared<TetMesh<Real>>(Meshes / "bunny.obj");
+std::shared_ptr<TetMesh> gMesh =
+    std::make_shared<TetMesh>(Meshes / "bunny.obj");
 std::shared_ptr<SNH> gMaterial = std::make_shared<SNH>(30.0, 0.45);
 //std::shared_ptr<STVK> gMaterial = std::make_shared<STVK>(30.0, 0.45);
 std::unique_ptr<ForwardEuler<Real>> gIntegrator =
@@ -190,14 +190,14 @@ static void GlutIdle() {
     }
   }
 
-  if (gSteps % 200 == 0) {
+  if (gSteps % 100 == 0) {
     glutPostRedisplay();
   }
 }
 
 auto main(int argc, char **argv) -> int {
   if (argc > 1) {
-    gMesh = std::make_shared<TetMesh<Real>>(argv[1]);
+    gMesh = std::make_shared<TetMesh>(argv[1]);
 
   } else {
     std::cout << "No mesh specified, defaulting to Meshes/bunny.obj"

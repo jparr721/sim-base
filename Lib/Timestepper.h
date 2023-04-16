@@ -7,7 +7,7 @@
 
 template <typename T> class Timestepper {
 public:
-  Timestepper(std::shared_ptr<TetMesh<T>> tetMesh,
+  Timestepper(std::shared_ptr<TetMesh> tetMesh,
               std::shared_ptr<HyperelasticMaterial> material,
               T dt = 1.0 / 300.0, T rayleighAlpha = 0.0, T rayleighBeta = 0.0)
       : tetMesh(std::move(tetMesh)), material(std::move(material)), dt(dt),
@@ -24,7 +24,7 @@ public:
   }
 
 protected:
-  std::shared_ptr<TetMesh<T>> tetMesh;
+  std::shared_ptr<TetMesh> tetMesh;
   std::shared_ptr<HyperelasticMaterial> material;
 
   T dt;

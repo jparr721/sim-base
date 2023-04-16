@@ -1,9 +1,9 @@
 #pragma once
 
-#include <Energy/HyperelasticMaterial.h>
 #include "LibMath.h"
 #include "OpenGL.h"
 #include "Settings.h"
+#include <Energy/HyperelasticMaterial.h>
 #include <igl/boundary_facets.h>
 #include <igl/copyleft/tetgen/tetrahedralize.h>
 #include <igl/per_vertex_normals.h>
@@ -14,34 +14,34 @@ constexpr std::array<float, 4> gSpecularFull = {1.0, 1.0, 1.0, 1.0};
 constexpr std::array<float, 1> gShininess = {50.0};
 constexpr std::array<float, 4> gDiffuseGray = {0.8, 0.8, 0.8, 1.0};
 
-template <typename T> class TetMesh {
+class TetMesh {
 public:
   // Simulated vertices
-  Mat<T> v;
+  Mat<Real> v;
 
   // Rest vertices
-  Mat<T> rv;
+  Mat<Real> rv;
 
   // Surface faces
   Mat<int> f;
   Mat<int> t;
 
   // Vertex normals
-  Mat<T> n;
+  Mat<Real> n;
 
   // Mass Matrix
-  SparseMat<T> m;
-  SparseMat<T> mInv;
+  SparseMat<Real> m;
+  SparseMat<Real> mInv;
 
   // Rayleigh Damping
-  SparseMat<T> rayleighDamping;
+  SparseMat<Real> rayleighDamping;
 
   // N x 1 boolean vector indicating whether a vertex is pinned. This matches
   // the dimension of v.
-  Vec<T> pinned;
+  Vec<int> pinned;
 
   // Per-element deformation gradients
-  std::vector<Mat<T>> fs;
+  std::vector<Mat<Real>> fs;
 
   explicit TetMesh(const fs::path &file) {
     igl::read_triangle_mesh(file.string(), v, f);
@@ -49,12 +49,12 @@ public:
     igl::per_vertex_normals(v, f, n);
     InitializeDataStructures();
   }
-  TetMesh(const Mat<T> &v, const Mat<int> &f) : v(v), f(f) {
+  TetMesh(const Mat<Real> &v, const Mat<int> &f) : v(v), f(f) {
     Tetrahedralize();
     igl::per_vertex_normals(v, f, n);
     InitializeDataStructures();
   }
-  TetMesh(const Mat<T> &v, const Mat<int> &f, const Mat<int> &t)
+  TetMesh(const Mat<Real> &v, const Mat<int> &f, const Mat<int> &t)
       : v(v), f(f), t(t) {
     igl::per_vertex_normals(v, f, n);
     InitializeDataStructures();
@@ -67,11 +67,11 @@ public:
     // Compute Ds values for each tet
     for (int ii = 0; ii < t.rows(); ++ii) {
       const Vec4<int> tet = t.row(ii);
-      const Vec3<T> a = v.row(tet(0));
-      const Vec3<T> b = v.row(tet(1));
-      const Vec3<T> c = v.row(tet(2));
-      const Vec3<T> d = v.row(tet(3));
-      Mat<T> ds(3, 3);
+      const Vec3<Real> a = v.row(tet(0));
+      const Vec3<Real> b = v.row(tet(1));
+      const Vec3<Real> c = v.row(tet(2));
+      const Vec3<Real> d = v.row(tet(3));
+      Mat<Real> ds(3, 3);
       ds.col(0) = b - a;
       ds.col(1) = c - a;
       ds.col(2) = d - a;
@@ -83,23 +83,23 @@ public:
 
   INLINE auto
   ComputeMaterialForces(const std::shared_ptr<HyperelasticMaterial> &material)
-      -> Vec<T> {
+      -> Vec<Real> {
     ASSERT2(!needsNewDeformationGradients);
-    std::vector<Vec12<T>> perElementForces(t.rows());
+    std::vector<Vec12<Real>> perElementForces(t.rows());
     for (int tt = 0; tt < t.rows(); ++tt) {
-      const Mat3<T> &F = fs[tt];
-      const Mat3<T> P = material->Pk1(F);
-      const Vec12<T> forceDensity =
+      const Mat3<Real> &F = fs[tt];
+      const Mat3<Real> P = material->Pk1(F);
+      const Vec12<Real> forceDensity =
           partialFPartialxs.at(tt).transpose() * Flatten(P);
-      const Vec12<T> force = -restVolumes.at(tt) * forceDensity;
+      const Vec12<Real> force = -restVolumes.at(tt) * forceDensity;
       perElementForces.at(tt) = force;
     }
 
     // Scatter global forces
-    Vec<T> forces = Vec<T>::Zero(DOFs());
+    Vec<Real> forces = Vec<Real>::Zero(DOFs());
     for (int tt = 0; tt < t.rows(); ++tt) {
       const Vec4<int> tet = t.row(tt);
-      const Vec12<T> force = perElementForces.at(tt);
+      const Vec12<Real> force = perElementForces.at(tt);
 
       for (int ii = 0; ii < 4; ++ii) {
         int index = 3 * tet(ii);
@@ -138,9 +138,9 @@ public:
     glBegin(GL_TRIANGLES);
     for (int ii = 0; ii < f.rows(); ++ii) {
       const Vec3<int> face = f.row(ii);
-      const Vec3<T> a = v.row(face(0));
-      const Vec3<T> b = v.row(face(1));
-      const Vec3<T> c = v.row(face(2));
+      const Vec3<Real> a = v.row(face(0));
+      const Vec3<Real> b = v.row(face(1));
+      const Vec3<Real> c = v.row(face(2));
       glVertex3dv(a.data());
       glVertex3dv(b.data());
       glVertex3dv(c.data());
@@ -153,9 +153,9 @@ public:
     glBegin(GL_TRIANGLES);
     for (int ii = 0; ii < f.rows(); ++ii) {
       const Vec3<int> face = f.row(ii);
-      const Vec3<T> a = v.row(face(0));
-      const Vec3<T> b = v.row(face(1));
-      const Vec3<T> c = v.row(face(2));
+      const Vec3<Real> a = v.row(face(0));
+      const Vec3<Real> b = v.row(face(1));
+      const Vec3<Real> c = v.row(face(2));
       glVertex3dv(a.data());
       glVertex3dv(b.data());
       glVertex3dv(c.data());
@@ -169,13 +169,13 @@ public:
       glBegin(GL_LINES);
       for (int ii = 0; ii < f.rows(); ++ii) {
         const Vec3<int> face = f.row(ii);
-        const Vec3<T> a = v.row(face(0));
-        const Vec3<T> b = v.row(face(1));
-        const Vec3<T> c = v.row(face(2));
+        const Vec3<Real> a = v.row(face(0));
+        const Vec3<Real> b = v.row(face(1));
+        const Vec3<Real> c = v.row(face(2));
 
-        const Vec3<T> an = n.row(face(0));
-        const Vec3<T> bn = n.row(face(1));
-        const Vec3<T> cn = n.row(face(2));
+        const Vec3<Real> an = n.row(face(0));
+        const Vec3<Real> bn = n.row(face(1));
+        const Vec3<Real> cn = n.row(face(2));
 
         glVertex3dv(a.data());
         glVertex3dv((a + an).eval().data());
@@ -195,7 +195,7 @@ public:
       glBegin(GL_POINTS);
       for (int ii = 0; ii < pinned.size(); ++ii) {
         if (pinned(ii) == 1) {
-          const Vec3<T> a = v.row(ii);
+          const Vec3<Real> a = v.row(ii);
           glVertex3dv(a.data());
         }
       }
@@ -206,8 +206,8 @@ public:
   INLINE void ToggleDrawPinned() { drawPinned = !drawPinned; }
 
   // Trivial Getters/Setters
-  INLINE auto Positions() -> Vec<T> {
-    Vec<T> out(DOFs());
+  INLINE auto Positions() -> Vec<Real> {
+    Vec<Real> out(DOFs());
     for (int ii = 0; ii < v.rows(); ++ii) {
       out[3 * ii] = v(ii, 0);
       out[3 * ii + 1] = v(ii, 1);
@@ -216,38 +216,40 @@ public:
 
     return out;
   }
-  INLINE auto Displacements() -> Vec<T> { return Flatten(v - rv); }
-  INLINE void SetPositions(const Vec<T> &x) {
-    ASSERT(x.size() == DOFs(), "x.size(): " + std::to_string(x.size()) +
-                                   " DOFs(): " + std::to_string(DOFs()));
-    for (int ii = 0; ii < v.rows(); ++ii) {
-      v(ii, 0) = x[3 * ii];
-      v(ii, 1) = x[3 * ii + 1];
-      v(ii, 2) = x[3 * ii + 2];
-    }
+  INLINE auto Displacements() -> Vec<Real> { return Flatten<Real>(v - rv); }
+  INLINE void SetPositions(const Vec<Real> &x) {
+    //    ASSERT(x.size() == DOFs(), "x.size(): " + std::to_string(x.size()) +
+    //                                   " DOFs(): " + std::to_string(DOFs()));
+    //    for (int ii = 0; ii < v.rows(); ++ii) {
+    //      v(ii, 0) = x[3 * ii];
+    //      v(ii, 1) = x[3 * ii + 1];
+    //      v(ii, 2) = x[3 * ii + 2];
+    //    }
+
+    v = UnFlatten(x, v.rows(), v.cols());
 
     needsNewDeformationGradients = true;
   }
-  INLINE void SetDisplacement(const Vec<T> &u) {
+  INLINE void SetDisplacement(const Vec<Real> &u) {
     v = rv + UnFlatten(u, v.rows(), v.cols());
     needsNewDeformationGradients = true;
   }
-  INLINE void AddDisplacement(const Vec<T> &u) {
+  INLINE void AddDisplacement(const Vec<Real> &u) {
     v += UnFlatten(u, v.rows(), v.cols());
     needsNewDeformationGradients = true;
   }
   INLINE void PinVertex(int index) { pinned(index) = 1; }
   INLINE void UnPinVertex(int index) { pinned(index) = 0; }
   INLINE auto DOFs() -> int { return v.rows() * 3; }
-  INLINE auto OneRingArea(int ii) -> T { return oneRingAreas.at(ii); }
+  INLINE auto OneRingArea(int ii) -> Real { return oneRingAreas.at(ii); }
 
   // Sim initializers
-  INLINE static auto EvalPartialFPartialx(int index, const Mat3<T> &dmInv)
-      -> Mat3<T> {
+  INLINE static auto EvalPartialFPartialx(int index, const Mat3<Real> &dmInv)
+      -> Mat3<Real> {
     ASSERT(index >= 0 && index <= 11, "Index: " + std::to_string(index) +
                                           " invalid. Must be in range[0, 11].");
 
-    Mat3<T> ret = Mat3<T>::Zero();
+    Mat3<Real> ret = Mat3<Real>::Zero();
     switch (index) {
     case 0: // pfpx0x
       ret.row(0) << -1, -1, -1;
@@ -290,15 +292,17 @@ public:
     }
     return ret * dmInv;
   }
-  INLINE static auto PartialFPartialx(const Mat3<T> &dmInv) -> Mat9x12<T> {
-    Mat9x12<T> ret = Mat9x12<T>::Zero();
+  INLINE static auto PartialFPartialx(const Mat3<Real> &dmInv)
+      -> Mat9x12<Real> {
+    Mat9x12<Real> ret = Mat9x12<Real>::Zero();
     for (int ii = 0; ii < 12; ++ii) {
       ret.col(ii) = Flatten(EvalPartialFPartialx(ii, dmInv));
     }
     return ret;
   }
-  INLINE static auto TetVolume(const Vec3<T> &a, const Vec3<T> &b,
-                               const Vec3<T> &c, const Vec3<T> &d) -> T {
+  INLINE static auto TetVolume(const Vec3<Real> &a, const Vec3<Real> &b,
+                               const Vec3<Real> &c, const Vec3<Real> &d)
+      -> Real {
     const auto d1 = b - a;
     const auto d2 = c - a;
     const auto d3 = d - a;
@@ -312,15 +316,15 @@ private:
   bool needsNewDeformationGradients = false;
 
   // Per-element dm-inverses (for computing the deformation gradients)
-  std::vector<Mat<T>> dmInvs;
-  std::vector<Mat9x12<T>> partialFPartialxs;
+  std::vector<Mat<Real>> dmInvs;
+  std::vector<Mat9x12<Real>> partialFPartialxs;
 
-  std::vector<T> restVolumes;
-  std::vector<T> oneRingAreas;
+  std::vector<Real> restVolumes;
+  std::vector<Real> oneRingAreas;
 
   void InitializeDataStructures() {
     rv = v;
-    pinned = Vec<T>::Zero(this->v.rows());
+    pinned = Vec<int>::Zero(this->v.rows());
 
     dmInvs.resize(t.rows());
     partialFPartialxs.resize(t.rows());
@@ -349,8 +353,8 @@ private:
   void Tetrahedralize() {
     static const std::string switches = "zpQ";
 
-    igl::copyleft::tetgen::tetrahedralize(Mat<T>(v), Mat<int>(f), switches, v,
-                                          t, f);
+    igl::copyleft::tetgen::tetrahedralize(Mat<Real>(v), Mat<int>(f), switches,
+                                          v, t, f);
     igl::boundary_facets(t, f);
 
     // The faces come out of this function in the wrong winding order. So
@@ -398,11 +402,11 @@ private:
 
     for (int ii = 0; ii < t.rows(); ++ii) {
       const Vec4<int> tet = t.row(ii);
-      const Vec3<T> a = v.row(tet(0));
-      const Vec3<T> b = v.row(tet(1));
-      const Vec3<T> c = v.row(tet(2));
-      const Vec3<T> d = v.row(tet(3));
-      const T volume = TetVolume(a, b, c, d);
+      const Vec3<Real> a = v.row(tet(0));
+      const Vec3<Real> b = v.row(tet(1));
+      const Vec3<Real> c = v.row(tet(2));
+      const Vec3<Real> d = v.row(tet(3));
+      const Real volume = TetVolume(a, b, c, d);
       oneRingAreas.at(tet(0)) += volume / 4.0;
       oneRingAreas.at(tet(1)) += volume / 4.0;
       oneRingAreas.at(tet(2)) += volume / 4.0;
@@ -413,11 +417,11 @@ private:
   INLINE void ComputeDmInverses() {
     for (int ii = 0; ii < t.rows(); ++ii) {
       const Vec4<int> tet = t.row(ii);
-      const Vec3<T> a = rv.row(tet(0));
-      const Vec3<T> b = rv.row(tet(1));
-      const Vec3<T> c = rv.row(tet(2));
-      const Vec3<T> d = rv.row(tet(3));
-      Mat<T> dm(3, 3);
+      const Vec3<Real> a = rv.row(tet(0));
+      const Vec3<Real> b = rv.row(tet(1));
+      const Vec3<Real> c = rv.row(tet(2));
+      const Vec3<Real> d = rv.row(tet(3));
+      Mat<Real> dm(3, 3);
       dm.col(0) = b - a;
       dm.col(1) = c - a;
       dm.col(2) = d - a;

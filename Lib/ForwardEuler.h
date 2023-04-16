@@ -4,7 +4,7 @@
 
 template <typename T> class ForwardEuler : public Timestepper<T> {
 public:
-  ForwardEuler(std::shared_ptr<TetMesh<T>> tetMesh,
+  ForwardEuler(std::shared_ptr<TetMesh> tetMesh,
                std::shared_ptr<HyperelasticMaterial> material,
                T dt = 1.0 / 300.0, T rayleighAlpha = 0.0, T rayleighBeta = 0.0)
       : Timestepper<T>(std::move(tetMesh), std::move(material), dt,

@@ -215,6 +215,24 @@ template <typename T> INLINE auto Flatten(const Mat3<T> &mat) -> Vec9<T> {
 }
 
 template <typename T>
+INLINE auto UnFlatten(const Vec<T> &x, int rows, int cols) -> Mat<T> {
+  ASSERT(x.size() == rows * cols, "x.size(): " + std::to_string(x.size()) +
+                                      " rows, cols " + std::to_string(rows) +
+                                      " " + std::to_string(cols));
+  Mat<T> ret(rows, cols);
+  for (int ii = 0; ii < ret.rows(); ++ii) {
+    for (int jj = 0; jj < cols; ++jj) {
+      ret(ii, jj) = x[ii * cols + jj];
+    }
+    //    ret(ii, 0) = x[3 * ii];
+    //    ret(ii, 1) = x[3 * ii + 1];
+    //    ret(ii, 2) = x[3 * ii + 2];
+  }
+
+  return ret;
+}
+
+template <typename T>
 INLINE auto IsApprox(const T &lhs, const T &rhs, const Real epsilon) -> bool {
   return std::abs(lhs - rhs) < epsilon;
 }
