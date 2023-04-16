@@ -1,4 +1,4 @@
-#include <SNH.h>
+#include <Energy/Volume/SNH.h>
 #include <gtest/gtest.h>
 #include <memory>
 

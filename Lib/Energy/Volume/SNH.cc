@@ -21,7 +21,7 @@ auto SNH::Pk1(const Mat3<Real> &F) const -> Mat<Real> {
 }
 
 auto SNH::Hessian(const Mat3<Real> &F) const -> Mat<Real> {
-  const Vec9<Real> pjpf = Flatten(PJPF(F));
+  const Vec9<Real> pjpf = ColwiseFlatten<Real>(PJPF(F));
 
   const Real I3 = Invariant3(F);
   const Real alpha = 1.0 + mu / lambda;

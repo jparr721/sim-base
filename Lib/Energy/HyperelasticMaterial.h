@@ -112,7 +112,7 @@ public:
 
           // Store the finite difference
           Mat3<Real> diff = (Pnew - P) / eps;
-          finiteDiff.col(col) = Flatten(diff);
+          finiteDiff.col(3 * jj + ii) = ColwiseFlatten<Real>(diff);
         }
       }
 

@@ -203,8 +203,8 @@ INLINE auto ScaleArray(Real *&array, unsigned int n, Real sourceMin,
   return true;
 }
 
-template <typename T> INLINE auto Flatten(const Mat3<T> &mat) -> Vec9<T> {
-  Vec9<T> flattened;
+template <typename T> INLINE auto ColwiseFlatten(const Mat<T> &mat) -> Vec<T> {
+  Vec<T> flattened(mat.size());
   unsigned int index = 0;
   for (int jj = 0; jj < mat.cols(); ++jj) {
     for (int ii = 0; ii < mat.rows(); ++ii, ++index) {
@@ -215,20 +215,43 @@ template <typename T> INLINE auto Flatten(const Mat3<T> &mat) -> Vec9<T> {
 }
 
 template <typename T>
-INLINE auto UnFlatten(const Vec<T> &x, int rows, int cols) -> Mat<T> {
+INLINE auto ColwiseUnFlatten(const Vec<T> &x, int rows, int cols) -> Mat<T> {
   ASSERT(x.size() == rows * cols, "x.size(): " + std::to_string(x.size()) +
                                       " rows, cols " + std::to_string(rows) +
                                       " " + std::to_string(cols));
   Mat<T> ret(rows, cols);
-  for (int ii = 0; ii < ret.rows(); ++ii) {
-    for (int jj = 0; jj < cols; ++jj) {
-      ret(ii, jj) = x[ii * cols + jj];
+  unsigned int index = 0;
+  for (int jj = 0; jj < cols; ++jj) {
+    for (int ii = 0; ii < rows; ++ii, ++index) {
+      ret(ii, jj) = x(index);
     }
-    //    ret(ii, 0) = x[3 * ii];
-    //    ret(ii, 1) = x[3 * ii + 1];
-    //    ret(ii, 2) = x[3 * ii + 2];
   }
+  return ret;
+}
 
+template <typename T> INLINE auto RowwiseFlatten(const Mat<T> &mat) -> Vec<T> {
+  Vec<T> flattened(mat.size());
+  unsigned int index = 0;
+  for (int ii = 0; ii < mat.rows(); ++ii) {
+    for (int jj = 0; jj < mat.cols(); ++jj, ++index) {
+      flattened(index) = mat(ii, jj);
+    }
+  }
+  return flattened;
+}
+
+template <typename T>
+INLINE auto RowwiseUnFlatten(const Vec<T> &x, int rows, int cols) -> Mat<T> {
+  ASSERT(x.size() == rows * cols, "x.size(): " + std::to_string(x.size()) +
+                                      " rows, cols " + std::to_string(rows) +
+                                      " " + std::to_string(cols));
+  Mat<T> ret(rows, cols);
+  unsigned int index = 0;
+  for (int ii = 0; ii < rows; ++ii) {
+    for (int jj = 0; jj < cols; ++jj, ++index) {
+      ret(ii, jj) = x(index);
+    }
+  }
   return ret;
 }
 
