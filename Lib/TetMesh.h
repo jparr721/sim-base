@@ -220,55 +220,43 @@ private:
   std::vector<Real> restVolumes;
   std::vector<Real> oneRingAreas;
 
-  void InitializeDataStructures() {
-    rv = v;
-    pinned = Vec<int>::Zero(this->v.rows());
+  /**
+   * @brief Initialize the data structures for the simulation.
+   */
+  void InitializeDataStructures();
 
-    dmInvs.resize(t.rows());
-    partialFPartialxs.resize(t.rows());
-    restVolumes.resize(t.rows());
-    oneRingAreas.resize(v.rows());
-    fs.resize(t.rows());
+  /**
+   * @brief Tetrahedralize this mesh.
+   */
+  void Tetrahedralize();
 
-    // Precompute the Dm Inverses
-    ComputeDmInverses();
-
-    // Precompute the change-of-basis matrices
-    ComputePartialFPartialxs();
-
-    // Compute the tet volumes
-    ComputeTetRestVolumes();
-
-    // Compute the one-ring areas
-    ComputeVertexAreas();
-
-    // Construct the mass matrix and inverse mass matrix
-    BuildMassMatrix();
-
-    needsNewDeformationGradients = true;
-  }
-
-  void Tetrahedralize() {
-    static const std::string switches = "zpQ";
-
-    igl::copyleft::tetgen::tetrahedralize(Mat<Real>(v), Mat<int>(f), switches,
-                                          v, t, f);
-    igl::boundary_facets(t, f);
-
-    // The faces come out of this function in the wrong winding order. So
-    // this fixes that.
-    f.rowwise().reverseInPlace();
-  }
-
+  /**
+   * @brief Build the mass matrix for the tetrahedral mesh.
+   */
   void BuildMassMatrix();
 
+  /**
+   * @brief Build the damping matrix for the tetrahedral mesh.
+   */
   void BuildRayleighDampingMatrix() {}
 
+  /**
+   * @brief Compute the rest volume for each tetrahedron.
+   */
   void ComputeTetRestVolumes();
 
+  /**
+   * @brief Compute the one-ring area for each vertex.
+   */
   void ComputeVertexAreas();
 
+  /**
+   * @brief Compute part of the deformation gradients for each tetrahedron.
+   */
   void ComputeDmInverses();
 
+  /**
+   * @brief Computes the change-of-basis matrices for each tetrahedron.
+   */
   void ComputePartialFPartialxs();
 };

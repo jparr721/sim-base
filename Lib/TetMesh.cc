@@ -155,3 +155,41 @@ void TetMesh::ComputePartialFPartialxs() {
     partialFPartialxs.at(ii) = PartialFPartialx(dmInvs[ii]);
   }
 }
+void TetMesh::InitializeDataStructures() {
+  rv = v;
+  pinned = Vec<int>::Zero(this->v.rows());
+
+  dmInvs.resize(t.rows());
+  partialFPartialxs.resize(t.rows());
+  restVolumes.resize(t.rows());
+  oneRingAreas.resize(v.rows());
+  fs.resize(t.rows());
+
+  // Precompute the Dm Inverses
+  ComputeDmInverses();
+
+  // Precompute the change-of-basis matrices
+  ComputePartialFPartialxs();
+
+  // Compute the tet volumes
+  ComputeTetRestVolumes();
+
+  // Compute the one-ring areas
+  ComputeVertexAreas();
+
+  // Construct the mass matrix and inverse mass matrix
+  BuildMassMatrix();
+
+  needsNewDeformationGradients = true;
+}
+void TetMesh::Tetrahedralize() {
+  static const std::string switches = "zpQ";
+
+  igl::copyleft::tetgen::tetrahedralize(Mat<Real>(v), Mat<int>(f), switches,
+                                        v, t, f);
+  igl::boundary_facets(t, f);
+
+  // The faces come out of this function in the wrong winding order. So
+  // this fixes that.
+  f.rowwise().reverseInPlace();
+}
