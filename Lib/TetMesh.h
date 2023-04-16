@@ -1,6 +1,6 @@
 #pragma once
 
-#include "HyperelasticMaterial.h"
+#include <Energy/HyperelasticMaterial.h>
 #include "LibMath.h"
 #include "OpenGL.h"
 #include "Settings.h"

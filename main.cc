@@ -2,8 +2,8 @@
 #include "ForwardEuler.h"
 #include "LibMath.h"
 #include "OpenGL.h"
-#include "SNH.h"
-#include "STVK.h"
+#include <Energy/Volume/SNH.h>
+#include <Energy/Volume/STVK.h>
 #include "TetMesh.h"
 #include <igl/writeOBJ.h>
 #include <memory>
@@ -27,8 +27,9 @@ auto gCamera = std::make_unique<Camera<float>>();
 std::shared_ptr<TetMesh<Real>> gMesh =
     std::make_shared<TetMesh<Real>>(Meshes / "bunny.obj");
 std::shared_ptr<SNH> gMaterial = std::make_shared<SNH>(30.0, 0.45);
+//std::shared_ptr<STVK> gMaterial = std::make_shared<STVK>(30.0, 0.45);
 std::unique_ptr<ForwardEuler<Real>> gIntegrator =
-    std::make_unique<ForwardEuler<Real>>(gMesh, gMaterial, 1.0 / 2000.0);
+    std::make_unique<ForwardEuler<Real>>(gMesh, gMaterial, 1.0 / 3000.0);
 
 void GlutMotionFunc(int x, int y) {
   gMouseCur[0] = x;

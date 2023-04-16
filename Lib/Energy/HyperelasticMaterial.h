@@ -1,7 +1,7 @@
 #pragma once
 
-#include "LibMath.h"
-#include "Settings.h"
+#include <LibMath.h>
+#include <Settings.h>
 #include <cfloat>
 
 INLINE auto ComputeMu(Real E, Real nu) -> Real { return E / (2 * (1 + nu)); }

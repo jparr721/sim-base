@@ -1,6 +1,6 @@
 #pragma once
 
-#include "HyperelasticMaterial.h"
+#include <Energy/HyperelasticMaterial.h>
 #include "TetMesh.h"
 #include <memory>
 #include <utility>
