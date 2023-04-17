@@ -229,6 +229,17 @@ INLINE auto ColwiseUnFlatten(const Vec<T> &x, int rows, int cols) -> Mat<T> {
   return ret;
 }
 
+template <typename T>
+INLINE auto ConstructSparseMatrix(const Vec<T> &v) -> SparseMat<T> {
+  int n = v.size();
+  SparseMat<T> matrix(n, n);
+  for (int i = 0; i < n; ++i) {
+    matrix.insert(i, i) = v(i);
+  }
+  matrix.makeCompressed();
+  return matrix;
+}
+
 template <typename T> INLINE auto RowwiseFlatten(const Mat<T> &mat) -> Vec<T> {
   Vec<T> flattened(mat.size());
   unsigned int index = 0;

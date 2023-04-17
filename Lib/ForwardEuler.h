@@ -28,14 +28,25 @@ public:
                    (R + this->externalForce) +
                this->dt * this->velocity;
 
-    Mat<T> filter =
-        Mat<T>::Identity(this->tetMesh->DOFs(), this->tetMesh->DOFs());
-
+    Vec<T> perVertexPinned = Vec<T>::Ones(this->tetMesh->DOFs());
     for (int ii = 0; ii < this->tetMesh->pinned.size(); ++ii) {
-      if (this->tetMesh->pinned(ii) == 1) {
-        filter.template block<3, 3>(3 * ii, 3 * ii) = Mat3<T>::Zero();
+      const auto pinned = this->tetMesh->pinned(ii);
+      if (pinned == 1) {
+        perVertexPinned(3 * ii) = 0;
+        perVertexPinned(3 * ii + 1) = 0;
+        perVertexPinned(3 * ii + 2) = 0;
       }
     }
+
+    SparseMat<T> filter = ConstructSparseMatrix(perVertexPinned);
+    //        SparseMat<T>::Identity(this->tetMesh->DOFs(),
+    //        this->tetMesh->DOFs());
+
+//    for (int ii = 0; ii < this->tetMesh->pinned.size(); ++ii) {
+//      if (this->tetMesh->pinned(ii) == 1) {
+//        filter.template block<3, 3>(3 * ii, 3 * ii) = Mat3<T>::Zero();
+//      }
+//    }
 
     Vec<T> positions = this->tetMesh->Positions();
     u = filter * u;
