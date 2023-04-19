@@ -9,7 +9,7 @@ DiscreteElasticRods::DiscreteElasticRods() {
   // 10
   Mat<Real> v(10, 3);
   for (int ii = 0; ii < 10; ++ii) {
-    v.row(ii) = Vec3<Real>::UnitX() * ii;
+    v.row(ii) = Vec3<Real>::UnitY() * ii;
   }
 
   mesh = std::make_shared<StrandMesh>(v);

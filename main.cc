@@ -16,6 +16,7 @@ bool gCameraPanning = false;
 bool gAnimating = false;
 bool gSingleStep = false;
 bool gShowGrid = true;
+bool gShowCenterAxes = true;
 
 int gSteps = 0;
 
@@ -49,20 +50,26 @@ void GlutMotionFunc(int x, int y) {
 }
 
 void GlutMouseFunc(int button, int state, int x, int y) {
-  if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
+  if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
     gCameraRotating = true;
-  if (button == GLUT_LEFT_BUTTON && state == GLUT_UP)
+  }
+  if (button == GLUT_LEFT_BUTTON && state == GLUT_UP) {
     gCameraRotating = false;
+  }
 
-  if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN)
+  if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN) {
     gCameraZooming = true;
-  if (button == GLUT_RIGHT_BUTTON && state == GLUT_UP)
+  }
+  if (button == GLUT_RIGHT_BUTTON && state == GLUT_UP) {
     gCameraZooming = false;
+  }
 
-  if (button == GLUT_MIDDLE_BUTTON && state == GLUT_DOWN)
+  if (button == GLUT_MIDDLE_BUTTON && state == GLUT_DOWN) {
     gCameraPanning = true;
-  if (button == GLUT_MIDDLE_BUTTON && state == GLUT_UP)
+  }
+  if (button == GLUT_MIDDLE_BUTTON && state == GLUT_UP) {
     gCameraPanning = false;
+  }
 
   gMouseCur[0] = x;
   gMouseCur[1] = y;
@@ -85,17 +92,13 @@ void GlutReshapeFunc(int width, int height) {
 
 static void KeyboardControls() {
   std::cout << "Keyboard Controls:" << std::endl;
-  std::cout << "  n: Toggle drawing normals" << std::endl;
   std::cout << "  a: Toggle animation" << std::endl;
   std::cout << "  c: Print camera info" << std::endl;
+  std::cout << "  g: Toggle grid mesh" << std::endl;
   std::cout << "  space: Single step of animation" << std::endl;
 }
 
 void GlutKeyboardFunc(unsigned char key, int x, int y) {
-  if (key == 'n') {
-    //    gMesh->ToggleDrawNormals();
-  }
-
   if (key == ' ') {
     // Pause the animation too
     if (gAnimating) {
@@ -110,6 +113,7 @@ void GlutKeyboardFunc(unsigned char key, int x, int y) {
 
   if (key == 'g') {
     gShowGrid = !gShowGrid;
+    gShowCenterAxes = !gShowCenterAxes;
   }
 
   if (key == 'c') {
@@ -140,22 +144,24 @@ void Display() {
   glPushMatrix();
   glMultMatrixf(gCamera->ToViewMatrix().data());
 
-  glBegin(GL_LINES);
-  // Red - X Axis
-  glColor3f(1, 0, 0);
-  glVertex3f(0, 0, 0);
-  glVertex3f(1, 0, 0);
+  if (gShowCenterAxes) {
+    glBegin(GL_LINES);
+    // Red - X Axis
+    glColor3f(1, 0, 0);
+    glVertex3f(0, 0, 0);
+    glVertex3f(1, 0, 0);
 
-  // Green - Y Axis
-  glColor3f(0, 1, 0);
-  glVertex3f(0, 0, 0);
-  glVertex3f(0, 1, 0);
+    // Green - Y Axis
+    glColor3f(0, 1, 0);
+    glVertex3f(0, 0, 0);
+    glVertex3f(0, 1, 0);
 
-  // Blue - Z Axis
-  glColor3f(0, 0, 1);
-  glVertex3f(0, 0, 0);
-  glVertex3f(0, 0, 1);
-  glEnd();
+    // Blue - Z Axis
+    glColor3f(0, 0, 1);
+    glVertex3f(0, 0, 0);
+    glVertex3f(0, 0, 1);
+    glEnd();
+  }
 
   float density = 0.15;
   float fogColor[4] = {0.15, 0.15, 0.15, 1.0};
@@ -182,8 +188,6 @@ void Display() {
 static void GlutIdle() {
   if (gAnimating || gSingleStep) {
     gScene->Step(Vec3<Real>(0, -9, 0));
-    //    gIntegrator->AddGravity(Vec3<Real>(0, -9, 0));
-    //    gIntegrator->Step();
 
     ++gSteps;
 
@@ -212,7 +216,7 @@ auto main(int argc, char **argv) -> int {
   glutInit(&argc, argv);
   glutInitDisplayMode(GLUT_DEPTH | GLUT_RGBA);
   glutInitWindowSize(gScreenSize.x(), gScreenSize.y());
-  glutCreateWindow("Testing");
+  glutCreateWindow("Simulator");
   glutDisplayFunc(Display);
   glutMouseFunc(GlutMouseFunc);
   glutMotionFunc(GlutMotionFunc);

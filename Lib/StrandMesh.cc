@@ -1,16 +1,45 @@
 #include "OpenGL.h"
-#include <LibGui.h>
 #include <StrandMesh.h>
 
 StrandMesh::StrandMesh(const Mat<Real> &points) {
   // Fill modified bishop frames from the bag of points
   ASSERT(points.rows() % 2 == 0, "The number of points must be even");
 
+  // Create the rod segments
   WalkBishopFrames(points);
 
 #ifndef NDEBUG
   std::cout << "Created " << rodSegments.size() << " rod segments" << std::endl;
 #endif
+
+  // Create bending points
+  for (int ii = 0; ii < points.rows() - 2; ++ii) {
+    const Vec3<Real> p0 = points.row(ii);
+    const Vec3<Real> p1 = points.row(ii + 1);
+    const Vec3<Real> p2 = points.row(ii + 2);
+
+    // We need two edges for the curvature binormal
+    // e^i-1
+    const Vec3<Real> e0 = p1 - p0;
+
+    // e^i
+    const Vec3<Real> e1 = p2 - p1;
+
+    // (kb)_i  = 2 * e^i-1 x e^i / (||e^i-1|| ||e^i|| + e^i-1 . e^i)
+    // Equation from Bergou et al. '08, eq 1.
+    const Vec3<Real> curvatureBinormal =
+        2 * e0.cross(e1) / (e0.norm() * e1.norm() + e0.dot(e1));
+
+    // Insert the bend segment and we are done.
+    bendableSegments.emplace_back(p0, p1, p2, curvatureBinormal);
+  }
+
+#ifndef NDEBUG
+  std::cout << "Created " << bendableSegments.size() << " bendable segments"
+            << std::endl;
+#endif
+
+  UpdateMaterialCurvature();
 }
 
 void StrandMesh::Draw() {
@@ -43,7 +72,6 @@ void StrandMesh::Draw() {
 }
 
 void StrandMesh::WalkBishopFrames(const Mat<Real> &points) {
-  // Remove existing segments
   rodSegments.clear();
 
   // Before we can parallel transport, we must first initialize the frame at
@@ -89,13 +117,52 @@ void StrandMesh::WalkBishopFrames(const Mat<Real> &points) {
   }
 }
 
+void StrandMesh::UpdateBishopFrames() {
+  Mat<Real> points;
+  points.resize(rodSegments.size(), 3);
+  for (int ii = 0; ii < rodSegments.size(); ++ii) {
+    points.row(ii) = rodSegments.at(ii).x0;
+  }
+}
+
+void StrandMesh::UpdateMaterialCurvature() {
+  for (int ii = 0; ii < rodSegments.size(); ++ii) {
+    for (int jj = ii - 1; jj <= ii; ++jj) {
+      if (jj < 0 || jj >= rodSegments.size() - 1) {
+        continue;
+      }
+
+      const auto &rodSegment = rodSegments.at(jj);
+
+      // [Bergou et al. '08, 4.1.2]
+      const Vec3<Real> m1 =
+          std::cos(rodSegment.theta) * rodSegment.bishopFrame.u +
+          std::sin(rodSegment.theta) * rodSegment.bishopFrame.v;
+      const Vec3<Real> m2 =
+          -std::sin(rodSegment.theta) * rodSegment.bishopFrame.u +
+          std::cos(rodSegment.theta) * rodSegment.bishopFrame.v;
+
+      // [Bergou et al. '08, Equation 2]
+      auto &bendSegment = bendableSegments.at(jj);
+      if (ii == jj) {
+        bendSegment.gamma = Vec2<Real>(bendSegment.curvatureBinormal.dot(m2),
+                                       -bendSegment.curvatureBinormal.dot(m1));
+      } else {
+        bendSegment.prevGamma =
+            Vec2<Real>(bendSegment.curvatureBinormal.dot(m2),
+                       -bendSegment.curvatureBinormal.dot(m1));
+      }
+    }
+  }
+}
+
 ModifiedBishopFrame::ModifiedBishopFrame(const Vec3<Real> &x0,
                                          const Vec3<Real> &x1,
                                          const Vec3<Real> &t,
                                          const Vec3<Real> &u,
                                          const Vec3<Real> &v)
-    : x0(x0), x1(x1), edge((x0 - x1).eval()), bishopFrame({t, u, v}), theta0(0),
-      theta1(0) {}
+    : x0(x0), x1(x1), edge((x0 - x1).eval()), bishopFrame({t, u, v}), theta(0) {
+}
 
 auto operator<<(std::ostream &os, const ModifiedBishopFrame &frame)
     -> std::ostream & {
@@ -105,8 +172,6 @@ auto operator<<(std::ostream &os, const ModifiedBishopFrame &frame)
   os << "t0 = " << frame.bishopFrame.t.transpose() << ", ";
   os << "u = " << frame.bishopFrame.u.transpose() << ", ";
   os << "v = " << frame.bishopFrame.v.transpose() << ", ";
-  os << "theta0 = " << frame.theta0 << ", ";
-  os << "theta1 = " << frame.theta1;
-  os << std::endl;
+  os << "theta = " << frame.theta << ", ";
   return os;
 }
