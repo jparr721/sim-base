@@ -1,24 +1,25 @@
 #pragma once
 
-#include <Energy/HyperelasticMaterial.h>
 #include "TetMesh.h"
+#include <Energy/Volume/HyperelasticMaterial.h>
 #include <memory>
 #include <utility>
 
-template <typename T> class Timestepper {
+class Timestepper {
 public:
   Timestepper(std::shared_ptr<TetMesh> tetMesh,
-              std::shared_ptr<HyperelasticMaterial> material,
-              T dt = 1.0 / 300.0, T rayleighAlpha = 0.0, T rayleighBeta = 0.0)
+                 std::shared_ptr<HyperelasticMaterial> material,
+                 Real dt = 1.0 / 300.0, Real rayleighAlpha = 0.0,
+                 Real rayleighBeta = 0.0)
       : tetMesh(std::move(tetMesh)), material(std::move(material)), dt(dt),
         rayleighAlpha(rayleighAlpha), rayleighBeta(rayleighBeta),
-        externalForce(Vec<T>::Zero(this->tetMesh->DOFs())),
-        velocity(Vec<T>::Zero(this->tetMesh->DOFs())) {}
+        externalForce(Vec<Real>::Zero(this->tetMesh->DOFs())),
+        velocity(Vec<Real>::Zero(this->tetMesh->DOFs())) {}
 
   virtual void Step() = 0;
-  INLINE void AddGravity(const Vec3<T> &gravity) {
+  INLINE void AddGravity(const Vec3<Real> &gravity) {
     for (int ii = 0; ii < tetMesh->v.rows(); ++ii) {
-      const T area = tetMesh->OneRingArea(ii);
+      const Real area = tetMesh->OneRingArea(ii);
       this->externalForce.template segment<3>(3 * ii) = area * gravity;
     }
   }
@@ -27,13 +28,13 @@ protected:
   std::shared_ptr<TetMesh> tetMesh;
   std::shared_ptr<HyperelasticMaterial> material;
 
-  T dt;
-  T rayleighAlpha;
-  T rayleighBeta;
+  Real dt;
+  Real rayleighAlpha;
+  Real rayleighBeta;
 
   // Externally applied forces
-  Vec<T> externalForce;
+  Vec<Real> externalForce;
 
   // Current velocity
-  Vec<T> velocity;
+  Vec<Real> velocity;
 };

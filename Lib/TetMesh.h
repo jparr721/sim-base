@@ -3,7 +3,7 @@
 #include "LibMath.h"
 #include "OpenGL.h"
 #include "Settings.h"
-#include <Energy/HyperelasticMaterial.h>
+#include <Energy/Volume/HyperelasticMaterial.h>
 #include <igl/boundary_facets.h>
 #include <igl/copyleft/tetgen/tetrahedralize.h>
 #include <igl/per_vertex_normals.h>

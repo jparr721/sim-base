@@ -278,3 +278,14 @@ INLINE auto CloserTo(const T &lhs, const T &rhs, const T &value) -> T {
 
   return labsdiff > rabsdiff ? rhs : lhs;
 }
+
+INLINE auto GetOrthogonalVectors(const Vec3<Real> &v)
+    -> std::pair<Vec3<Real>, Vec3<Real>> {
+  Vec3<Real> u = v.normalized();
+  Vec3<Real> r = Vec3<Real>::Random();
+  double d = r.dot(u);
+  r -= d * u;
+  Vec3<Real> w = r.normalized();
+  Vec3<Real> t = u.cross(w);
+  return {w, t};
+}

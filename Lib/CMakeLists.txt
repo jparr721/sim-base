@@ -1,6 +1,9 @@
 file(GLOB HEADERS "*.h")
 file(GLOB SOURCES "*.cc")
 
+file(GLOB SCENES_HEADERS "Scenes/*.h")
+file(GLOB SCENES_SOURCES "Scenes/*.cc")
+
 file(GLOB ENERGY_STRAND_HEADERS "Energy/Strand/*.h")
 file(GLOB ENERGY_STRAND_SOURCES "Energy/Strand/*.cc")
 
@@ -9,6 +12,7 @@ file(GLOB ENERGY_VOLUME_SOURCES "Energy/Volume/*.cc")
 
 add_library(base STATIC
         ${HEADERS} ${SOURCES}
+        ${SCENES_HEADERS} ${SCENES_SOURCES}
         ${ENERGY_STRAND_HEADERS} ${ENERGY_STRAND_SOURCES}
         ${ENERGY_VOLUME_HEADERS} ${ENERGY_VOLUME_SOURCES})
 include(GNUInstallDirs)

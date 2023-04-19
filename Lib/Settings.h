@@ -40,7 +40,7 @@
 // Namespace declarations to make life easier
 namespace fs = std::filesystem;
 
-GLOBAL fs::path Meshes = fs::path(__FILE__).parent_path().parent_path() / "Meshes";
+inline const fs::path Meshes = fs::path(__FILE__).parent_path().parent_path() / "Meshes";
 
 #define VERSION_MAJOR 0
 #define VERSION_MINOR 1

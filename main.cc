@@ -2,9 +2,10 @@
 #include "ForwardEuler.h"
 #include "LibMath.h"
 #include "OpenGL.h"
+#include "TetMesh.h"
 #include <Energy/Volume/SNH.h>
 #include <Energy/Volume/STVK.h>
-#include "TetMesh.h"
+#include <Scenes/VolumeScene.h>
 #include <igl/writeOBJ.h>
 #include <memory>
 
@@ -24,12 +25,7 @@ int gSteps = 0;
 
 auto gCamera = std::make_unique<Camera<float>>();
 
-std::shared_ptr<TetMesh> gMesh =
-    std::make_shared<TetMesh>(Meshes / "bunny.obj");
-std::shared_ptr<SNH> gMaterial = std::make_shared<SNH>(30.0, 0.45);
-//std::shared_ptr<STVK> gMaterial = std::make_shared<STVK>(30.0, 0.45);
-std::unique_ptr<ForwardEuler<Real>> gIntegrator =
-    std::make_unique<ForwardEuler<Real>>(gMesh, gMaterial, 1.0 / 3000.0);
+auto gBunnyScene = std::make_unique<CoarseBunnyExplicit>();
 
 void GlutMotionFunc(int x, int y) {
   gMouseCur[0] = x;
@@ -99,7 +95,7 @@ static void KeyboardControls() {
 
 void GlutKeyboardFunc(unsigned char key, int x, int y) {
   if (key == 'n') {
-    gMesh->ToggleDrawNormals();
+    //    gMesh->ToggleDrawNormals();
   }
 
   if (key == ' ') {
@@ -172,7 +168,7 @@ void Display() {
   glHint(GL_FOG_HINT, GL_NICEST);
   DrawGLGrid(100, 0.25);
 
-  gMesh->Draw();
+  gBunnyScene->Draw();
 
   glPopMatrix();
   glFlush();
@@ -180,8 +176,9 @@ void Display() {
 
 static void GlutIdle() {
   if (gAnimating || gSingleStep) {
-    gIntegrator->AddGravity(Vec3<Real>(0, -9, 0));
-    gIntegrator->Step();
+    gBunnyScene->Step(Vec3<Real>(0, -9, 0));
+    //    gIntegrator->AddGravity(Vec3<Real>(0, -9, 0));
+    //    gIntegrator->Step();
 
     ++gSteps;
 
@@ -190,26 +187,16 @@ static void GlutIdle() {
     }
   }
 
-  if (gSteps % 100 == 0) {
+  if (gSteps % 50 == 0) {
     glutPostRedisplay();
   }
 }
 
 auto main(int argc, char **argv) -> int {
   if (argc > 1) {
-    gMesh = std::make_shared<TetMesh>(argv[1]);
-
   } else {
-    std::cout << "No mesh specified, defaulting to Meshes/bunny.obj"
+    std::cout << "No Scene specified, defaulting to Scenes/CoarseBunnyExplicit"
               << std::endl;
-  }
-
-  // Pin the top vertices of the mesh in gMesh
-  for (int ii = 0; ii < gMesh->v.rows(); ++ii) {
-    // Find the top vertices
-    if (gMesh->v(ii, 1) > 0.9) {
-      gMesh->PinVertex(ii);
-    }
   }
 
   KeyboardControls();
