@@ -2,15 +2,11 @@
 
 #include <LibMath.h>
 
-struct MaterialFrame {
-  // Normal
-  Vec3<Real> m1;
-
-  // Binormal
-  Vec3<Real> m2;
-
-  // Tangent
-  Vec3<Real> tangent;
+struct BishopFrame {
+  // The tangent should always be defined
+  Vec3<Real> t = Vec3<Real>::Zero();
+  Vec3<Real> u = Vec3<Real>::Zero();
+  Vec3<Real> v = Vec3<Real>::Zero();
 };
 
 /**
@@ -22,35 +18,35 @@ struct ModifiedBishopFrame {
   // These are the values controlling the bishop frame
   Vec3<Real> x0;
   Vec3<Real> x1;
-  Vec3<Real> e0;
+  Vec3<Real> edge;
 
   // This is the bishop frame
-  Vec3<Real> t0;
-  Vec3<Real> u;
-  Vec3<Real> v;
+  BishopFrame bishopFrame;
 
   // This is the "modified" portion, the theta
   Real theta0;
   Real theta1;
 
   // Constructor which takes only x0 and x1
-  ModifiedBishopFrame(const Vec3<Real> &x0, const Vec3<Real> &x1);
+  ModifiedBishopFrame(const Vec3<Real> &x0, const Vec3<Real> &x1,
+                      const Vec3<Real> &t, const Vec3<Real> &u,
+                      const Vec3<Real> &v);
+  friend auto operator<<(std::ostream &os, const ModifiedBishopFrame &frame)
+      -> std::ostream &;
 };
 
 class StrandMesh {
+public:
   std::vector<ModifiedBishopFrame> rodSegments;
 
   // N x 1 boolean vector indicating whether a vertex is pinned. This matches
   // the dimension of v.
   Vec<int> pinned;
 
-  StrandMesh(const Mat3<Real> &points);
+  StrandMesh(const Mat<Real> &points);
 
   void Draw();
 
-  auto CurvatureBinormal(const Vec3<Real> &e0, const Vec3<Real> &e1)
-      -> Vec3<Real>;
-
-  auto MaterialCurvature(const Vec3<Real> &curvatureBinormal,
-                         const MaterialFrame &frame) -> Vec2<Real>;
+private:
+  void WalkBishopFrames(const Mat<Real> &points);
 };

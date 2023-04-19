@@ -7,6 +7,7 @@
 #include <Settings.h>
 #include <cmath>
 #include <iostream>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -98,17 +99,9 @@ auto Equivalent(const Vec3<Real> &a, const Vec3<Real> &b,
   return true;
 }
 
-template <typename Real>
-INLINE auto AngleBetweenVectors(const Vec2<Real> &a, const Vec2<Real> &b)
-    -> Real {
-  return std::acos((a.x() * b.x() + a.y() * b.y()) / (a.norm() * b.norm()));
-}
-
-template <typename Real>
-INLINE auto AngleBetweenVectors(const Vec3<Real> &a, const Vec3<Real> &b)
-    -> Real {
-  return std::acos((a.x() * b.x() + a.y() * b.y() + a.z() * b.z()) /
-                   (a.norm() * b.norm()));
+template <typename T>
+INLINE auto AngleBetweenVectors(const Vec3<T> &a, const Vec3<T> &b) -> T {
+  return std::acos(a.dot(b) / (a.norm() * b.norm()));
 }
 
 template <typename Real>
@@ -288,4 +281,66 @@ INLINE auto GetOrthogonalVectors(const Vec3<Real> &v)
   Vec3<Real> w = r.normalized();
   Vec3<Real> t = u.cross(w);
   return {w, t};
+}
+
+INLINE auto GetOrthogonalVector(const Vec3<Real> &u) -> Vec<Real> {
+  ASSERT(u.norm() != 0, "Degenerate normal found");
+
+  Vec3<Real> v = Vec3<Real>::Zero();
+  int max = 0;
+  for (int i = 0; i < u.size(); ++i) {
+    if (u[i] == 0) {
+      v[i] = 1;
+      return v;
+    }
+    if (fabs(u[i]) > fabs(u[max])) {
+      max = i;
+    }
+  }
+
+  int idx = (max + 1) % u.size();
+  v[idx] = u[max];
+  v[max] = -u[idx];
+  v.normalize();
+
+  ASSERT2(std::abs(u.dot(v)) < 1e-10);
+
+  return v;
+}
+
+INLINE auto ParallelTransport(const Vec3<Real> &t, const Vec3<Real> &u,
+                              const Vec3<Real> &v) -> Vec3<Real> {
+  // Compute the bitangent of u and v
+  Vec3<Real> bitangent = u.cross(v);
+
+  // If it is the zero vector, u and v are the same value.
+  if (bitangent.norm() == 0) {
+    return t;
+  }
+
+  // Normalize
+  bitangent.normalize();
+
+  // Remove the similarity between the first u and the bitangent
+  bitangent = (bitangent - (bitangent.dot(u)) * u).normalized();
+
+  // Do the same with v.
+  bitangent = (bitangent - (bitangent.dot(v)) * v).normalized();
+
+  // Get two orthogonal vectors to u and v
+  const Vec3<Real> n1 = u.cross(bitangent);
+  const Vec3<Real> n2 = v.cross(bitangent);
+
+  return t.dot(u) * v + t.dot(n1) * n2 + t.dot(bitangent) * bitangent;
+}
+
+INLINE auto GenerateRandomNumber01() -> Real {
+  // Create a random number generator engine
+  static std::default_random_engine generator;
+
+  // Create a distribution for generating random numbers in the range [0, 1]
+  static std::uniform_real_distribution<Real> distribution(0.0, 1.0);
+
+  // Generate a random number and return it
+  return distribution(generator);
 }

@@ -1,11 +1,6 @@
 #include "Camera.h"
-#include "ForwardEuler.h"
-#include "LibMath.h"
 #include "OpenGL.h"
-#include "TetMesh.h"
-#include <Energy/Volume/SNH.h>
-#include <Energy/Volume/STVK.h>
-#include <Scenes/VolumeScene.h>
+#include <Scenes/StrandScene.h>
 #include <igl/writeOBJ.h>
 #include <memory>
 
@@ -20,12 +15,15 @@ bool gCameraZooming = false;
 bool gCameraPanning = false;
 bool gAnimating = false;
 bool gSingleStep = false;
+bool gShowGrid = true;
 
 int gSteps = 0;
 
 auto gCamera = std::make_unique<Camera<float>>();
 
-auto gBunnyScene = std::make_unique<CoarseBunnyExplicit>();
+// UNCOMMENT HERE FOR BUNNY SCENE
+auto gScene = std::make_unique<DiscreteElasticRods>();
+// auto gScene = std::make_unique<CoarseBunnyExplicit>();
 
 void GlutMotionFunc(int x, int y) {
   gMouseCur[0] = x;
@@ -110,6 +108,10 @@ void GlutKeyboardFunc(unsigned char key, int x, int y) {
     gAnimating = !gAnimating;
   }
 
+  if (key == 'g') {
+    gShowGrid = !gShowGrid;
+  }
+
   if (key == 'c') {
     std::cout << "Radius " << gCamera->GetR() << std::endl;
     std::cout << "Theta " << gCamera->GetTheta() << std::endl;
@@ -166,9 +168,12 @@ void Display() {
   glFogfv(GL_FOG_COLOR, fogColor);
   glFogf(GL_FOG_DENSITY, density);
   glHint(GL_FOG_HINT, GL_NICEST);
-  DrawGLGrid(100, 0.25);
 
-  gBunnyScene->Draw();
+  if (gShowGrid) {
+    DrawGLGrid(100, 0.25);
+  }
+
+  gScene->Draw();
 
   glPopMatrix();
   glFlush();
@@ -176,7 +181,7 @@ void Display() {
 
 static void GlutIdle() {
   if (gAnimating || gSingleStep) {
-    gBunnyScene->Step(Vec3<Real>(0, -9, 0));
+    gScene->Step(Vec3<Real>(0, -9, 0));
     //    gIntegrator->AddGravity(Vec3<Real>(0, -9, 0));
     //    gIntegrator->Step();
 
