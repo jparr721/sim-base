@@ -16,7 +16,7 @@ INLINE auto RotationMatrixAroundNormal(const Vec3<Real> &axisAngle)
   return rotationMatrix;
 }
 
-auto OrthogonalVector(const Vec3<Real> &v) -> Vec3<Real> {
+INLINE auto OrthogonalVector(const Vec3<Real> &v) -> Vec3<Real> {
   // Find an arbitrary vector
   Vec3<Real> arbitrary = Vec3<Real>::UnitX();
   if (v.isApprox(Vec3<Real>::UnitX())) {
