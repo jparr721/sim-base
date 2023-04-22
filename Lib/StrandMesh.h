@@ -7,6 +7,6 @@ class StrandMesh {
 public:
   std::shared_ptr<DiscreteElasticRod> der;
 
-  StrandMesh(const Mat<Real> &points);
+  explicit StrandMesh(const Mat<Real> &points);
   void Draw();
 };

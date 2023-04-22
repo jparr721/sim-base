@@ -1,9 +1,8 @@
 #include "OpenGL.h"
 #include <StrandMesh.h>
 
-StrandMesh::StrandMesh(const Mat<Real> &points) {
-  der = std::make_shared<DiscreteElasticRod>(points);
-}
+StrandMesh::StrandMesh(const Mat<Real> &points)
+    : der(new DiscreteElasticRod(points)) {}
 
 void StrandMesh::Draw() {
   glBegin(GL_LINES);

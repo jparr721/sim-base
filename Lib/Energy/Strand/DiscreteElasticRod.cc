@@ -50,6 +50,13 @@ void DiscreteElasticRod::Initialize() {
 
   // Compute the bishop frames with the roated parallel transport
   UpdateBishopFrames();
+
+  // Get the curvature update
+  UpdateMaterialCurvatures();
+
+  // Set rest curvatures
+  restPrevCurvature = prevCurvature;
+  restNextCurvature = nextCurvature;
 }
 
 void DiscreteElasticRod::UpdateBishopFrames() {
@@ -75,6 +82,31 @@ void DiscreteElasticRod::UpdateBishopFrames() {
   }
 }
 
+void DiscreteElasticRod::UpdateMaterialCurvatures() {
+  nextCurvature.clear();
+  prevCurvature.clear();
+
+  for (int ii = 1; ii < kbs.size(); ++ii) {
+    for (int jj = ii - 1; jj <= ii; ++jj) {
+      const Vec3<Real> kb = kbs.at(jj);
+      const Real theta = thetas(jj);
+      const Real cosTheta = std::cos(theta);
+      const Real sinTheta = std::sin(theta);
+
+      const Vec3<Real> m1 =
+          cosTheta * frames.at(jj).u + sinTheta * frames.at(jj).v;
+      const Vec3<Real> m2 =
+          -sinTheta * frames.at(jj).u + cosTheta * frames.at(jj).v;
+
+      if (jj == ii - 1) {
+        prevCurvature.emplace_back(ComputeW(kb, m1, m2));
+      } else {
+        nextCurvature.emplace_back(ComputeW(kb, m1, m2));
+      }
+    }
+  }
+}
+
 void DiscreteElasticRod::Computekbs() {
   kbs.clear();
   for (int ii = 0; ii < nRods - 1; ++ii) {
@@ -86,4 +118,9 @@ void DiscreteElasticRod::Computekbs() {
     kbs.emplace_back(2.0 * e0.cross(e1) /
                      (restLengths(ii) * restLengths(ii + 1) + e0.dot(e1)));
   }
+}
+
+auto DiscreteElasticRod::ComputeW(const Vec3<Real> &kb, const Vec3<Real> &m1,
+                                  const Vec3<Real> &m2) -> Vec2<Real> {
+  return {kb.dot(m2), -kb.dot(m1)};
 }

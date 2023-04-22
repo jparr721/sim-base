@@ -49,6 +49,11 @@ public:
 
   std::vector<Frame> frames;
   std::vector<Vec3<Real>> kbs;
+  std::vector<Vec2<Real>> nextCurvature;
+  std::vector<Vec2<Real>> prevCurvature;
+
+  std::vector<Vec2<Real>> restNextCurvature;
+  std::vector<Vec2<Real>> restPrevCurvature;
 
   Vec<Real> velocities;
   Vec<Real> thetas;
@@ -63,6 +68,10 @@ public:
    * Update the bishop frame with a rotation matrix
    */
   void UpdateBishopFrames();
+  void UpdateMaterialCurvatures();
 
   void Computekbs();
+
+  auto ComputeW(const Vec3<Real> &kb, const Vec3<Real> &m1,
+                const Vec3<Real> &m2) -> Vec2<Real>;
 };
