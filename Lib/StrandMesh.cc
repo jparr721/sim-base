@@ -62,7 +62,7 @@ void StrandMesh::Draw() {
   glEnd();
 
   glBegin(GL_POINTS);
-  glPointSize(10);
+  glPointSize(20);
   for (const auto &rodSegment : rodSegments) {
     glColor3f(1, 1, 1);
     glVertex3dv(rodSegment.x0.data());
@@ -117,12 +117,20 @@ void StrandMesh::WalkBishopFrames(const Mat<Real> &points) {
   }
 }
 
+
+void UpdateQuasistaticFrame() {
+
+}
+
 void StrandMesh::UpdateBishopFrames() {
   Mat<Real> points;
-  points.resize(rodSegments.size(), 3);
-  for (int ii = 0; ii < rodSegments.size(); ++ii) {
+  points.resize(rodSegments.size() + 1, 3);
+  for (int ii = 0; ii < rodSegments.size() + 1; ++ii) {
     points.row(ii) = rodSegments.at(ii).x0;
   }
+  points.row(rodSegments.size()) = rodSegments.back().x1;
+
+  WalkBishopFrames(points);
 }
 
 void StrandMesh::UpdateMaterialCurvature() {

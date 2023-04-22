@@ -15,8 +15,8 @@ bool gCameraZooming = false;
 bool gCameraPanning = false;
 bool gAnimating = false;
 bool gSingleStep = false;
-bool gShowGrid = true;
-bool gShowCenterAxes = true;
+bool gShowGrid = false;
+bool gShowCenterAxes = false;
 
 int gSteps = 0;
 

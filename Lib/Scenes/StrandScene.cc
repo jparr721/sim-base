@@ -5,11 +5,15 @@ void StrandScene::Step(const Vec3<Real> &gravity) {}
 void StrandScene::Draw() { mesh->Draw(); }
 
 DiscreteElasticRods::DiscreteElasticRods() {
-  // Make a trivial point set of increasing values in the x direction from 1 -
-  // 10
-  Mat<Real> v(10, 3);
-  for (int ii = 0; ii < 10; ++ii) {
-    v.row(ii) = Vec3<Real>::UnitY() * ii;
+  // Construct a trivial point set
+  std::vector<Vec3<Real>> points;
+  for (Real ii = 0; ii < 3; ii += 0.5) {
+    points.emplace_back(ii, ii * ii * 0.25, 0);
+  }
+
+  Mat<Real> v(points.size(), 3);
+  for (int ii = 0; ii < points.size(); ++ii) {
+    v.row(ii) = points.at(ii);
   }
 
   mesh = std::make_shared<StrandMesh>(v);
