@@ -223,7 +223,7 @@ INLINE auto ColwiseUnFlatten(const Vec<T> &x, int rows, int cols) -> Mat<T> {
 }
 
 template <typename T>
-INLINE auto ConstructSparseMatrix(const Vec<T> &v) -> SparseMat<T> {
+INLINE auto ConstructDiagonalSparseMatrix(const Vec<T> &v) -> SparseMat<T> {
   int n = v.size();
   SparseMat<T> matrix(n, n);
   for (int i = 0; i < n; ++i) {

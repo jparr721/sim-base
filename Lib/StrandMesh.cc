@@ -39,3 +39,7 @@ void StrandMesh::Draw() {
   }
   glEnd();
 }
+
+auto StrandMesh::ComputeMaterialForces() -> Vec<Real> {
+  // Compute this and try to run it
+}

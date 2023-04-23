@@ -60,7 +60,11 @@ public:
   Vec<Real> lengths;
   Vec<Real> restLengths;
 
-  DiscreteElasticRod(Mat<Real> vertices);
+  SparseMat<Real> Minv;
+
+  explicit DiscreteElasticRod(Mat<Real> vertices);
+
+  [[nodiscard]] INLINE auto DOFs() const -> int { return 3 * vertices.rows(); }
 
   void Initialize();
 

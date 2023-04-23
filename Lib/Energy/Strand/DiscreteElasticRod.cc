@@ -7,8 +7,14 @@ DiscreteElasticRod::DiscreteElasticRod(Mat<Real> vertices)
 
   // initial position of centerline in rest state
   restVertices = this->vertices;
+
+  // Initialize the mass matrix - uniform mass right now.
+  Vec<Real> masses = Vec<Real>::Ones(DOFs());
+  ConstructDiagonalSparseMatrix(masses);
+
   Initialize();
 }
+
 void DiscreteElasticRod::Initialize() {
   // initial velocity of centerline
   velocities = Vec<Real>::Zero(vertices.rows());
@@ -27,7 +33,7 @@ void DiscreteElasticRod::Initialize() {
   }
 
   // free, clamped or body-coupled ends
-  // assume that the conditions are always clamped on one
+  // assume that the conditions are always clamped on one end
   // TODO
 
   // Make initial frames
@@ -43,12 +49,13 @@ void DiscreteElasticRod::Initialize() {
   initialFrame.v = initialFrame.t.cross(initialFrame.u);
 
   // Insert the frame
-  frames.emplace_back(initialFrame);
+  frames.resize(nRods);
+  frames.at(0) = initialFrame;
 
   // Compute the curvature binormals
   Computekbs();
 
-  // Compute the bishop frames with the roated parallel transport
+  // Compute the bishop frames with the rotated parallel transport
   UpdateBishopFrames();
 
   // Get the curvature update
@@ -60,25 +67,25 @@ void DiscreteElasticRod::Initialize() {
 }
 
 void DiscreteElasticRod::UpdateBishopFrames() {
+  ASSERT2(!kbs.empty());
   for (int ii = 1; ii < nRods; ++ii) {
     // Get the normalized tangent vector
     Vec3<Real> ti = vertices.row(ii + 1) - vertices.row(ii);
     ti.normalize();
 
-    // Get an orthogonal vector between ti and ti-1
-    const Vec3<Real> n = ti.cross(frames.at(ii - 1).t);
-
-    // Compute the rotation matrix with the vector n
-    const Mat3<Real> rotation = RotationMatrixAroundNormal(n);
+    // We define the rotation matrix as the rotation around the curvature
+    // binormal
+    const Mat3<Real> rotation = RotationMatrixAroundNormal(kbs.at(ii - 1));
 
     // Transport the last frame up with the rotation
+    // Iteratively define ui = Pi(ui-1)
     Vec3<Real> u = rotation * frames.at(ii - 1).u;
     u.normalize();
 
     const Vec3<Real> v = ti.cross(u);
 
     // Insert the frame
-    frames.emplace_back(ti, u, v);
+    frames.at(ii) = Frame(ti, u, v);
   }
 }
 

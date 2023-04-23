@@ -1,7 +1,7 @@
 #pragma once
 
 #include <StrandMesh.h>
-#include <Timestepper.h>
+#include <TimestepperVolume.h>
 #include <memory>
 
 struct StrandScene {

@@ -1,15 +1,15 @@
 #pragma once
 
-#include "Timestepper.h"
+#include "TimestepperVolume.h"
 #include <Energy/Volume/HyperelasticMaterial.h>
 
-class ForwardEuler : public Timestepper {
+class ForwardEulerVolume : public TimestepperVolume {
 public:
-  ForwardEuler(std::shared_ptr<TetMesh> tetMesh,
-               std::shared_ptr<HyperelasticMaterial> material,
-               Real dt = 1.0 / 300.0, Real rayleighAlpha = 0.0,
-               Real rayleighBeta = 0.0)
-      : Timestepper(std::move(tetMesh), std::move(material), dt, rayleighAlpha,
+  ForwardEulerVolume(std::shared_ptr<TetMesh> tetMesh,
+                     std::shared_ptr<HyperelasticMaterial> material,
+                     Real dt = 1.0 / 3000.0, Real rayleighAlpha = 0.0,
+                     Real rayleighBeta = 0.0)
+      : TimestepperVolume(std::move(tetMesh), std::move(material), dt, rayleighAlpha,
                     rayleighBeta) {}
 
   INLINE void Step() override {
@@ -40,7 +40,7 @@ public:
       }
     }
 
-    SparseMat<Real> filter = ConstructSparseMatrix(perVertexPinned);
+    SparseMat<Real> filter = ConstructDiagonalSparseMatrix(perVertexPinned);
     Vec<Real> positions = this->tetMesh->Positions();
     u = filter * u;
     Vec<Real> dx = u;

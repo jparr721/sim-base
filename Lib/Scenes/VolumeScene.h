@@ -2,12 +2,12 @@
 
 #include <Energy/Volume/HyperelasticMaterial.h>
 #include <TetMesh.h>
-#include <Timestepper.h>
+#include <TimestepperVolume.h>
 
 struct VolumeScene {
   std::shared_ptr<TetMesh> mesh;
   std::shared_ptr<HyperelasticMaterial> material;
-  std::shared_ptr<Timestepper> integrator;
+  std::shared_ptr<TimestepperVolume> integrator;
 
   void Step(const Vec3<Real> &gravity);
   void Draw();
