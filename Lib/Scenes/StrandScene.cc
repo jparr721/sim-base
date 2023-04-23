@@ -1,6 +1,9 @@
 #include "StrandScene.h"
 
-void StrandScene::Step(const Vec3<Real> &gravity) {}
+void StrandScene::Step(const Vec3<Real> &gravity) {
+  integrator->AddGravity(gravity);
+  integrator->Step();
+}
 
 void StrandScene::Draw() { mesh->Draw(); }
 
@@ -17,4 +20,6 @@ DiscreteElasticRods::DiscreteElasticRods() {
   }
 
   mesh = std::make_shared<StrandMesh>(v);
+  integrator =
+      std::make_unique<ForwardEulerStrand>(mesh, nullptr, 1.0 / 3000.0);
 }

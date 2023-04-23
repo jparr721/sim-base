@@ -17,7 +17,7 @@ public:
     this->tetMesh->ComputeDeformationGradients();
 
     // Compute the forces
-    const Vec<Real> &R = this->tetMesh->ComputeMaterialForces(this->material);
+    const Vec<Real> R = this->tetMesh->ComputeMaterialForces(this->material);
 
     // If in debug, print out R norm to get an idea of the intensity
 #ifndef NDEBUG

@@ -41,6 +41,7 @@ template <typename Real> using Vec = Eigen::Matrix<Real, -1, 1>;
 
 template <typename Real> using Mat2 = Eigen::Matrix<Real, 2, 2>;
 template <typename Real> using Mat3 = Eigen::Matrix<Real, 3, 3>;
+template <typename Real> using Mat2x3 = Eigen::Matrix<Real, 2, 3>;
 template <typename Real> using Mat4 = Eigen::Matrix<Real, 4, 4>;
 template <typename Real> using Mat9 = Eigen::Matrix<Real, 9, 9>;
 template <typename Real> using Mat9x12 = Eigen::Matrix<Real, 9, 12>;
@@ -343,4 +344,19 @@ INLINE auto GenerateRandomNumber01() -> Real {
 
   // Generate a random number and return it
   return distribution(generator);
+}
+
+INLINE auto CrossProductMatrix(Real a, Real b, Real c) -> Mat3<Real> {
+  Mat3<Real> cross = Mat3<Real>::Zero();
+  cross(0, 1) = -c;
+  cross(0, 2) = b;
+  cross(1, 0) = c;
+  cross(1, 2) = -a;
+  cross(2, 0) = -b;
+  cross(2, 1) = a;
+  return cross;
+}
+
+INLINE auto CrossProductMatrix(const Vec3<Real> &v) -> Mat3<Real> {
+  return CrossProductMatrix(v(0), v(1), v(2));
 }

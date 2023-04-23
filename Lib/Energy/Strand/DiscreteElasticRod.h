@@ -2,6 +2,9 @@
 
 #include <LibMath.h>
 
+#define BENDING_MODULUS 1.0
+#define TWISTING_MODULUS 0.075;
+
 INLINE auto RotationMatrixAroundNormal(const Vec3<Real> &axisAngle)
     -> Mat3<Real> {
   double angle = axisAngle.norm(); // Get the angle of rotation from the norm
@@ -48,7 +51,31 @@ public:
   Mat<Real> restVertices;
 
   std::vector<Frame> frames;
+
+  std::vector<Vec3<Real>> m1s;
+  std::vector<Vec3<Real>> m2s;
+
+  // Holonomy parameters
+  // \nabla_{i-1}\psi_i
+  std::vector<Vec3<Real>> holonomyLhs;
+
+  // \nabla_{i+1}\psi_i
+  std::vector<Vec3<Real>> holonomyRhs;
+
+  // \nabla_{i}\psi_i
+  std::vector<Vec3<Real>> holonomy;
+
   std::vector<Vec3<Real>> kbs;
+
+  // \nabla_{i-1}(\kappa{b}_)i
+  std::vector<Mat3<Real>> gradientLhskbs;
+
+  // \nabla_{i+1}(\kappa{b}_)i
+  std::vector<Mat3<Real>> gradientRhskbs;
+
+  // \nabla_{i}(\kappa{b}_)i
+  std::vector<Mat3<Real>> gradientkbs;
+
   std::vector<Vec2<Real>> nextCurvature;
   std::vector<Vec2<Real>> prevCurvature;
 
@@ -60,22 +87,35 @@ public:
   Vec<Real> lengths;
   Vec<Real> restLengths;
 
-  SparseMat<Real> Minv;
+  SparseMat<Real> mInv;
 
   explicit DiscreteElasticRod(Mat<Real> vertices);
 
   [[nodiscard]] INLINE auto DOFs() const -> int { return 3 * vertices.rows(); }
+  INLINE void SetPositions(const Vec<Real> &x) {
+    vertices = RowwiseUnFlatten(x, vertices.rows(), vertices.cols());
+  }
 
   void Initialize();
+  auto ComputeCenterlineForces() -> Vec<Real>;
 
   /**
    * Update the bishop frame with a rotation matrix
    */
   void UpdateBishopFrames();
+  void UpdateMaterialFrames();
   void UpdateMaterialCurvatures();
+  void UpdateKbGradients();
+  void UpdateHolonomyGradient();
 
   void Computekbs();
 
   auto ComputeW(const Vec3<Real> &kb, const Vec3<Real> &m1,
                 const Vec3<Real> &m2) -> Vec2<Real>;
+  auto ComputeGradW(const Vec3<Real> &kb, const Mat3<Real> &gradkb,
+                    const Vec3<Real> &m1, const Vec3<Real> &m2,
+                    const Vec3<Real> &psi, const Vec2<Real> &w) -> Mat2x3<Real>;
+
+  auto ComputePEPTheta(int ii, const Vec3<Real> &m1j, const Vec3<Real> &m2j,
+                       const Mat2<Real> &JtimesB) -> Real;
 };

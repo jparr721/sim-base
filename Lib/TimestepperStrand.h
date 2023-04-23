@@ -15,8 +15,8 @@ public:
 
   virtual void Step() = 0;
   INLINE void AddGravity(const Vec3<Real> &gravity) {
-    for (int ii = 0; ii < material->nRods; ++ii) {
-      const Vec3<Real> force = gravity;
+    for (int ii = 0; ii < strandMesh->der->vertices.rows(); ++ii) {
+      this->externalForce.template segment<3>(3 * ii) = gravity;
     }
   }
 
