@@ -43,6 +43,11 @@ struct Frame {
       : t(t), u(u), v(v) {}
 };
 
+struct Bend {
+  Vec2<Real> prevCurvature;
+  Vec2<Real> nextCurvature;
+};
+
 class DiscreteElasticRod {
 public:
   int nRods;
@@ -76,11 +81,15 @@ public:
   // \nabla_{i}(\kappa{b}_)i
   std::vector<Mat3<Real>> gradientkbs;
 
-  std::vector<Vec2<Real>> nextCurvature;
-  std::vector<Vec2<Real>> prevCurvature;
+  // Keeps track of material curvature
+  std::vector<Bend> bends;
+  std::vector<Bend> restBends;
 
-  std::vector<Vec2<Real>> restNextCurvature;
-  std::vector<Vec2<Real>> restPrevCurvature;
+//  std::vector<Vec2<Real>> nextCurvature;
+//  std::vector<Vec2<Real>> prevCurvature;
+//
+//  std::vector<Vec2<Real>> restNextCurvature;
+//  std::vector<Vec2<Real>> restPrevCurvature;
 
   Vec<Real> velocities;
   Vec<Real> thetas;
@@ -112,10 +121,7 @@ public:
 
   auto ComputeW(const Vec3<Real> &kb, const Vec3<Real> &m1,
                 const Vec3<Real> &m2) -> Vec2<Real>;
-  auto ComputeGradW(const Vec3<Real> &kb, const Mat3<Real> &gradkb,
-                    const Vec3<Real> &m1, const Vec3<Real> &m2,
-                    const Vec3<Real> &psi, const Vec2<Real> &w) -> Mat2x3<Real>;
-
-  auto ComputePEPTheta(int ii, const Vec3<Real> &m1j, const Vec3<Real> &m2j,
-                       const Mat2<Real> &JtimesB) -> Real;
+  auto ComputeGradW(const Mat3<Real> &gradkb, const Vec3<Real> &m1,
+                    const Vec3<Real> &m2, const Vec3<Real> &gradpsi,
+                    const Vec2<Real> &w) -> Mat2x3<Real>;
 };
