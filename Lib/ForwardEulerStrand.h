@@ -25,6 +25,8 @@ public:
                       (R + this->externalForce) +
                   this->dt * this->velocity;
 
+    Vec<Real> positions = this->strandMesh->Positions();
+    u += positions;
     this->strandMesh->SetPositions(u);
     this->velocity = u / this->dt;
 

@@ -43,6 +43,8 @@ public:
   // Per-element deformation gradients
   std::vector<Mat<Real>> fs;
 
+  TetMesh() = default;
+
   explicit TetMesh(const fs::path &file) {
     igl::read_triangle_mesh(file.string(), v, f);
     Tetrahedralize();

@@ -13,6 +13,7 @@ public:
 
   [[nodiscard]] INLINE auto DOFs() const -> int { return der->DOFs(); }
   INLINE void SetPositions(const Vec<Real> &x) { der->SetPositions(x); }
+  INLINE auto Positions() const -> Vec<Real> { return der->Positions(); }
   void Draw();
 
   /**

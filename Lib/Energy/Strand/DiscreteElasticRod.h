@@ -85,11 +85,11 @@ public:
   std::vector<Bend> bends;
   std::vector<Bend> restBends;
 
-//  std::vector<Vec2<Real>> nextCurvature;
-//  std::vector<Vec2<Real>> prevCurvature;
-//
-//  std::vector<Vec2<Real>> restNextCurvature;
-//  std::vector<Vec2<Real>> restPrevCurvature;
+  //  std::vector<Vec2<Real>> nextCurvature;
+  //  std::vector<Vec2<Real>> prevCurvature;
+  //
+  //  std::vector<Vec2<Real>> restNextCurvature;
+  //  std::vector<Vec2<Real>> restPrevCurvature;
 
   Vec<Real> velocities;
   Vec<Real> thetas;
@@ -104,6 +104,9 @@ public:
   INLINE void SetPositions(const Vec<Real> &x) {
     vertices = RowwiseUnFlatten(x, vertices.rows(), vertices.cols());
   }
+  INLINE auto Positions() const -> Vec<Real> {
+    return RowwiseFlatten(vertices);
+  }
 
   void Initialize();
   auto ComputeCenterlineForces() -> Vec<Real>;
@@ -114,6 +117,7 @@ public:
   void UpdateBishopFrames();
   void UpdateMaterialFrames();
   void UpdateMaterialCurvatures();
+  void UpdateQuasistaticMaterialFrame();
   void UpdateKbGradients();
   void UpdateHolonomyGradient();
 

@@ -113,8 +113,6 @@ auto DiscreteElasticRod::ComputeCenterlineForces() -> Vec<Real> {
     R.segment<3>(3 * ii) += vertexForce;
   }
 
-  std::cout << R.transpose() << std::endl;
-
   return R;
 }
 
@@ -165,6 +163,50 @@ void DiscreteElasticRod::UpdateMaterialCurvatures() {
 
     if (ii > 0) {
       bends.at(ii - 1).nextCurvature = ComputeW(kb, m1, m2);
+    }
+  }
+}
+
+void DiscreteElasticRod::UpdateQuasistaticMaterialFrame() {
+  // J is a 90 degree rotation matrix
+  Mat2<Real> J;
+  J << 0, -1, 1, 0;
+  const Mat2<Real> Bhat = Mat2<Real>::Identity() * BENDING_MODULUS;
+
+  Real dEdTheta = 0.0;
+  Vec<Real> lowerDiagonal = Vec<Real>::Zero(nRods);
+  Vec<Real> upperDiagonal = Vec<Real>::Zero(nRods);
+  Vec<Real> diagonal = Vec<Real>::Zero(nRods);
+
+  const auto computeGradWi = [&J, &Bhat](const Vec2<Real> &w,
+                                         const Vec2<Real> &wbar,
+                                         Real restLength) -> Real {
+    const Real invRestLength = 1.0 / restLength;
+    return invRestLength * w.transpose() * J * Bhat * (w - wbar);
+  };
+
+  // 8 newton steps
+  for (int iter = 0; iter < 8; ++iter) {
+    for (int ii = 0; ii < nRods - 1; ++ii) {
+      // Previous curvature W_j + 2beta * (mj/lj)
+      {
+        const Vec2<Real> w = bends.at(ii).prevCurvature;
+        const Vec2<Real> wbar = restBends.at(ii).prevCurvature;
+        const Real restLength = restLengths(ii);
+        const Real mj = thetas(ii + 1) - thetas(ii);
+        const Real Wi = computeGradWi(w, wbar, restLength);
+        dEdTheta += Wi + 2 * BENDING_MODULUS * mj / restLength;
+      }
+
+      // Next curvature W_j+1 = 2 * beta * (mj+1/lj+1)
+      if (ii > 0) {
+        const Vec2<Real> w = bends.at(ii - 1).nextCurvature;
+        const Vec2<Real> wbar = restBends.at(ii - 1).nextCurvature;
+        const Real restLength = restLengths(ii - 1);
+        const Real mj = thetas(ii) - thetas(ii - 1);
+        const Real Wi = computeGradWi(w, wbar, restLength);
+        dEdTheta += Wi + 2 * BENDING_MODULUS * mj / restLength;
+      }
     }
   }
 }

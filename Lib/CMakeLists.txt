@@ -26,4 +26,5 @@ target_link_libraries(
         igl::core
         igl_copyleft::tetgen
         Eigen3::Eigen
+        GLUT::GLUT
 )
