@@ -33,6 +33,8 @@ public:
     u += positions;
     this->strandMesh->SetPositions(u);
 
+    this->strandMesh->der->Computekbs();
+    this->strandMesh->der->UpdateKbGradients();
     this->strandMesh->der->UpdateBishopFrames();
     this->strandMesh->der->UpdateQuasistaticMaterialFrame();
   }

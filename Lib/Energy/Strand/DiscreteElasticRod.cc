@@ -66,17 +66,10 @@ void DiscreteElasticRod::Initialize() {
   // Compute the updated material frames before computing curvature
   UpdateMaterialFrames();
 
-  // Init the bends
-  //  bends.resize(nRods - 1);
-  //  restBends.resize(nRods - 1);
-
   // Get the curvature update - don't bother with the quasistatic update here
   // since it's just 0 anyway.
   UpdateMaterialCurvatures();
   restCurvature = curvature;
-
-  // Set rest curvatures
-  //  restBends = bends;
 
   // Update the material curvature gradients
   UpdateKbGradients();
@@ -126,7 +119,9 @@ auto DiscreteElasticRod::ComputeCenterlineForcesStraight() -> Vec<Real> {
   Vec<Real> R = Vec<Real>::Zero(DOFs());
 
   for (int ii = 0; ii < nRods - 2; ++ii) {
-    R.segment<3>(3 * ii + 1) += ComputepEpxi(ii);
+    const Vec3<Real> vertexForce = ComputepEpxi(ii);
+    std::cout << vertexForce.transpose() << std::endl;
+    R.segment<3>(3 * ii + 1) += vertexForce;
   }
 
   return R;
@@ -241,6 +236,7 @@ void DiscreteElasticRod::UpdateKbGradients() {
         2 * crossRhs + kbs.at(ii) * e1.transpose() / denominator;
     gradientRhskbs.at(ii) =
         2 * crossLhs + kbs.at(ii) * e0.transpose() / denominator;
+    gradientkbs.at(ii) = -(gradientLhskbs.at(ii) + gradientRhskbs.at(ii));
   }
 }
 
@@ -257,15 +253,15 @@ void DiscreteElasticRod::UpdateHolonomyGradient() {
 }
 
 void DiscreteElasticRod::Computekbs() {
-  kbs.clear();
+  kbs.resize(nRods - 1);
   for (int ii = 0; ii < nRods - 1; ++ii) {
     // Get the edges on either side of the vertex
     const Vec3<Real> e0 = vertices.row(ii + 1) - vertices.row(ii);
     const Vec3<Real> e1 = vertices.row(ii + 2) - vertices.row(ii + 1);
 
     // Discrete curvature binormal
-    kbs.emplace_back(2.0 * e0.cross(e1) /
-                     (restLengths(ii) * restLengths(ii + 1) + e0.dot(e1)));
+    kbs.at(ii) = 2.0 * e0.cross(e1) /
+                 (restLengths(ii) * restLengths(ii + 1) + e0.dot(e1));
   }
 }
 
