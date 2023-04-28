@@ -10,7 +10,6 @@ DiscreteElasticRod::DiscreteElasticRod(Mat<Real> vertices)
 
   // Initialize the mass matrix - uniform mass right now.
   Vec<Real> masses = Vec<Real>::Ones(DOFs());
-  masses.segment<3>(3) = Vec3<Real>::Constant(5);
   mInv = ConstructDiagonalSparseMatrix(masses);
 
   Initialize();
@@ -31,11 +30,8 @@ void DiscreteElasticRod::Initialize() {
   m1s.resize(nRods - 1);
   m2s.resize(nRods - 1);
 
-  for (int ii = 0; ii < nRods; ++ii) {
-    const Real length = (vertices.row(ii + 1) - vertices.row(ii)).norm();
-    lengths(ii) = length;
-    restLengths(ii) = length;
-  }
+  UpdateLengths();
+  restLengths = lengths;
 
   // free, clamped or body-coupled ends
   // assume that the conditions are always clamped on one end
@@ -95,11 +91,6 @@ auto DiscreteElasticRod::ComputeCenterlineForcesGeneral() -> Vec<Real> {
     for (int jj = ii; jj <= ii + 1; ++jj) {
       const auto &w = curvature.at(ii);
       const auto &wbar = restCurvature.at(ii);
-      //      const auto &w =
-      //          jj == ii ? bends.at(ii).prevCurvature :
-      //          bends.at(ii).nextCurvature;
-      //      const auto &wbar = jj == ii ? restBends.at(ii).prevCurvature
-      //                                  : bends.at(ii).nextCurvature;
 
       const Mat2x3<Real> gradW = ComputeGradOmega(
           gradientkbs.at(ii), m1s.at(jj), m2s.at(jj), holonomy.at(ii), w);
@@ -120,7 +111,6 @@ auto DiscreteElasticRod::ComputeCenterlineForcesStraight() -> Vec<Real> {
 
   for (int ii = 0; ii < nRods - 2; ++ii) {
     const Vec3<Real> vertexForce = ComputepEpxi(ii);
-    std::cout << vertexForce.transpose() << std::endl;
     R.segment<3>(3 * ii + 1) += vertexForce;
   }
 
@@ -173,12 +163,6 @@ void DiscreteElasticRod::UpdateMaterialCurvatures() {
     const Vec3<Real> m2 = m2s.at(ii);
 
     curvature.at(ii) = ComputeOmega(kb, m1, m2);
-    //
-    //    bends.at(ii).prevCurvature = ComputeOmega(kb, m1, m2);
-    //
-    //    if (ii > 0) {
-    //      bends.at(ii - 1).nextCurvature = ComputeOmega(kb, m1, m2);
-    //    }
   }
 }
 
@@ -201,9 +185,8 @@ void DiscreteElasticRod::UpdateQuasistaticMaterialFrame() {
   thetas =
       FactorTriDiagonalMatrix(upperDiagonal, diagonal, lowerDiagonal, dEdTheta);
 
-  std::cout << "new thetas: " << thetas.transpose() << std::endl;
-
 #ifndef NDEBUG
+  std::cout << "new thetas: " << thetas.transpose() << std::endl;
   std::cout << "thetas.norm(): " << thetas.norm() << std::endl;
 #endif
 
@@ -361,4 +344,11 @@ auto DiscreteElasticRod::ComputepEpxi(int j) -> Vec3<Real> {
   const Real thetaDiff = thetas(thetas.rows() - 1) - thetas(0);
   return scaledTwistContrib * gradKb.transpose() * kb +
          (gBendingModulus * thetaDiff) / totalRestLength * gradHolo;
+}
+
+void DiscreteElasticRod::UpdateLengths() {
+  for (int ii = 0; ii < nRods; ++ii) {
+    const Real length = (vertices.row(ii + 1) - vertices.row(ii)).norm();
+    lengths(ii) = length;
+  }
 }

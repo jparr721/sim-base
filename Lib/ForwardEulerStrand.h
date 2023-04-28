@@ -25,7 +25,9 @@ public:
                       (R + this->externalForce) +
                   this->dt * this->velocity;
 
+    // Pin the ends
     u.segment<3>(0) = Vec3<Real>::Zero();
+    u.segment<3>(u.rows() - 3) = Vec3<Real>::Zero();
 
     this->velocity = u / this->dt;
 
@@ -33,9 +35,11 @@ public:
     u += positions;
     this->strandMesh->SetPositions(u);
 
+    this->strandMesh->der->UpdateLengths();
     this->strandMesh->der->Computekbs();
-    this->strandMesh->der->UpdateKbGradients();
     this->strandMesh->der->UpdateBishopFrames();
     this->strandMesh->der->UpdateQuasistaticMaterialFrame();
+    this->strandMesh->der->UpdateKbGradients();
+    this->strandMesh->der->UpdateHolonomyGradient();
   }
 };

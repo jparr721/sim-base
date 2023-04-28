@@ -10,8 +10,8 @@ void StrandScene::Draw() { mesh->Draw(); }
 DiscreteElasticRods::DiscreteElasticRods() {
   // Construct a trivial point set
   std::vector<Vec3<Real>> points;
-  for (Real ii = 0; ii < 3; ii += 0.5) {
-    points.emplace_back(ii, ii * ii * 0.25, 0);
+  for (Real ii = 0; ii < 10; ii += 0.5) {
+    points.emplace_back(ii, 0, 0);
   }
 
   Mat<Real> v(points.size(), 3);

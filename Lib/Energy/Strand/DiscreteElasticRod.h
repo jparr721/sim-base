@@ -118,6 +118,7 @@ public:
   void UpdateQuasistaticMaterialFrame();
   void UpdateKbGradients();
   void UpdateHolonomyGradient();
+  void UpdateLengths();
 
   void Computekbs();
 
