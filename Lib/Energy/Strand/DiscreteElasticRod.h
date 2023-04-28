@@ -2,8 +2,8 @@
 
 #include <LibMath.h>
 
-#define BENDING_MODULUS 1.0
-#define TWISTING_MODULUS 0.075;
+constexpr Real gBendingModulus = 1.0;
+constexpr Real gTwistingModulus = 0.075;
 
 INLINE auto RotationMatrixAroundNormal(const Vec3<Real> &axisAngle)
     -> Mat3<Real> {
@@ -82,14 +82,11 @@ public:
   std::vector<Mat3<Real>> gradientkbs;
 
   // Keeps track of material curvature
-  std::vector<Bend> bends;
-  std::vector<Bend> restBends;
+  //  std::vector<Bend> bends;
+  //  std::vector<Bend> restBends;
 
-  //  std::vector<Vec2<Real>> nextCurvature;
-  //  std::vector<Vec2<Real>> prevCurvature;
-  //
-  //  std::vector<Vec2<Real>> restNextCurvature;
-  //  std::vector<Vec2<Real>> restPrevCurvature;
+  std::vector<Vec2<Real>> curvature;
+  std::vector<Vec2<Real>> restCurvature;
 
   Vec<Real> velocities;
   Vec<Real> thetas;
@@ -109,7 +106,8 @@ public:
   }
 
   void Initialize();
-  auto ComputeCenterlineForces() -> Vec<Real>;
+  auto ComputeCenterlineForcesGeneral() -> Vec<Real>;
+  auto ComputeCenterlineForcesStraight() -> Vec<Real>;
 
   /**
    * Update the bishop frame with a rotation matrix
@@ -123,9 +121,19 @@ public:
 
   void Computekbs();
 
-  auto ComputeW(const Vec3<Real> &kb, const Vec3<Real> &m1,
-                const Vec3<Real> &m2) -> Vec2<Real>;
-  auto ComputeGradW(const Mat3<Real> &gradkb, const Vec3<Real> &m1,
-                    const Vec3<Real> &m2, const Vec3<Real> &gradpsi,
-                    const Vec2<Real> &w) -> Mat2x3<Real>;
+  auto ComputeOmega(const Vec3<Real> &kb, const Vec3<Real> &m1,
+                    const Vec3<Real> &m2) -> Vec2<Real>;
+  auto ComputeGradOmega(const Mat3<Real> &gradkb, const Vec3<Real> &m1,
+                        const Vec3<Real> &m2, const Vec3<Real> &gradpsi,
+                        const Vec2<Real> &w) -> Mat2x3<Real>;
+
+  /**
+   * Partial of E wrt theta^j from equation 7.
+   * @return
+   */
+  auto ComputeTwistingForce() -> Vec<Real>;
+  void ComputeTwistingHessian(Vec<Real> &upper, Vec<Real> &center,
+                              Vec<Real> &lower);
+
+  auto ComputepEpxi(int j) -> Vec3<Real>;
 };

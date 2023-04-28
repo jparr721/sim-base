@@ -10,6 +10,7 @@ DiscreteElasticRod::DiscreteElasticRod(Mat<Real> vertices)
 
   // Initialize the mass matrix - uniform mass right now.
   Vec<Real> masses = Vec<Real>::Ones(DOFs());
+  masses.segment<3>(3) = Vec3<Real>::Constant(5);
   mInv = ConstructDiagonalSparseMatrix(masses);
 
   Initialize();
@@ -19,16 +20,16 @@ void DiscreteElasticRod::Initialize() {
   // initial velocity of centerline
   velocities = Vec<Real>::Zero(vertices.rows());
 
-  // Thetas are per edge
-  thetas = Vec<Real>::Zero(nRods);
+  // Thetas are per bend frame
+  thetas = Vec<Real>::Zero(nRods - 1);
 
   // Lengths are per edge
   lengths = Vec<Real>::Zero(nRods);
   restLengths = Vec<Real>::Zero(nRods);
 
-  // Material frames are per edge
-  m1s.resize(nRods);
-  m2s.resize(nRods);
+  // Material frames are per bend frame
+  m1s.resize(nRods - 1);
+  m2s.resize(nRods - 1);
 
   for (int ii = 0; ii < nRods; ++ii) {
     const Real length = (vertices.row(ii + 1) - vertices.row(ii)).norm();
@@ -66,14 +67,16 @@ void DiscreteElasticRod::Initialize() {
   UpdateMaterialFrames();
 
   // Init the bends
-  bends.resize(nRods - 1);
-  restBends.resize(nRods - 1);
+  //  bends.resize(nRods - 1);
+  //  restBends.resize(nRods - 1);
 
-  // Get the curvature update
+  // Get the curvature update - don't bother with the quasistatic update here
+  // since it's just 0 anyway.
   UpdateMaterialCurvatures();
+  restCurvature = curvature;
 
   // Set rest curvatures
-  restBends = bends;
+  //  restBends = bends;
 
   // Update the material curvature gradients
   UpdateKbGradients();
@@ -82,7 +85,7 @@ void DiscreteElasticRod::Initialize() {
   UpdateHolonomyGradient();
 }
 
-auto DiscreteElasticRod::ComputeCenterlineForces() -> Vec<Real> {
+auto DiscreteElasticRod::ComputeCenterlineForcesGeneral() -> Vec<Real> {
   Vec<Real> R = Vec<Real>::Zero(DOFs());
 
   // J is a 90 degree rotation matrix. Always
@@ -90,20 +93,23 @@ auto DiscreteElasticRod::ComputeCenterlineForces() -> Vec<Real> {
   J << 0, -1, 1, 0;
 
   // Compute the derivative of the curvature
-  const Mat2<Real> Bhat = Mat2<Real>::Identity() * BENDING_MODULUS;
+  const Mat2<Real> Bhat = Mat2<Real>::Identity() * gBendingModulus;
 
   // Formula in 7.1, the General case - dEdx
   for (int ii = 0; ii < nRods - 1; ++ii) {
     Vec3<Real> vertexForce = Vec3<Real>::Zero();
 
     for (int jj = ii; jj <= ii + 1; ++jj) {
-      const auto &w =
-          jj == ii ? bends.at(ii).prevCurvature : bends.at(ii).nextCurvature;
-      const auto &wbar = jj == ii ? restBends.at(ii).prevCurvature
-                                  : bends.at(ii).nextCurvature;
+      const auto &w = curvature.at(ii);
+      const auto &wbar = restCurvature.at(ii);
+      //      const auto &w =
+      //          jj == ii ? bends.at(ii).prevCurvature :
+      //          bends.at(ii).nextCurvature;
+      //      const auto &wbar = jj == ii ? restBends.at(ii).prevCurvature
+      //                                  : bends.at(ii).nextCurvature;
 
-      const Mat2x3<Real> gradW = ComputeGradW(gradientkbs.at(ii), m1s.at(jj),
-                                              m2s.at(jj), holonomy.at(ii), w);
+      const Mat2x3<Real> gradW = ComputeGradOmega(
+          gradientkbs.at(ii), m1s.at(jj), m2s.at(jj), holonomy.at(ii), w);
 
       vertexForce += gradW.transpose() * Bhat * (w - wbar);
     }
@@ -111,6 +117,16 @@ auto DiscreteElasticRod::ComputeCenterlineForces() -> Vec<Real> {
     vertexForce /= restLengths(ii);
 
     R.segment<3>(3 * ii) += vertexForce;
+  }
+
+  return R;
+}
+
+auto DiscreteElasticRod::ComputeCenterlineForcesStraight() -> Vec<Real> {
+  Vec<Real> R = Vec<Real>::Zero(DOFs());
+
+  for (int ii = 0; ii < nRods - 2; ++ii) {
+    R.segment<3>(3 * ii + 1) += ComputepEpxi(ii);
   }
 
   return R;
@@ -140,7 +156,7 @@ void DiscreteElasticRod::UpdateBishopFrames() {
 }
 
 void DiscreteElasticRod::UpdateMaterialFrames() {
-  for (int ii = 0; ii < nRods; ++ii) {
+  for (int ii = 0; ii < nRods - 1; ++ii) {
     const Real theta = thetas(ii);
     const Real cosTheta = std::cos(theta);
     const Real sinTheta = std::sin(theta);
@@ -154,16 +170,20 @@ void DiscreteElasticRod::UpdateMaterialFrames() {
 }
 
 void DiscreteElasticRod::UpdateMaterialCurvatures() {
+  curvature.clear();
+  curvature.resize(nRods - 1);
   for (int ii = 0; ii < nRods - 1; ++ii) {
     const Vec3<Real> kb = kbs.at(ii);
     const Vec3<Real> m1 = m1s.at(ii);
     const Vec3<Real> m2 = m2s.at(ii);
 
-    bends.at(ii).prevCurvature = ComputeW(kb, m1, m2);
-
-    if (ii > 0) {
-      bends.at(ii - 1).nextCurvature = ComputeW(kb, m1, m2);
-    }
+    curvature.at(ii) = ComputeOmega(kb, m1, m2);
+    //
+    //    bends.at(ii).prevCurvature = ComputeOmega(kb, m1, m2);
+    //
+    //    if (ii > 0) {
+    //      bends.at(ii - 1).nextCurvature = ComputeOmega(kb, m1, m2);
+    //    }
   }
 }
 
@@ -171,44 +191,29 @@ void DiscreteElasticRod::UpdateQuasistaticMaterialFrame() {
   // J is a 90 degree rotation matrix
   Mat2<Real> J;
   J << 0, -1, 1, 0;
-  const Mat2<Real> Bhat = Mat2<Real>::Identity() * BENDING_MODULUS;
+  const Mat2<Real> Bhat = Mat2<Real>::Identity() * gBendingModulus;
 
-  Real dEdTheta = 0.0;
-  Vec<Real> lowerDiagonal = Vec<Real>::Zero(nRods);
-  Vec<Real> upperDiagonal = Vec<Real>::Zero(nRods);
-  Vec<Real> diagonal = Vec<Real>::Zero(nRods);
+  Vec<Real> dEdTheta = Vec<Real>::Zero(nRods - 1);
+  Vec<Real> lowerDiagonal = Vec<Real>::Zero(nRods - 1);
+  Vec<Real> upperDiagonal = Vec<Real>::Zero(nRods - 1);
+  Vec<Real> diagonal = Vec<Real>::Zero(nRods - 1);
 
-  const auto computeGradWi = [&J, &Bhat](const Vec2<Real> &w,
-                                         const Vec2<Real> &wbar,
-                                         Real restLength) -> Real {
-    const Real invRestLength = 1.0 / restLength;
-    return invRestLength * w.transpose() * J * Bhat * (w - wbar);
-  };
+  // Run a single newton step
+  const Vec<Real> twistForce = ComputeTwistingForce();
+  ComputeTwistingHessian(upperDiagonal, diagonal, lowerDiagonal);
 
-  // 8 newton steps
-  for (int iter = 0; iter < 8; ++iter) {
-    for (int ii = 0; ii < nRods - 1; ++ii) {
-      // Previous curvature W_j + 2beta * (mj/lj)
-      {
-        const Vec2<Real> w = bends.at(ii).prevCurvature;
-        const Vec2<Real> wbar = restBends.at(ii).prevCurvature;
-        const Real restLength = restLengths(ii);
-        const Real mj = thetas(ii + 1) - thetas(ii);
-        const Real Wi = computeGradWi(w, wbar, restLength);
-        dEdTheta += Wi + 2 * BENDING_MODULUS * mj / restLength;
-      }
+  // Compute the theta update
+  thetas =
+      FactorTriDiagonalMatrix(upperDiagonal, diagonal, lowerDiagonal, dEdTheta);
 
-      // Next curvature W_j+1 = 2 * beta * (mj+1/lj+1)
-      if (ii > 0) {
-        const Vec2<Real> w = bends.at(ii - 1).nextCurvature;
-        const Vec2<Real> wbar = restBends.at(ii - 1).nextCurvature;
-        const Real restLength = restLengths(ii - 1);
-        const Real mj = thetas(ii) - thetas(ii - 1);
-        const Real Wi = computeGradWi(w, wbar, restLength);
-        dEdTheta += Wi + 2 * BENDING_MODULUS * mj / restLength;
-      }
-    }
-  }
+  std::cout << "new thetas: " << thetas.transpose() << std::endl;
+
+#ifndef NDEBUG
+  std::cout << "thetas.norm(): " << thetas.norm() << std::endl;
+#endif
+
+  // Compute the quasistatic frames with the new theta values
+  UpdateMaterialFrames();
 }
 
 void DiscreteElasticRod::UpdateKbGradients() {
@@ -264,16 +269,17 @@ void DiscreteElasticRod::Computekbs() {
   }
 }
 
-auto DiscreteElasticRod::ComputeW(const Vec3<Real> &kb, const Vec3<Real> &m1,
-                                  const Vec3<Real> &m2) -> Vec2<Real> {
+auto DiscreteElasticRod::ComputeOmega(const Vec3<Real> &kb,
+                                      const Vec3<Real> &m1,
+                                      const Vec3<Real> &m2) -> Vec2<Real> {
   return {kb.dot(m2), -kb.dot(m1)};
 }
 
-auto DiscreteElasticRod::ComputeGradW(const Mat3<Real> &gradkb,
-                                      const Vec3<Real> &m1,
-                                      const Vec3<Real> &m2,
-                                      const Vec3<Real> &gradpsi,
-                                      const Vec2<Real> &w) -> Mat2x3<Real> {
+auto DiscreteElasticRod::ComputeGradOmega(const Mat3<Real> &gradkb,
+                                          const Vec3<Real> &m1,
+                                          const Vec3<Real> &m2,
+                                          const Vec3<Real> &gradpsi,
+                                          const Vec2<Real> &w) -> Mat2x3<Real> {
   // J is a 90 degree rotation
   Mat2<Real> J;
   J << 0, -1, 1, 0;
@@ -283,4 +289,80 @@ auto DiscreteElasticRod::ComputeGradW(const Mat3<Real> &gradkb,
   M.row(1) = -m1.transpose();
 
   return M * gradkb - J * w * gradpsi.transpose();
+}
+
+auto DiscreteElasticRod::ComputeTwistingForce() -> Vec<Real> {
+  Mat2<Real> J;
+  J << 0, -1, 1, 0;
+  const Mat2<Real> Bhat = Mat2<Real>::Identity() * gBendingModulus;
+
+  Vec<Real> forces = Vec<Real>::Zero(nRods - 1);
+
+  const auto gradW = [&J, &Bhat, this](int j) -> Real {
+    const auto &w = curvature.at(j);
+    const auto &wbar = restCurvature.at(j);
+    const Real restLength = restLengths(j);
+    const Real invRestLength = 1.0 / restLength;
+    return invRestLength * w.transpose() * J * Bhat * (w - wbar);
+  };
+
+  // Directly from equation 7.
+  for (int j = 0; j < nRods - 2; ++j) {
+    const auto &Wj = gradW(j);
+    const auto &Wj1 = gradW(j + 1);
+    const Real thetaDiff = thetas(j) - thetas(j + 1);
+
+    forces(j) = (Wj + Wj1) * 2 * gBendingModulus * thetaDiff / restLengths(j);
+  }
+
+#ifndef NDEBUG
+  std::cout << "forces: " << forces.transpose() << std::endl;
+#endif
+
+  return forces;
+}
+
+void DiscreteElasticRod::ComputeTwistingHessian(Vec<Real> &upper,
+                                                Vec<Real> &center,
+                                                Vec<Real> &lower) {
+  Mat<Real> hessian;
+
+  Mat2<Real> J;
+  J << 0, -1, 1, 0;
+  const Mat2<Real> Bhat = Mat2<Real>::Identity() * gBendingModulus;
+  const auto hessW = [&J, &Bhat, this](int j) -> Real {
+    const auto &w = curvature.at(j);
+    const auto &wbar = restCurvature.at(j);
+    const Real restLength = restLengths(j);
+    const Real invRestLength = 1.0 / restLength;
+
+    const Real lhs = invRestLength * w.transpose() * J.transpose() * Bhat * w;
+    const Real rhs = invRestLength * w.transpose() * Bhat * (w - wbar);
+    return lhs - rhs;
+  };
+
+  // Components of the hessian tri-diagonal matrix
+  lower = Vec<Real>::Zero(nRods - 1);
+  upper = Vec<Real>::Zero(nRods - 1);
+  center = Vec<Real>::Zero(nRods - 1);
+
+  for (int j = 0; j < nRods - 2; ++j) {
+    lower(j) = -2 * gBendingModulus / restLengths(j);
+    upper(j) = -2 * gBendingModulus / restLengths(j + 1);
+
+    center(j) =
+        hessW(j) + hessW(j + 1) +
+        2 * gBendingModulus * (1 / restLengths(j) + 1 / restLengths(j + 1));
+  }
+}
+
+auto DiscreteElasticRod::ComputepEpxi(int j) -> Vec3<Real> {
+  const auto scaledTwistContrib = 2 * gTwistingModulus / restLengths(j);
+  const auto &gradKb = gradientkbs.at(j);
+  const auto &kb = kbs.at(j);
+  const Real totalRestLength = restLengths.sum();
+  const auto &gradHolo = holonomy.at(j);
+  const Real thetaDiff = thetas(thetas.rows() - 1) - thetas(0);
+  return scaledTwistContrib * gradKb.transpose() * kb +
+         (gBendingModulus * thetaDiff) / totalRestLength * gradHolo;
 }

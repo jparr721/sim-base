@@ -25,12 +25,15 @@ public:
                       (R + this->externalForce) +
                   this->dt * this->velocity;
 
+    u.segment<3>(0) = Vec3<Real>::Zero();
+
+    this->velocity = u / this->dt;
+
     Vec<Real> positions = this->strandMesh->Positions();
     u += positions;
     this->strandMesh->SetPositions(u);
-    this->velocity = u / this->dt;
 
     this->strandMesh->der->UpdateBishopFrames();
-    this->strandMesh->der->UpdateMaterialFrames();
+    this->strandMesh->der->UpdateQuasistaticMaterialFrame();
   }
 };

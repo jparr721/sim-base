@@ -41,5 +41,5 @@ void StrandMesh::Draw() {
 }
 
 auto StrandMesh::ComputeMaterialForces() -> Vec<Real> {
-  return der->ComputeCenterlineForces();
+  return der->ComputeCenterlineForcesStraight();
 }
