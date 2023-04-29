@@ -7,8 +7,8 @@
 #include <memory>
 
 struct StrandScene {
-  std::shared_ptr<StrandMesh> mesh;
-  std::shared_ptr<ForwardEulerStrand> integrator;
+  std::vector<std::shared_ptr<StrandMesh>> meshes;
+  std::vector<std::shared_ptr<ForwardEulerStrand>> integrators;
 
   void Step(const Vec3<Real> &gravity);
   void Draw();

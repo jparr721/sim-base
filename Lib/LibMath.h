@@ -385,7 +385,7 @@ INLINE auto FactorTriDiagonalMatrix(const Vec<Real> &upper,
                                     const Vec<Real> &lower, const Vec<Real> &b)
     -> Vec<Real> {
   SparseMat<Real> tri = MakeTriDiagonalMatrix(upper, center, lower);
-  Eigen::SparseLU<SparseMat<Real>> luSolver(tri);
+  Eigen::ConjugateGradient<SparseMat<Real>> luSolver(tri);
   return luSolver.solve(b);
 }
 
