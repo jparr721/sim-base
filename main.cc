@@ -244,7 +244,7 @@ static void GlutIdle() {
     }
   }
 
-  if (gSteps % 5000 == 0) {
+  if (gSteps % 100 == 0) {
     glutPostRedisplay();
   }
 }

@@ -5,7 +5,7 @@
 
 class StrandMesh {
 public:
-  // Mass matrix
+  bool drawMaterialFrame = false;
 
   std::shared_ptr<DiscreteElasticRod> der;
 

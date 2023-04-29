@@ -2,14 +2,11 @@
 #include <igl/parallel_for.h>
 
 void StrandScene::Step(const Vec3<Real> &gravity) {
-
-  //  igl::parallel_for(integrators.size(), [&](int ii) {
-  for (int ii = 0; ii < integrators.size(); ++ii) {
+  igl::parallel_for(integrators.size(), [&](int ii) {
     auto &integrator = integrators.at(ii);
     integrator->AddGravity(gravity);
     integrator->Step();
-  }
-  //  });
+  });
 }
 
 void StrandScene::Draw() {
@@ -20,7 +17,7 @@ void StrandScene::Draw() {
 
 DiscreteElasticRods::DiscreteElasticRods(
     std::shared_ptr<Camera<float>> &camera) {
-  for (int ss = 0; ss < 10; ++ss) {
+  for (Real ss = 0; ss < 20; ss += 0.1) {
     // Construct a trivial point set
     std::vector<Vec3<Real>> points;
     for (int ii = 0; ii < 10; ++ii) {
@@ -34,7 +31,7 @@ DiscreteElasticRods::DiscreteElasticRods(
 
     auto mesh = std::make_shared<StrandMesh>(v);
     auto integrator =
-        std::make_unique<ForwardEulerStrand>(mesh, nullptr, 1.0 / 100'000.0);
+        std::make_unique<ForwardEulerStrand>(mesh, nullptr, 1.0 / 1'000.0);
     meshes.emplace_back(mesh);
     integrators.emplace_back(std::move(integrator));
   }
