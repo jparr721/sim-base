@@ -24,51 +24,49 @@ constexpr Real DEGREE_180 = Real(180);
 constexpr Real DegToRadConv = Real(PI) / DEGREE_180;
 constexpr Real RadToDegConv = DEGREE_180 / Real(PI);
 
-template <typename Real> INLINE auto DegreesToRadians(Real degrees) -> Real {
-  return degrees * Real(DegToRadConv);
+template <typename T> INLINE auto DegreesToRadians(T degrees) -> T {
+  return degrees * T(DegToRadConv);
 }
 
-template <typename Real> INLINE auto RadiansToDegrees(Real radians) -> Real {
-  return radians * Real(RadToDegConv);
+template <typename T> INLINE auto RadiansToDegrees(T radians) -> T {
+  return radians * T(RadToDegConv);
 }
 
-template <typename Real> using Vec2 = Eigen::Matrix<Real, 2, 1>;
-template <typename Real> using Vec3 = Eigen::Matrix<Real, 3, 1>;
-template <typename Real> using Vec4 = Eigen::Matrix<Real, 4, 1>;
-template <typename Real> using Vec6 = Eigen::Matrix<Real, 6, 1>;
-template <typename Real> using Vec9 = Eigen::Matrix<Real, 9, 1>;
-template <typename Real> using Vec12 = Eigen::Matrix<Real, 12, 1>;
-template <typename Real> using Vec = Eigen::Matrix<Real, -1, 1>;
+template <typename T> using Vec2 = Eigen::Matrix<T, 2, 1>;
+template <typename T> using Vec3 = Eigen::Matrix<T, 3, 1>;
+template <typename T> using Vec4 = Eigen::Matrix<T, 4, 1>;
+template <typename T> using Vec6 = Eigen::Matrix<T, 6, 1>;
+template <typename T> using Vec9 = Eigen::Matrix<T, 9, 1>;
+template <typename T> using Vec12 = Eigen::Matrix<T, 12, 1>;
+template <typename T> using Vec = Eigen::Matrix<T, -1, 1>;
 
-template <typename Real> using Mat2 = Eigen::Matrix<Real, 2, 2>;
-template <typename Real> using Mat3 = Eigen::Matrix<Real, 3, 3>;
-template <typename Real> using Mat2x3 = Eigen::Matrix<Real, 2, 3>;
-template <typename Real> using Mat4 = Eigen::Matrix<Real, 4, 4>;
-template <typename Real> using Mat9 = Eigen::Matrix<Real, 9, 9>;
-template <typename Real> using Mat9x12 = Eigen::Matrix<Real, 9, 12>;
-template <typename Real> using Mat = Eigen::Matrix<Real, -1, -1>;
+template <typename T> using Mat2 = Eigen::Matrix<T, 2, 2>;
+template <typename T> using Mat3 = Eigen::Matrix<T, 3, 3>;
+template <typename T> using Mat2x3 = Eigen::Matrix<T, 2, 3>;
+template <typename T> using Mat4 = Eigen::Matrix<T, 4, 4>;
+template <typename T> using Mat9 = Eigen::Matrix<T, 9, 9>;
+template <typename T> using Mat9x12 = Eigen::Matrix<T, 9, 12>;
+template <typename T> using Mat = Eigen::Matrix<T, -1, -1>;
 
-template <typename Real> using SparseMat = Eigen::SparseMatrix<Real>;
+template <typename T> using SparseMat = Eigen::SparseMatrix<T>;
 
-template <typename Real>
-INLINE auto Normalize(const Real &value, const Real &min, const Real &max)
-    -> Real {
+template <typename T>
+INLINE auto Normalize(const T &value, const T &min, const T &max) -> T {
   return (value - min) / (max - min);
 }
 
-template <typename Real>
-INLINE auto Denormalize(const Real &value, const Real &min, const Real &max)
-    -> Real {
+template <typename T>
+INLINE auto Denormalize(const T &value, const T &min, const T &max) -> T {
   return value * (max - min) + min;
 }
 
-template <typename Real>
-INLINE auto ComputeAverage(const std::vector<Real> &values) -> Real {
-  Real sum = Real(0);
+template <typename T>
+INLINE auto ComputeAverage(const std::vector<T> &values) -> T {
+  T sum = T(0);
   std::size_t n = values.size();
   for (std::size_t i = 0; i < n; i++)
     sum += values[i];
-  return sum / Real(n);
+  return sum / T(n);
 }
 
 template <typename Real>
@@ -106,18 +104,16 @@ INLINE auto AngleBetweenVectors(const Vec3<T> &a, const Vec3<T> &b) -> T {
   return std::acos(a.dot(b) / (a.norm() * b.norm()));
 }
 
-template <typename Real>
-auto Distance(const Vec2<Real> &a, const Vec2<Real> &b) -> Real {
-  Real dx = b.x() - a.x();
-  Real dy = b.y() - a.y();
+template <typename T> auto Distance(const Vec2<T> &a, const Vec2<T> &b) -> T {
+  T dx = b.x() - a.x();
+  T dy = b.y() - a.y();
   return std::sqrt(dx * dx + dy * dy);
 }
 
-template <typename Real>
-auto Distance(const Vec3<Real> &a, const Vec3<Real> &b) -> Real {
-  Real dx = b.x() - a.x();
-  Real dy = b.y() - a.y();
-  Real dz = b.z() - a.z();
+template <typename T> auto Distance(const Vec3<T> &a, const Vec3<T> &b) -> T {
+  T dx = b.x() - a.x();
+  T dy = b.y() - a.y();
+  T dz = b.z() - a.z();
   return std::sqrt(dx * dx + dy * dy + dz * dz);
 }
 
@@ -142,13 +138,13 @@ auto Distance(const Vec3<Real> &a, const Vec3<Real> &b) -> Real {
  * Result:
  * value = 0.5
  */
-template <typename Real>
-INLINE auto Scale(Real &v, Real sourceMin, Real sourceMax, Real targetMin,
-                  Real targetMax) -> bool {
-  Real l = (targetMax - targetMin);
-  Real m = l / Real(sourceMax - sourceMin);
-  if (l == static_cast<Real>(0))
-    m = static_cast<Real>(0);
+template <typename T>
+INLINE auto Scale(T &v, T sourceMin, T sourceMax, T targetMin, T targetMax)
+    -> bool {
+  T l = (targetMax - targetMin);
+  T m = l / T(sourceMax - sourceMin);
+  if (l == static_cast<T>(0))
+    m = static_cast<T>(0);
   v = targetMin + ((v - sourceMin) * m);
   return true;
 }
@@ -181,9 +177,9 @@ INLINE auto Scale(Real &v, Real sourceMin, Real sourceMax, Real targetMin,
  * Result:
  * values = 0.0, 0.25, 0.5, 0.75, 1.0
  */
-template <typename Real>
-INLINE auto ScaleArray(Real *&array, unsigned int n, Real sourceMin,
-                       Real sourceMax, Real targetMin, Real targetMax) -> bool {
+template <typename T>
+INLINE auto ScaleArray(T *&array, unsigned int n, T sourceMin, T sourceMax,
+                       T targetMin, T targetMax) -> bool {
   if (array == nullptr)
     return false;
   if (n <= 1)
@@ -285,7 +281,7 @@ INLINE auto GetOrthogonalVectors(const Vec3<Real> &v)
   return {w, t};
 }
 
-INLINE auto GetOrthogonalVector(const Vec3<Real> &u) -> Vec<Real> {
+INLINE auto GetOrthogonalVectorOrDie(const Vec3<Real> &u) -> Vec<Real> {
   ASSERT(u.norm() != 0, "Degenerate normal found");
 
   Vec3<Real> v = Vec3<Real>::Zero();
@@ -391,4 +387,31 @@ INLINE auto FactorTriDiagonalMatrix(const Vec<Real> &upper,
   SparseMat<Real> tri = MakeTriDiagonalMatrix(upper, center, lower);
   Eigen::SparseLU<SparseMat<Real>> luSolver(tri);
   return luSolver.solve(b);
+}
+
+INLINE auto RotationMatrixAroundNormal(const Vec3<Real> &axisAngle)
+    -> Mat3<Real> {
+  double angle = axisAngle.norm(); // Get the angle of rotation from the norm
+  // of the axis-angle vector
+  Vec3<Real> axis = axisAngle.normalized(); // Normalize the axis of rotation
+  Eigen::AngleAxisd rotation(
+      angle,
+      axis); // Create an angle-axis object with the rotation axis and angle
+  Mat3<Real> rotationMatrix =
+      rotation.toRotationMatrix(); // Convert the angle-axis object to a
+  // rotation matrix
+  return rotationMatrix;
+}
+
+INLINE auto OrthogonalVectorUnsafe(const Vec3<Real> &v) -> Vec3<Real> {
+  // Find an arbitrary vector
+  Vec3<Real> arbitrary = Vec3<Real>::UnitX();
+  if (v.isApprox(Vec3<Real>::UnitX())) {
+    arbitrary = Vec3<Real>::UnitY();
+  }
+  // Compute the cross product between the given vector and the arbitrary vector
+  Vec3<Real> result = v.cross(arbitrary);
+  // Normalize the result vector
+  result.normalize();
+  return result;
 }

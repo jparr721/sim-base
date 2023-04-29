@@ -18,12 +18,18 @@ bool gSingleStep = false;
 bool gShowGrid = false;
 bool gShowCenterAxes = false;
 
+// Gravity interactions
+bool gAddPosYAxisPull = false;
+bool gAddNegYAxisPull = false;
+bool gAddPosXAxisPull = false;
+bool gAddNegXAxisPull = false;
+
 int gSteps = 0;
 
-auto gCamera = std::make_unique<Camera<float>>();
+auto gCamera = std::make_shared<Camera<float>>();
 
 // UNCOMMENT HERE FOR BUNNY SCENE
-auto gScene = std::make_unique<DiscreteElasticRods>();
+auto gScene = std::make_unique<DiscreteElasticRods>(gCamera);
 // auto gScene = std::make_unique<CoarseBunnyExplicit>();
 
 void GlutMotionFunc(int x, int y) {
@@ -125,6 +131,26 @@ void GlutKeyboardFunc(unsigned char key, int x, int y) {
   glutPostRedisplay();
 }
 
+void GlutSpecialInputFunc(int key, int x, int y) {
+  if (key == GLUT_KEY_UP) {
+    gAddPosYAxisPull = true;
+  }
+
+  if (key == GLUT_KEY_DOWN) {
+    gAddNegYAxisPull = true;
+  }
+
+  if (key == GLUT_KEY_LEFT) {
+    gAddNegXAxisPull = true;
+  }
+
+  if (key == GLUT_KEY_RIGHT) {
+    gAddPosXAxisPull = true;
+  }
+
+  glutPostRedisplay();
+}
+
 static void DrawGLGrid(int size, float spacing) {
   glColor3f(0.5, 0.5, 0.5);
   glBegin(GL_LINES);
@@ -187,7 +213,29 @@ void Display() {
 
 static void GlutIdle() {
   if (gAnimating || gSingleStep) {
-    gScene->Step(Vec3<Real>(0, -1, 0));
+    Vec3<Real> gravity(0, -9, 0);
+
+    if (gAddPosYAxisPull) {
+      gravity += Vec3<Real>(0, 9, 0);
+      gAddPosYAxisPull = false;
+    }
+
+    if (gAddNegYAxisPull) {
+      gravity += Vec3<Real>(0, -9, 0);
+      gAddNegYAxisPull = false;
+    }
+
+    if (gAddPosXAxisPull) {
+      gravity += Vec3<Real>(9, 0, 0);
+      gAddPosXAxisPull = false;
+    }
+
+    if (gAddNegXAxisPull) {
+      gravity += Vec3<Real>(-9, 0, 0);
+      gAddNegXAxisPull = false;
+    }
+
+    gScene->Step(gravity);
 
     ++gSteps;
 
@@ -196,7 +244,7 @@ static void GlutIdle() {
     }
   }
 
-  if (gSteps % 50 == 0) {
+  if (gSteps % 5000 == 0) {
     glutPostRedisplay();
   }
 }
@@ -222,6 +270,7 @@ auto main(int argc, char **argv) -> int {
   glutMotionFunc(GlutMotionFunc);
   glutReshapeFunc(GlutReshapeFunc);
   glutKeyboardFunc(GlutKeyboardFunc);
+  glutSpecialFunc(GlutSpecialInputFunc);
   glutIdleFunc(GlutIdle);
 
   glClearColor(1.0f, 1.0f, 1.0f, 1.0f);

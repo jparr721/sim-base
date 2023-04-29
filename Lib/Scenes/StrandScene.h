@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Camera.h>
 #include <ForwardEulerStrand.h>
 #include <StrandMesh.h>
 #include <TimestepperVolume.h>
@@ -14,5 +15,5 @@ struct StrandScene {
 };
 
 struct DiscreteElasticRods : public StrandScene {
-  DiscreteElasticRods();
+  DiscreteElasticRods(std::shared_ptr<Camera<float>> &camera);
 };

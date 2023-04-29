@@ -2,7 +2,7 @@
 
 DiscreteElasticRod::DiscreteElasticRod(Mat<Real> vertices)
     : vertices(std::move(vertices)), nRods(vertices.rows() - 1),
-      massSpring(new MassSpring(1000, 0.5)) {
+      massSpring(new MassSpring(100000, 0.5)) {
   // At least 3 nodes is required
   ASSERT(this->vertices.rows() >= 3, "At least 3 nodes is required");
 
@@ -45,7 +45,7 @@ void DiscreteElasticRod::Initialize() {
   initialFrame.t.normalize();
 
   // Get u0 as a random orthogonal vector
-  initialFrame.u = OrthogonalVector(initialFrame.t);
+  initialFrame.u = OrthogonalVectorUnsafe(initialFrame.t);
 
   // v0 is the cross product of t0 and u0
   initialFrame.v = initialFrame.t.cross(initialFrame.u);
@@ -93,8 +93,9 @@ auto DiscreteElasticRod::ComputeCenterlineForcesGeneral() -> Vec<Real> {
       const auto &w = curvature.at(ii);
       const auto &wbar = restCurvature.at(ii);
 
-      const Mat2x3<Real> gradW = ComputeGradOmega(
-          gradientkbs.at(ii), m1s.at(jj), m2s.at(jj), holonomy.at(ii), w);
+      const Mat2x3<Real> gradW =
+          ComputeGradOmega(kbGradients.at(ii), m1s.at(jj), m2s.at(jj),
+                           holonomyGradients.at(ii), w);
 
       vertexForce += gradW.transpose() * Bhat * (w - wbar);
     }
@@ -209,9 +210,7 @@ void DiscreteElasticRod::UpdateQuasistaticMaterialFrame() {
 }
 
 void DiscreteElasticRod::UpdateKbGradients() {
-  gradientLhskbs.resize(nRods);
-  gradientRhskbs.resize(nRods);
-  gradientkbs.resize(nRods);
+  kbGradients.resize(nRods);
 
   // Here [e] is a skew-symmetric 3 × 3 matrix acting on 3-vectors x by [e] · x
   // = e × x.
@@ -229,23 +228,18 @@ void DiscreteElasticRod::UpdateKbGradients() {
 
     // DEBUG: This could be a broken thing. The paper just _had_ to switch the
     // damn terms.
-    gradientLhskbs.at(ii) =
-        2 * crossRhs + kbs.at(ii) * e1.transpose() / denominator;
-    gradientRhskbs.at(ii) =
-        2 * crossLhs + kbs.at(ii) * e0.transpose() / denominator;
-    gradientkbs.at(ii) = -(gradientLhskbs.at(ii) + gradientRhskbs.at(ii));
+    const auto lhs = 2 * crossRhs + kbs.at(ii) * e1.transpose() / denominator;
+    const auto rhs = 2 * crossLhs + kbs.at(ii) * e0.transpose() / denominator;
+    kbGradients.at(ii) = -(lhs + rhs);
   }
 }
 
 void DiscreteElasticRod::UpdateHolonomyGradient() {
-  holonomy.resize(nRods - 1);
-  holonomyLhs.resize(nRods - 1);
-  holonomyRhs.resize(nRods - 1);
-
+  holonomyGradients.resize(nRods - 1);
   for (int ii = 0; ii < nRods - 1; ++ii) {
-    holonomyLhs.at(ii) = kbs.at(ii) / 2 * (restLengths(ii));
-    holonomyRhs.at(ii) = -kbs.at(ii) / 2 * (restLengths(ii + 1));
-    holonomy.at(ii) = -1 * (holonomyLhs.at(ii) + holonomyRhs.at(ii));
+    const auto lhs = kbs.at(ii) / 2 * (restLengths(ii));
+    const auto rhs = -kbs.at(ii) / 2 * (restLengths(ii + 1));
+    holonomyGradients.at(ii) = -1 * (lhs + rhs);
   }
 }
 
@@ -351,10 +345,10 @@ void DiscreteElasticRod::ComputeTwistingHessian(Vec<Real> &upper,
 
 auto DiscreteElasticRod::ComputepEpxi(int j) -> Vec3<Real> {
   const auto scaledTwistContrib = 2 * gTwistingModulus / restLengths(j);
-  const auto &gradKb = gradientkbs.at(j);
+  const auto &gradKb = kbGradients.at(j);
   const auto &kb = kbs.at(j);
   const Real totalRestLength = restLengths.sum();
-  const auto &gradHolo = holonomy.at(j);
+  const auto &gradHolo = holonomyGradients.at(j);
   const Real thetaDiff = thetas(thetas.rows() - 1) - thetas(0);
   return scaledTwistContrib * gradKb.transpose() * kb +
          (gBendingModulus * thetaDiff) / totalRestLength * gradHolo;

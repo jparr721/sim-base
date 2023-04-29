@@ -6,33 +6,6 @@
 constexpr Real gBendingModulus = 0.001;
 constexpr Real gTwistingModulus = 0.07;
 
-INLINE auto RotationMatrixAroundNormal(const Vec3<Real> &axisAngle)
-    -> Mat3<Real> {
-  double angle = axisAngle.norm(); // Get the angle of rotation from the norm
-                                   // of the axis-angle vector
-  Vec3<Real> axis = axisAngle.normalized(); // Normalize the axis of rotation
-  Eigen::AngleAxisd rotation(
-      angle,
-      axis); // Create an angle-axis object with the rotation axis and angle
-  Mat3<Real> rotationMatrix =
-      rotation.toRotationMatrix(); // Convert the angle-axis object to a
-                                   // rotation matrix
-  return rotationMatrix;
-}
-
-INLINE auto OrthogonalVector(const Vec3<Real> &v) -> Vec3<Real> {
-  // Find an arbitrary vector
-  Vec3<Real> arbitrary = Vec3<Real>::UnitX();
-  if (v.isApprox(Vec3<Real>::UnitX())) {
-    arbitrary = Vec3<Real>::UnitY();
-  }
-  // Compute the cross product between the given vector and the arbitrary vector
-  Vec3<Real> result = v.cross(arbitrary);
-  // Normalize the result vector
-  result.normalize();
-  return result;
-}
-
 struct Frame {
   // The tangent should always be defined
   Vec3<Real> t = Vec3<Real>::Zero();
@@ -59,29 +32,13 @@ public:
   std::vector<Vec3<Real>> m2s;
 
   // Holonomy parameters
-  // \nabla_{i-1}\psi_i
-  std::vector<Vec3<Real>> holonomyLhs;
-
-  // \nabla_{i+1}\psi_i
-  std::vector<Vec3<Real>> holonomyRhs;
-
   // \nabla_{i}\psi_i
-  std::vector<Vec3<Real>> holonomy;
+  std::vector<Vec3<Real>> holonomyGradients;
 
   std::vector<Vec3<Real>> kbs;
 
-  // \nabla_{i-1}(\kappa{b}_)i
-  std::vector<Mat3<Real>> gradientLhskbs;
-
-  // \nabla_{i+1}(\kappa{b}_)i
-  std::vector<Mat3<Real>> gradientRhskbs;
-
   // \nabla_{i}(\kappa{b}_)i
-  std::vector<Mat3<Real>> gradientkbs;
-
-  // Keeps track of material curvature
-  //  std::vector<Bend> bends;
-  //  std::vector<Bend> restBends;
+  std::vector<Mat3<Real>> kbGradients;
 
   std::vector<Vec2<Real>> curvature;
   std::vector<Vec2<Real>> restCurvature;
