@@ -27,9 +27,15 @@ public:
 
     // Pin the ends
     u.segment<3>(0) = Vec3<Real>::Zero();
-//    u.segment<3>(u.rows() - 3) = Vec3<Real>::Zero();
 
     this->velocity = u / this->dt;
+
+    // Sparse identity matrix
+    SparseMat<Real> filter =
+        ConstructDiagonalSparseMatrix(
+            Vec<Real>::Ones(this->strandMesh->DOFs()).eval()) -
+        this->dt * 0.05 * this->strandMesh->der->mInv;
+    this->velocity = filter * this->velocity;
 
     Vec<Real> positions = this->strandMesh->Positions();
     u += positions;

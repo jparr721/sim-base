@@ -213,7 +213,7 @@ void Display() {
 
 static void GlutIdle() {
   if (gAnimating || gSingleStep) {
-    Vec3<Real> gravity(0, -9, 0);
+    Vec3<Real> gravity(0, -0.981, 0);
 
     if (gAddPosYAxisPull) {
       gravity += Vec3<Real>(0, 9, 0);

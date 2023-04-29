@@ -2,44 +2,39 @@
 
 DiscreteElasticRod::DiscreteElasticRod(Mat<Real> vertices)
     : vertices(std::move(vertices)), nRods(vertices.rows() - 1),
-      massSpring(new MassSpring(100000, 0.5)) {
+      massSpring(new MassSpring(100000, 1)) {
   // At least 3 nodes is required
-  ASSERT(this->vertices.rows() >= 3, "At least 3 nodes is required");
+  ASSERT(this->vertices.rows() >= 3, "At least 3 nodes are required");
 
   // initial position of centerline in rest state
   restVertices = this->vertices;
 
   // Initialize the mass matrix - uniform mass right now.
-  Vec<Real> masses = Vec<Real>::Ones(DOFs());
+  Vec<Real> masses = Vec<Real>::Ones(DOFs()) * 5;
   mInv = ConstructDiagonalSparseMatrix(masses);
 
   Initialize();
 }
 
 void DiscreteElasticRod::Initialize() {
-  // initial velocity of centerline
-  velocities = Vec<Real>::Zero(vertices.rows());
+  // Compute edges
+  //  edges = ComputeEdges(vertices);
+  UpdateLengths();
+  restEdges = edges;
+  totalRestLength = 0.0;
+  for (const auto &edge : restEdges) {
+    totalRestLength += edge.length;
+  }
 
   // Thetas are per bend frame
   thetas = Vec<Real>::Zero(nRods - 1);
-
-  // Lengths are per edge
-  lengths = Vec<Real>::Zero(nRods);
-  restLengths = Vec<Real>::Zero(nRods);
 
   // Material frames are per bend frame
   m1s.resize(nRods - 1);
   m2s.resize(nRods - 1);
 
-  UpdateLengths();
-  restLengths = lengths;
-
-  // free, clamped or body-coupled ends
-  // assume that the conditions are always clamped on one end
-  // TODO
-
   // Make initial frames
-  Frame initialFrame;
+  BishopFrame initialFrame;
   // Get the normalized tangent vector
   initialFrame.t = vertices.row(1) - vertices.row(0);
   initialFrame.t.normalize();
@@ -100,8 +95,7 @@ auto DiscreteElasticRod::ComputeCenterlineForcesGeneral() -> Vec<Real> {
       vertexForce += gradW.transpose() * Bhat * (w - wbar);
     }
 
-    vertexForce /= restLengths(ii);
-
+    vertexForce /= restEdges.at(ii).length;
     R.segment<3>(3 * ii) += vertexForce;
   }
 
@@ -122,7 +116,7 @@ auto DiscreteElasticRod::ComputeCenterlineForcesStraight() -> Vec<Real> {
     x.segment<3>(0) = vertices.row(ii);
     x.segment<3>(3) = vertices.row(ii + 1);
 
-    const Vec6<Real> force = -lengths(ii) * massSpring->Gradient(x);
+    const Vec6<Real> force = -edges.at(ii).length * massSpring->Gradient(x);
 
     // Scatter the forces into the global vector
     R.segment<3>(3 * ii) += force.segment<3>(0);
@@ -133,26 +127,7 @@ auto DiscreteElasticRod::ComputeCenterlineForcesStraight() -> Vec<Real> {
 }
 
 void DiscreteElasticRod::UpdateBishopFrames() {
-  ASSERT2(!kbs.empty());
-  for (int ii = 1; ii < nRods; ++ii) {
-    // Get the normalized tangent vector
-    Vec3<Real> ti = vertices.row(ii + 1) - vertices.row(ii);
-    ti.normalize();
-
-    // We define the rotation matrix as the rotation around the curvature
-    // binormal
-    const Mat3<Real> rotation = RotationMatrixAroundNormal(kbs.at(ii - 1));
-
-    // Transport the last frame up with the rotation
-    // Iteratively define ui = Pi(ui-1)
-    Vec3<Real> u = rotation * frames.at(ii - 1).u;
-    u.normalize();
-
-    const Vec3<Real> v = ti.cross(u);
-
-    // Insert the frame
-    frames.at(ii) = Frame(ti, u, v);
-  }
+  ParallelTransportModifiedBishopFrames(kbs, edges, frames);
 }
 
 void DiscreteElasticRod::UpdateMaterialFrames() {
@@ -216,15 +191,18 @@ void DiscreteElasticRod::UpdateKbGradients() {
   // = e × x.
   for (int ii = 0; ii < nRods - 1; ++ii) {
     // Lhs
-    const Vec3<Real> e0 = vertices.row(ii + 1) - vertices.row(ii);
+    //    const Vec3<Real> e0 = vertices.row(ii + 1) - vertices.row(ii);
+    const Vec3<Real> e0 = edges.at(ii).e;
     const Mat3<Real> crossLhs = CrossProductMatrix(e0);
 
     // Rhs
-    const Vec3<Real> e1 = vertices.row(ii + 2) - vertices.row(ii + 1);
+    //    const Vec3<Real> e1 = vertices.row(ii + 2) - vertices.row(ii + 1);
+    const Vec3<Real> e1 = edges.at(ii).e;
     const Mat3<Real> crossRhs = CrossProductMatrix(e1);
 
     // Compute the lhs gradient
-    const Real denominator = restLengths(ii) * restLengths(ii + 1) + e0.dot(e1);
+    const Real denominator =
+        restEdges.at(ii).length * restEdges.at(ii + 1).length + e0.dot(e1);
 
     // DEBUG: This could be a broken thing. The paper just _had_ to switch the
     // damn terms.
@@ -237,8 +215,8 @@ void DiscreteElasticRod::UpdateKbGradients() {
 void DiscreteElasticRod::UpdateHolonomyGradient() {
   holonomyGradients.resize(nRods - 1);
   for (int ii = 0; ii < nRods - 1; ++ii) {
-    const auto lhs = kbs.at(ii) / 2 * (restLengths(ii));
-    const auto rhs = -kbs.at(ii) / 2 * (restLengths(ii + 1));
+    const auto lhs = kbs.at(ii) / 2 * (restEdges.at(ii).length);
+    const auto rhs = -kbs.at(ii) / 2 * (restEdges.at(ii + 1).length);
     holonomyGradients.at(ii) = -1 * (lhs + rhs);
   }
 }
@@ -251,8 +229,9 @@ void DiscreteElasticRod::Computekbs() {
     const Vec3<Real> e1 = vertices.row(ii + 2) - vertices.row(ii + 1);
 
     // Discrete curvature binormal
-    kbs.at(ii) = 2.0 * e0.cross(e1) /
-                 (restLengths(ii) * restLengths(ii + 1) + e0.dot(e1));
+    kbs.at(ii) =
+        2.0 * e0.cross(e1) /
+        (restEdges.at(ii).length * restEdges.at(ii + 1).length + e0.dot(e1));
   }
 }
 
@@ -288,7 +267,7 @@ auto DiscreteElasticRod::ComputeTwistingForce() -> Vec<Real> {
   const auto gradW = [&J, &Bhat, this](int j) -> Real {
     const auto &w = curvature.at(j);
     const auto &wbar = restCurvature.at(j);
-    const Real restLength = restLengths(j);
+    const Real restLength = restEdges.at(j).length;
     const Real invRestLength = 1.0 / restLength;
     return invRestLength * w.transpose() * J * Bhat * (w - wbar);
   };
@@ -299,7 +278,8 @@ auto DiscreteElasticRod::ComputeTwistingForce() -> Vec<Real> {
     const auto &Wj1 = gradW(j + 1);
     const Real thetaDiff = thetas(j) - thetas(j + 1);
 
-    forces(j) = (Wj + Wj1) * 2 * gBendingModulus * thetaDiff / restLengths(j);
+    forces(j) =
+        (Wj + Wj1) * 2 * gBendingModulus * thetaDiff / restEdges.at(j).length;
   }
 
 #ifndef NDEBUG
@@ -320,7 +300,7 @@ void DiscreteElasticRod::ComputeTwistingHessian(Vec<Real> &upper,
   const auto hessW = [&J, &Bhat, this](int j) -> Real {
     const auto &w = curvature.at(j);
     const auto &wbar = restCurvature.at(j);
-    const Real restLength = restLengths(j);
+    const Real restLength = restEdges.at(j).length;
     const Real invRestLength = 1.0 / restLength;
 
     const Real lhs = invRestLength * w.transpose() * J.transpose() * Bhat * w;
@@ -334,29 +314,24 @@ void DiscreteElasticRod::ComputeTwistingHessian(Vec<Real> &upper,
   center = Vec<Real>::Zero(nRods - 1);
 
   for (int j = 0; j < nRods - 2; ++j) {
-    lower(j) = -2 * gBendingModulus / restLengths(j);
-    upper(j) = -2 * gBendingModulus / restLengths(j + 1);
+    lower(j) = -2 * gBendingModulus / restEdges.at(j).length;
+    upper(j) = -2 * gBendingModulus / restEdges.at(j + 1).length;
 
     center(j) =
         hessW(j) + hessW(j + 1) +
-        2 * gBendingModulus * (1 / restLengths(j) + 1 / restLengths(j + 1));
+        2 * gBendingModulus *
+            (1 / restEdges.at(j).length + 1 / restEdges.at(j + 1).length);
   }
 }
 
 auto DiscreteElasticRod::ComputepEpxi(int j) -> Vec3<Real> {
-  const auto scaledTwistContrib = 2 * gTwistingModulus / restLengths(j);
+  const auto scaledTwistContrib = 2 * gTwistingModulus / restEdges.at(j).length;
   const auto &gradKb = kbGradients.at(j);
   const auto &kb = kbs.at(j);
-  const Real totalRestLength = restLengths.sum();
   const auto &gradHolo = holonomyGradients.at(j);
   const Real thetaDiff = thetas(thetas.rows() - 1) - thetas(0);
   return scaledTwistContrib * gradKb.transpose() * kb +
          (gBendingModulus * thetaDiff) / totalRestLength * gradHolo;
 }
 
-void DiscreteElasticRod::UpdateLengths() {
-  for (int ii = 0; ii < nRods; ++ii) {
-    const Real length = (vertices.row(ii + 1) - vertices.row(ii)).norm();
-    lengths(ii) = length;
-  }
-}
+void DiscreteElasticRod::UpdateLengths() { edges = ComputeEdges(vertices); }

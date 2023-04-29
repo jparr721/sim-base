@@ -11,7 +11,7 @@ DiscreteElasticRods::DiscreteElasticRods(
     std::shared_ptr<Camera<float>> &camera) {
   // Construct a trivial point set
   std::vector<Vec3<Real>> points;
-  for (Real ii = 0; ii < 10; ii += 0.5) {
+  for (int ii = 0; ii < 10; ++ii) {
     points.emplace_back(ii, 0, 0);
   }
 
@@ -24,6 +24,7 @@ DiscreteElasticRods::DiscreteElasticRods(
   integrator =
       std::make_unique<ForwardEulerStrand>(mesh, nullptr, 1.0 / 100'000.0);
 
+  // Zoom out and set the center in a different spot
   camera->SetRadius(26.1);
   camera->SetTheta(1.5708);
   camera->SetPhi(1.0308);

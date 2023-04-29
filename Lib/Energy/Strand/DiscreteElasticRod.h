@@ -1,32 +1,25 @@
 #pragma once
 
+#include "AdaptedFrame.h"
 #include <Energy/Spring/MassSpring.h>
 #include <LibMath.h>
 
 constexpr Real gBendingModulus = 0.001;
 constexpr Real gTwistingModulus = 0.07;
 
-struct Frame {
-  // The tangent should always be defined
-  Vec3<Real> t = Vec3<Real>::Zero();
-  Vec3<Real> u = Vec3<Real>::Zero();
-  Vec3<Real> v = Vec3<Real>::Zero();
-
-  Frame() = default;
-  Frame(const Vec3<Real> &t, const Vec3<Real> &u, const Vec3<Real> &v)
-      : t(t), u(u), v(v) {}
-};
-
 class DiscreteElasticRod {
 public:
   int nRods;
+  Real totalRestLength;
 
   std::unique_ptr<MassSpring> massSpring;
 
   Mat<Real> vertices;
   Mat<Real> restVertices;
 
-  std::vector<Frame> frames;
+  std::vector<Edge> edges;
+  std::vector<Edge> restEdges;
+  std::vector<BishopFrame> frames;
 
   std::vector<Vec3<Real>> m1s;
   std::vector<Vec3<Real>> m2s;
@@ -43,10 +36,7 @@ public:
   std::vector<Vec2<Real>> curvature;
   std::vector<Vec2<Real>> restCurvature;
 
-  Vec<Real> velocities;
   Vec<Real> thetas;
-  Vec<Real> lengths;
-  Vec<Real> restLengths;
 
   SparseMat<Real> mInv;
 
