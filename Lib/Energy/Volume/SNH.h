@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Energy/HyperelasticMaterial.h>
+#include <Energy/Volume/HyperelasticMaterial.h>
 
 class SNH : public HyperelasticMaterial {
 public:

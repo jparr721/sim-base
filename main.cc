@@ -1,10 +1,6 @@
 #include "Camera.h"
-#include "ForwardEuler.h"
-#include "LibMath.h"
 #include "OpenGL.h"
-#include <Energy/Volume/SNH.h>
-#include <Energy/Volume/STVK.h>
-#include "TetMesh.h"
+#include <Scenes/StrandScene.h>
 #include <igl/writeOBJ.h>
 #include <memory>
 
@@ -19,17 +15,22 @@ bool gCameraZooming = false;
 bool gCameraPanning = false;
 bool gAnimating = false;
 bool gSingleStep = false;
+bool gShowGrid = false;
+bool gShowCenterAxes = false;
+
+// Gravity interactions
+bool gAddPosYAxisPull = false;
+bool gAddNegYAxisPull = false;
+bool gAddPosXAxisPull = false;
+bool gAddNegXAxisPull = false;
 
 int gSteps = 0;
 
-auto gCamera = std::make_unique<Camera<float>>();
+auto gCamera = std::make_shared<Camera<float>>();
 
-std::shared_ptr<TetMesh> gMesh =
-    std::make_shared<TetMesh>(Meshes / "bunny.obj");
-std::shared_ptr<SNH> gMaterial = std::make_shared<SNH>(30.0, 0.45);
-//std::shared_ptr<STVK> gMaterial = std::make_shared<STVK>(30.0, 0.45);
-std::unique_ptr<ForwardEuler<Real>> gIntegrator =
-    std::make_unique<ForwardEuler<Real>>(gMesh, gMaterial, 1.0 / 3000.0);
+// UNCOMMENT HERE FOR BUNNY SCENE
+auto gScene = std::make_unique<DiscreteElasticRods>(gCamera);
+// auto gScene = std::make_unique<CoarseBunnyExplicit>();
 
 void GlutMotionFunc(int x, int y) {
   gMouseCur[0] = x;
@@ -55,20 +56,26 @@ void GlutMotionFunc(int x, int y) {
 }
 
 void GlutMouseFunc(int button, int state, int x, int y) {
-  if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
+  if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
     gCameraRotating = true;
-  if (button == GLUT_LEFT_BUTTON && state == GLUT_UP)
+  }
+  if (button == GLUT_LEFT_BUTTON && state == GLUT_UP) {
     gCameraRotating = false;
+  }
 
-  if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN)
+  if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN) {
     gCameraZooming = true;
-  if (button == GLUT_RIGHT_BUTTON && state == GLUT_UP)
+  }
+  if (button == GLUT_RIGHT_BUTTON && state == GLUT_UP) {
     gCameraZooming = false;
+  }
 
-  if (button == GLUT_MIDDLE_BUTTON && state == GLUT_DOWN)
+  if (button == GLUT_MIDDLE_BUTTON && state == GLUT_DOWN) {
     gCameraPanning = true;
-  if (button == GLUT_MIDDLE_BUTTON && state == GLUT_UP)
+  }
+  if (button == GLUT_MIDDLE_BUTTON && state == GLUT_UP) {
     gCameraPanning = false;
+  }
 
   gMouseCur[0] = x;
   gMouseCur[1] = y;
@@ -91,17 +98,13 @@ void GlutReshapeFunc(int width, int height) {
 
 static void KeyboardControls() {
   std::cout << "Keyboard Controls:" << std::endl;
-  std::cout << "  n: Toggle drawing normals" << std::endl;
   std::cout << "  a: Toggle animation" << std::endl;
   std::cout << "  c: Print camera info" << std::endl;
+  std::cout << "  g: Toggle grid mesh" << std::endl;
   std::cout << "  space: Single step of animation" << std::endl;
 }
 
 void GlutKeyboardFunc(unsigned char key, int x, int y) {
-  if (key == 'n') {
-    gMesh->ToggleDrawNormals();
-  }
-
   if (key == ' ') {
     // Pause the animation too
     if (gAnimating) {
@@ -114,10 +117,35 @@ void GlutKeyboardFunc(unsigned char key, int x, int y) {
     gAnimating = !gAnimating;
   }
 
+  if (key == 'g') {
+    gShowGrid = !gShowGrid;
+    gShowCenterAxes = !gShowCenterAxes;
+  }
+
   if (key == 'c') {
     std::cout << "Radius " << gCamera->GetR() << std::endl;
     std::cout << "Theta " << gCamera->GetTheta() << std::endl;
     std::cout << "Phi " << gCamera->GetPhi() << std::endl;
+  }
+
+  glutPostRedisplay();
+}
+
+void GlutSpecialInputFunc(int key, int x, int y) {
+  if (key == GLUT_KEY_UP) {
+    gAddPosYAxisPull = true;
+  }
+
+  if (key == GLUT_KEY_DOWN) {
+    gAddNegYAxisPull = true;
+  }
+
+  if (key == GLUT_KEY_LEFT) {
+    gAddNegXAxisPull = true;
+  }
+
+  if (key == GLUT_KEY_RIGHT) {
+    gAddPosXAxisPull = true;
   }
 
   glutPostRedisplay();
@@ -142,22 +170,24 @@ void Display() {
   glPushMatrix();
   glMultMatrixf(gCamera->ToViewMatrix().data());
 
-  glBegin(GL_LINES);
-  // Red - X Axis
-  glColor3f(1, 0, 0);
-  glVertex3f(0, 0, 0);
-  glVertex3f(1, 0, 0);
+  if (gShowCenterAxes) {
+    glBegin(GL_LINES);
+    // Red - X Axis
+    glColor3f(1, 0, 0);
+    glVertex3f(0, 0, 0);
+    glVertex3f(1, 0, 0);
 
-  // Green - Y Axis
-  glColor3f(0, 1, 0);
-  glVertex3f(0, 0, 0);
-  glVertex3f(0, 1, 0);
+    // Green - Y Axis
+    glColor3f(0, 1, 0);
+    glVertex3f(0, 0, 0);
+    glVertex3f(0, 1, 0);
 
-  // Blue - Z Axis
-  glColor3f(0, 0, 1);
-  glVertex3f(0, 0, 0);
-  glVertex3f(0, 0, 1);
-  glEnd();
+    // Blue - Z Axis
+    glColor3f(0, 0, 1);
+    glVertex3f(0, 0, 0);
+    glVertex3f(0, 0, 1);
+    glEnd();
+  }
 
   float density = 0.15;
   float fogColor[4] = {0.15, 0.15, 0.15, 1.0};
@@ -170,9 +200,12 @@ void Display() {
   glFogfv(GL_FOG_COLOR, fogColor);
   glFogf(GL_FOG_DENSITY, density);
   glHint(GL_FOG_HINT, GL_NICEST);
-  DrawGLGrid(100, 0.25);
 
-  gMesh->Draw();
+  if (gShowGrid) {
+    DrawGLGrid(100, 0.25);
+  }
+
+  gScene->Draw();
 
   glPopMatrix();
   glFlush();
@@ -180,8 +213,29 @@ void Display() {
 
 static void GlutIdle() {
   if (gAnimating || gSingleStep) {
-    gIntegrator->AddGravity(Vec3<Real>(0, -9, 0));
-    gIntegrator->Step();
+    Vec3<Real> gravity(0, -0.981, 0);
+
+    if (gAddPosYAxisPull) {
+      gravity += Vec3<Real>(0, 9, 0);
+      gAddPosYAxisPull = false;
+    }
+
+    if (gAddNegYAxisPull) {
+      gravity += Vec3<Real>(0, -9, 0);
+      gAddNegYAxisPull = false;
+    }
+
+    if (gAddPosXAxisPull) {
+      gravity += Vec3<Real>(9, 0, 0);
+      gAddPosXAxisPull = false;
+    }
+
+    if (gAddNegXAxisPull) {
+      gravity += Vec3<Real>(-9, 0, 0);
+      gAddNegXAxisPull = false;
+    }
+
+    gScene->Step(gravity);
 
     ++gSteps;
 
@@ -197,19 +251,9 @@ static void GlutIdle() {
 
 auto main(int argc, char **argv) -> int {
   if (argc > 1) {
-    gMesh = std::make_shared<TetMesh>(argv[1]);
-
   } else {
-    std::cout << "No mesh specified, defaulting to Meshes/bunny.obj"
+    std::cout << "No Scene specified, defaulting to Scenes/CoarseBunnyExplicit"
               << std::endl;
-  }
-
-  // Pin the top vertices of the mesh in gMesh
-  for (int ii = 0; ii < gMesh->v.rows(); ++ii) {
-    // Find the top vertices
-    if (gMesh->v(ii, 1) > 0.9) {
-      gMesh->PinVertex(ii);
-    }
   }
 
   KeyboardControls();
@@ -220,12 +264,13 @@ auto main(int argc, char **argv) -> int {
   glutInit(&argc, argv);
   glutInitDisplayMode(GLUT_DEPTH | GLUT_RGBA);
   glutInitWindowSize(gScreenSize.x(), gScreenSize.y());
-  glutCreateWindow("Testing");
+  glutCreateWindow("Simulator");
   glutDisplayFunc(Display);
   glutMouseFunc(GlutMouseFunc);
   glutMotionFunc(GlutMotionFunc);
   glutReshapeFunc(GlutReshapeFunc);
   glutKeyboardFunc(GlutKeyboardFunc);
+  glutSpecialFunc(GlutSpecialInputFunc);
   glutIdleFunc(GlutIdle);
 
   glClearColor(1.0f, 1.0f, 1.0f, 1.0f);

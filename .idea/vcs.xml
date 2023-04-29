@@ -2,9 +2,6 @@
 <project version="4">
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/bin/_deps/eigen-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/bin/_deps/libigl-src" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/bin/_deps/tetgen-src" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ext/googletest" vcs="Git" />
   </component>
 </project>

@@ -1,24 +1,24 @@
 #pragma once
 
+#include <Energy/Strand/DiscreteElasticRod.h>
 #include <LibMath.h>
 
 class StrandMesh {
-  // Simulated vertices
-  Mat<Real> v;
+public:
+  bool drawMaterialFrame = false;
 
-  // Rest vertices
-  Mat<Real> rv;
+  std::shared_ptr<DiscreteElasticRod> der;
 
-  // Simulated edges
-  Mat<int> e;
+  explicit StrandMesh(const Mat<Real> &points);
 
-  // Rest edges
-  Mat<int> re;
+  [[nodiscard]] INLINE auto DOFs() const -> int { return der->DOFs(); }
+  INLINE void SetPositions(const Vec<Real> &x) { der->SetPositions(x); }
+  INLINE auto Positions() const -> Vec<Real> { return der->Positions(); }
+  void Draw();
 
-  // N x 1 boolean vector indicating whether a vertex is pinned. This matches
-  // the dimension of v.
-  Vec<int> pinned;
-
-  // Per-element deformation gradients
-  std::vector<Mat<Real>> fs;
+  /**
+   * Compute forces on the centerline
+   * @return n*3 x 1 vector of forces where n is the number of points
+   */
+  auto ComputeMaterialForces() -> Vec<Real>;
 };
