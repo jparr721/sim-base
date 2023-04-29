@@ -1,9 +1,10 @@
 #pragma once
 
+#include <Energy/Spring/MassSpring.h>
 #include <LibMath.h>
 
-constexpr Real gBendingModulus = 1.0;
-constexpr Real gTwistingModulus = 0.075;
+constexpr Real gBendingModulus = 0.001;
+constexpr Real gTwistingModulus = 0.07;
 
 INLINE auto RotationMatrixAroundNormal(const Vec3<Real> &axisAngle)
     -> Mat3<Real> {
@@ -43,14 +44,11 @@ struct Frame {
       : t(t), u(u), v(v) {}
 };
 
-struct Bend {
-  Vec2<Real> prevCurvature;
-  Vec2<Real> nextCurvature;
-};
-
 class DiscreteElasticRod {
 public:
   int nRods;
+
+  std::unique_ptr<MassSpring> massSpring;
 
   Mat<Real> vertices;
   Mat<Real> restVertices;

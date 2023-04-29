@@ -65,7 +65,7 @@ public:
       }
 
       if (e == 4 && minSeen > 1e-6) {
-        std::cout << "Pk1 finite difference test failed" << std::endl;
+        std::cout << "Gradient finite difference test failed" << std::endl;
         std::cout << "pk10: " << pk10 << std::endl;
         std::cout << "finiteDiff: " << finiteDiff << std::endl;
         std::cout << "error: " << error << std::endl;
@@ -77,10 +77,10 @@ public:
     }
 
     if (minSeen < 1e-6) {
-      std::cout << "Pk1 finite difference test passed" << std::endl;
+      std::cout << "Gradient finite difference test passed" << std::endl;
       return true;
     } else {
-      std::cout << "Pk1 finite difference test failed" << std::endl;
+      std::cout << "Gradient finite difference test failed" << std::endl;
       return false;
     }
   }

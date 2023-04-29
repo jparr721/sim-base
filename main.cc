@@ -187,7 +187,7 @@ void Display() {
 
 static void GlutIdle() {
   if (gAnimating || gSingleStep) {
-    gScene->Step(Vec3<Real>(0, -9, 0));
+    gScene->Step(Vec3<Real>(0, -1, 0));
 
     ++gSteps;
 

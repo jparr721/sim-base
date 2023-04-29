@@ -35,6 +35,7 @@ template <typename Real> INLINE auto RadiansToDegrees(Real radians) -> Real {
 template <typename Real> using Vec2 = Eigen::Matrix<Real, 2, 1>;
 template <typename Real> using Vec3 = Eigen::Matrix<Real, 3, 1>;
 template <typename Real> using Vec4 = Eigen::Matrix<Real, 4, 1>;
+template <typename Real> using Vec6 = Eigen::Matrix<Real, 6, 1>;
 template <typename Real> using Vec9 = Eigen::Matrix<Real, 9, 1>;
 template <typename Real> using Vec12 = Eigen::Matrix<Real, 12, 1>;
 template <typename Real> using Vec = Eigen::Matrix<Real, -1, 1>;

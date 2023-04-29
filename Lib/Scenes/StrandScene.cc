@@ -21,5 +21,5 @@ DiscreteElasticRods::DiscreteElasticRods() {
 
   mesh = std::make_shared<StrandMesh>(v);
   integrator =
-      std::make_unique<ForwardEulerStrand>(mesh, nullptr, 1.0 / 12'000.0);
+      std::make_unique<ForwardEulerStrand>(mesh, nullptr, 1.0 / 3'000.0);
 }

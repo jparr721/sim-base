@@ -27,7 +27,7 @@ public:
 
     // Pin the ends
     u.segment<3>(0) = Vec3<Real>::Zero();
-    u.segment<3>(u.rows() - 3) = Vec3<Real>::Zero();
+//    u.segment<3>(u.rows() - 3) = Vec3<Real>::Zero();
 
     this->velocity = u / this->dt;
 

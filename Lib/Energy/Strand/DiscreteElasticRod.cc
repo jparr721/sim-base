@@ -1,7 +1,8 @@
 #include <Energy/Strand/DiscreteElasticRod.h>
 
 DiscreteElasticRod::DiscreteElasticRod(Mat<Real> vertices)
-    : vertices(std::move(vertices)), nRods(vertices.rows() - 1) {
+    : vertices(std::move(vertices)), nRods(vertices.rows() - 1),
+      massSpring(new MassSpring(1000, 0.5)) {
   // At least 3 nodes is required
   ASSERT(this->vertices.rows() >= 3, "At least 3 nodes is required");
 
@@ -112,6 +113,19 @@ auto DiscreteElasticRod::ComputeCenterlineForcesStraight() -> Vec<Real> {
   for (int ii = 0; ii < nRods - 2; ++ii) {
     const Vec3<Real> vertexForce = ComputepEpxi(ii);
     R.segment<3>(3 * ii + 1) += vertexForce;
+  }
+
+  // Compute spring-mass forces
+  for (int ii = 0; ii < nRods; ++ii) {
+    Vec6<Real> x;
+    x.segment<3>(0) = vertices.row(ii);
+    x.segment<3>(3) = vertices.row(ii + 1);
+
+    const Vec6<Real> force = -lengths(ii) * massSpring->Gradient(x);
+
+    // Scatter the forces into the global vector
+    R.segment<3>(3 * ii) += force.segment<3>(0);
+    R.segment<3>(3 * (ii + 1)) += force.segment<3>(3);
   }
 
   return R;
