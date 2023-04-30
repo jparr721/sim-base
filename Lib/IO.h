@@ -5,8 +5,8 @@
 #include <igl/boundary_facets.h>
 
 template <typename T>
-auto ReadTobjFile(const std::string &filename, Mat<T> &verts, Mat<int> &tets,
-                  Mat<int> &faces) -> bool {
+INLINE auto ReadTobjFile(const std::string &filename, Mat<T> &verts,
+                         Mat<int> &tets, Mat<int> &faces) -> bool {
   std::vector<Vec3<T>> vertsVec;
   std::vector<Vec4<int>> tetsVec;
 

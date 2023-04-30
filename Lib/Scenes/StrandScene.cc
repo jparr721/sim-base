@@ -15,6 +15,43 @@ void StrandScene::Draw() {
   }
 }
 
+void StrandScene::DumpFrame() {
+  char dirname[512];
+  sprintf(dirname, "sim_output_frame_%04i", frame);
+  if (fs::exists(dirname)) {
+    fs::remove_all(dirname);
+  }
+
+  // Create a directory for this frame
+  fs::create_directory(dirname);
+
+  int strand = 0;
+  for (const auto &mesh : meshes) {
+    char strandName[512];
+    sprintf(strandName, "strand_%04i.obj", strand);
+    fs::path fullPath = fs::path(dirname) / fs::path(strandName);
+
+    std::ofstream file;
+    file.open(fullPath);
+
+    const auto &vertices = mesh->der->vertices;
+    for (int ii = 0; ii < vertices.rows(); ++ii) {
+      // Write vertices.row(ii) to the file
+      file << "v " << vertices.row(ii) << std::endl;
+    }
+
+    file << "l ";
+    for (int ii = 0; ii < vertices.rows(); ++ii) {
+      file << ii + 1 << " ";
+    }
+
+    file << std::endl;
+    file.close();
+
+    ++strand;
+  }
+}
+
 DiscreteElasticRods::DiscreteElasticRods(
     std::shared_ptr<Camera<float>> &camera) {
   for (Real ss = 0; ss < 20; ss += 0.1) {

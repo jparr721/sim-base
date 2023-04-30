@@ -1,4 +1,5 @@
 #include "OpenGL.h"
+#include <LibGui.h>
 #include <StrandMesh.h>
 
 StrandMesh::StrandMesh(const Mat<Real> &points)
@@ -30,7 +31,6 @@ void StrandMesh::Draw() {
   }
 
   glBegin(GL_POINTS);
-  //  glPointSize(20);
   for (int ii = 0; ii < der->nRods; ++ii) {
     const Vec3<Real> x0 = der->vertices.row(ii);
     const Vec3<Real> x1 = der->vertices.row(ii + 1);
@@ -41,17 +41,18 @@ void StrandMesh::Draw() {
   }
   glEnd();
 
-  glBegin(GL_LINES);
-  glLineWidth(1);
+  //  glBegin(GL_LINES);
+  //  glLineWidth(1);
   for (int ii = 0; ii < der->nRods; ++ii) {
     const Vec3<Real> x0 = der->vertices.row(ii);
     const Vec3<Real> x1 = der->vertices.row(ii + 1);
 
     glColor3f(1, 1, 1);
-    glVertex3dv(x0.data());
-    glVertex3dv(x1.data());
+    DrawCylinder(x0, x1, 0.01);
+    //    glVertex3dv(x0.data());
+    //    glVertex3dv(x1.data());
   }
-  glEnd();
+  //  glEnd();
 }
 
 auto StrandMesh::ComputeMaterialForces() -> Vec<Real> {

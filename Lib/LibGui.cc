@@ -6,23 +6,19 @@ void DrawCylinder(const Vec3<Real> &p0, const Vec3<Real> &p1, Real radius) {
 
   // Get the vector pointing from p0 to p1
   Vec3<Real> direction = p1 - p0;
+  Vec3<Real> ax = direction.cross(Vec3<Real>::UnitZ().eval());
 
   // Compute the rotation axis and angle
-  Vec3<Real> axis = direction.normalized();
-  //  Real angle = std::acos(axis.dot(Vec3<Real>::UnitX()));
-  const Real angle = AngleBetweenVectors(axis, Vec3<Real>::UnitX().eval());
-
-  // Compute the translation vector
-  Vec3<Real> translation = (p0 + p1) / 2.0;
+  Real angle = AngleBetweenVectors(ax.normalized(), Vec3<Real>::UnitZ().eval());
 
   // Save the current modelview matrix
   glPushMatrix();
 
   // Translate to the center of the cylinder
-  glTranslated(translation.x(), translation.y(), translation.z());
+  glTranslated(p1.x(), p1.y(), p1.z());
 
   // Rotate the cylinder
-  glRotated(angle * 180.0 / M_PI, axis.x(), axis.y(), axis.z());
+  glRotated(RadiansToDegrees(angle), ax.x(), ax.y(), ax.z());
 
   // Draw the cylinder
   GLUquadricObj *quadric = gluNewQuadric();

@@ -2,45 +2,44 @@
 
 #include "LibMath.h"
 
-template <typename Real> class Camera {
+template <typename T> class Camera {
 public:
   Camera();
   virtual ~Camera();
 
   auto Resize(std::size_t width, std::size_t height) noexcept -> bool;
-  auto Resize(std::size_t width, std::size_t height, Real nearPlane,
-              Real farPlane) noexcept -> bool;
+  auto Resize(std::size_t width, std::size_t height, T nearPlane,
+              T farPlane) noexcept -> bool;
 
-  auto Rotate(Real du, Real dv) -> bool;
-  auto Pan(Real du, Real dv) -> bool;
-  auto Zoom(Real du) -> bool;
+  auto Rotate(T du, T dv) -> bool;
+  auto Pan(T du, T dv) -> bool;
+  auto Zoom(T du) -> bool;
 
-  void SetPerspective(Real fov, std::size_t width, std::size_t height,
-                      Real nearPlane, Real farPlane);
-  void SetFrustum(Real left, Real right, Real top, Real bottom, Real nearPlane,
-                  Real farPlane);
+  void SetPerspective(T fov, std::size_t width, std::size_t height, T nearPlane,
+                      T farPlane);
+  void SetFrustum(T left, T right, T top, T bottom, T nearPlane, T farPlane);
 
-  void SetPosition(const Vec3<Real> &position);
-  void SetPosition(Real x, Real y, Real z);
-  void AddPosition(const Vec3<Real> &displacement);
-  void AddPosition(Real dx, Real dy, Real dz);
+  void SetPosition(const Vec3<T> &position);
+  void SetPosition(T x, T y, T z);
+  void AddPosition(const Vec3<T> &displacement);
+  void AddPosition(T dx, T dy, T dz);
 
-  void SetRotation(Real theta, Real phi);
-  void SetHorizontalRotation(Real theta);
-  void SetVerticalRotation(Real phi);
-  void SetSphericalPosition(Real r, Real theta, Real phi);
-  void AddRadius(Real dRadius);
-  void SetRadius(Real radius);
-  void SetFieldOfView(Real fov);
-  void SetNearPlane(Real nearPlane);
-  void SetFarPlane(Real farPlane);
-  void SetMinRadius(Real minRadius);
-  void SetMaxRadius(Real maxRadius);
+  void SetRotation(T theta, T phi);
+  void SetHorizontalRotation(T theta);
+  void SetVerticalRotation(T phi);
+  void SetSphericalPosition(T r, T theta, T phi);
+  void AddRadius(T dRadius);
+  void SetRadius(T radius);
+  void SetFieldOfView(T fov);
+  void SetNearPlane(T nearPlane);
+  void SetFarPlane(T farPlane);
+  void SetMinRadius(T minRadius);
+  void SetMaxRadius(T maxRadius);
 
-  void SetRotationSensitivity(Real sen);
-  void SetPanSensitivity(Real sen);
-  void SetZoomSensitivity(Real sen);
-  void SetScopeSensitivity(Real sen);
+  void SetRotationSensitivity(T sen);
+  void SetPanSensitivity(T sen);
+  void SetZoomSensitivity(T sen);
+  void SetScopeSensitivity(T sen);
 
   void Reset();
   void ResetPlanes();
@@ -48,93 +47,98 @@ public:
   void ResetMatrices();
   void ResetSensitivities();
 
-  auto GetR() const -> Real { return r; }
-  auto GetTheta() const -> Real { return theta; }
-  auto GetPhi() const -> Real { return phi; }
+  auto GetR() const -> T { return r; }
+  auto GetTheta() const -> T { return theta; }
+  auto GetPhi() const -> T { return phi; }
 
-  void SetR(Real newValue) {
+  void SetR(T newValue) {
     r = newValue;
     Compile();
   }
-  void SetTheta(Real newValue) {
+  void SetTheta(T newValue) {
     theta = newValue;
     Compile();
   }
-  void SetPhi(Real newValue) {
+  void SetPhi(T newValue) {
     phi = newValue;
     Compile();
   }
 
-  auto GetRotationSensitivity() const -> Real;
-  auto GetPanSensitivity() const -> Real;
-  auto GetZoomSensitivity() const -> Real;
-  auto GetScopeSensitivity() const -> Real;
+  auto GetRotationSensitivity() const -> T;
+  auto GetPanSensitivity() const -> T;
+  auto GetZoomSensitivity() const -> T;
+  auto GetScopeSensitivity() const -> T;
 
-  auto GetViewDirection() -> Vec3<Real>;
-  auto GetRightDirection() -> Vec3<Real>;
-  auto GetLeftDirection() -> Vec3<Real>;
-  auto GetUpDirection() -> Vec3<Real>;
-  auto GetDownDirection() -> Vec3<Real>;
+  auto GetViewDirection() -> Vec3<T>;
+  auto GetRightDirection() -> Vec3<T>;
+  auto GetLeftDirection() -> Vec3<T>;
+  auto GetUpDirection() -> Vec3<T>;
+  auto GetDownDirection() -> Vec3<T>;
 
-  auto GetEye() const -> const Vec3<Real> &;
-  auto GetLookAt() const -> const Vec3<Real> &;
-  auto GetUp() const -> const Vec3<Real> &;
+  auto GetEye() const -> const Vec3<T> &;
+  auto GetLookAt() const -> const Vec3<T> &;
+  auto GetUp() const -> const Vec3<T> &;
+  auto GetFOV() const -> const T &;
 
   std::size_t GetWidth() const;
   auto GetHeight() const -> std::size_t;
-  auto GetNear() const -> const Real &;
-  auto GetFar() const -> const Real &;
+  auto GetNear() const -> const T &;
+  auto GetFar() const -> const T &;
 
-  auto GetViewMatrix() -> const Mat4<Real> &;
-  auto GetProjectionMatrix() -> const Mat4<Real> &;
+  auto GetViewMatrix() -> const Mat4<T> &;
+  auto GetProjectionMatrix() -> const Mat4<T> &;
 
-  auto ToViewMatrix() -> Mat4<Real>;
-  auto ToProjectionMatrix() -> Mat4<Real>;
+  auto ToViewMatrix() -> Mat4<T>;
+  auto ToProjectionMatrix() -> Mat4<T>;
 
-  static auto LookAt(const Vec3<Real> &eye, const Vec3<Real> &lookAt,
-                     const Vec3<Real> &up) -> Mat4<Real>;
-  static auto LookAt(Real eyex, Real eyey, Real eyez, Real atx, Real aty,
-                     Real atz, Real upx, Real upy, Real upz) -> Mat4<Real>;
+  static auto LookAt(const Vec3<T> &eye, const Vec3<T> &lookAt,
+                     const Vec3<T> &up) -> Mat4<T>;
+  static auto LookAt(T eyex, T eyey, T eyez, T atx, T aty, T atz, T upx, T upy,
+                     T upz) -> Mat4<T>;
 
-  static auto PerspectiveMatrix(Real fov, std::size_t width, std::size_t height,
-                                Real nearPlane, Real farPlane) noexcept
-      -> Mat4<Real>;
-  static auto OrthographicMatrix(Real left, Real right, Real bottom, Real top,
-                                 Real nearPlane, Real farPlane) noexcept
-      -> Mat4<Real>;
+  static auto PerspectiveMatrix(T fov, std::size_t width, std::size_t height,
+                                T nearPlane, T farPlane) noexcept
+      -> Mat4<T>;
+  static auto OrthographicMatrix(T left, T right, T bottom, T top, T nearPlane,
+                                 T farPlane) noexcept
+      -> Mat4<T>;
 
-  static auto SphereicalToCartesian(Real r, Real theta, Real phi) -> Vec3<Real>;
-  static auto SphereicalToCartesian_dTheta(Real r, Real theta, Real phi)
-      -> Vec3<Real>;
-  static auto SphereicalToCartesian_dPhi(Real r, Real theta, Real phi)
-      -> Vec3<Real>;
-  static auto SphereicalToCartesian_dPhiCrossdTheta(Real r, Real theta,
-                                                    Real phi) -> Vec3<Real>;
+  static auto SphereicalToCartesian(T r, T theta, T phi) -> Vec3<T>;
+  static auto SphereicalToCartesian_dTheta(T r, T theta, T phi)
+      -> Vec3<T>;
+  static auto SphereicalToCartesian_dPhi(T r, T theta, T phi)
+      -> Vec3<T>;
+  static auto SphereicalToCartesian_dPhiCrossdTheta(T r, T theta, T phi) -> Vec3<T>;
 
 protected:
   void Compile() noexcept;
 
 protected:
-  Mat4<Real> viewMatrix;
-  Mat4<Real> projectionMatrix;
-  Real nearPlane, farPlane;
+  Mat4<T> viewMatrix;
+  Mat4<T> projectionMatrix;
+  T nearPlane, farPlane;
 
   std::size_t width, height;
-  Vec3<Real> eye;
-  Vec3<Real> lookAt;
-  Vec3<Real> up;
+  Vec3<T> eye;
+  Vec3<T> lookAt;
+  Vec3<T> up;
 
-  Real fov, aspectRatio;
-  Real minRadius, maxRadius;
+  T fov, aspectRatio;
+  T minRadius, maxRadius;
 
-  Real r, theta, phi;
-  Vec3<Real> displacement;
+  T r, theta, phi;
+  Vec3<T> displacement;
 
-  Real panSensitivity;
-  Real zoomSensitivity;
-  Real rotationSensitivity;
-  Real scopeSensitivity;
+  T panSensitivity;
+  T zoomSensitivity;
+  T rotationSensitivity;
+  T scopeSensitivity;
 };
+
+template <typename Real> auto Camera<Real>::GetFOV() const -> const Real & {
+  return this->fov;
+}
+
 const Real CAMERA_EPSILON = Real(0.00001);
 const Real DEFAULT_NEAR_PLANE = Real(0.1);
 const Real DEFAULT_FAR_PLANE = Real(1000.0);

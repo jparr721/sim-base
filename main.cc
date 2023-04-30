@@ -15,8 +15,8 @@ bool gCameraZooming = false;
 bool gCameraPanning = false;
 bool gAnimating = false;
 bool gSingleStep = false;
-bool gShowGrid = false;
-bool gShowCenterAxes = false;
+bool gShowGrid = true;
+bool gShowCenterAxes = true;
 
 // Gravity interactions
 bool gAddPosYAxisPull = false;
@@ -126,6 +126,11 @@ void GlutKeyboardFunc(unsigned char key, int x, int y) {
     std::cout << "Radius " << gCamera->GetR() << std::endl;
     std::cout << "Theta " << gCamera->GetTheta() << std::endl;
     std::cout << "Phi " << gCamera->GetPhi() << std::endl;
+
+    std::cout << "Eye " << gCamera->GetEye().transpose() << std::endl;
+    std::cout << "LookAt " << gCamera->GetLookAt().transpose() << std::endl;
+    std::cout << "Up " << gCamera->GetUp().transpose() << std::endl;
+    std::cout << "FOV " << gCamera->GetFOV() << std::endl;
   }
 
   glutPostRedisplay();
@@ -245,7 +250,9 @@ static void GlutIdle() {
   }
 
   if (gSteps % 100 == 0) {
+    //    gScene->DumpFrame();
     glutPostRedisplay();
+    ++gScene->frame;
   }
 }
 
@@ -272,7 +279,6 @@ auto main(int argc, char **argv) -> int {
   glutKeyboardFunc(GlutKeyboardFunc);
   glutSpecialFunc(GlutSpecialInputFunc);
   glutIdleFunc(GlutIdle);
-
   glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
   glPointSize(4.0f);
   glEnable(GL_DEPTH_TEST);
