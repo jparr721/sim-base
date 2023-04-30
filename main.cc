@@ -250,7 +250,7 @@ static void GlutIdle() {
   }
 
   if (gSteps % 100 == 0) {
-    //    gScene->DumpFrame();
+    gScene->DumpFrame();
     glutPostRedisplay();
     ++gScene->frame;
   }
