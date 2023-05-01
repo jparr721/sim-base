@@ -40,3 +40,4 @@ cmake-build-*
 !Meshes/*
 
 bin/
+*.pbrt

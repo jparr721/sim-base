@@ -16,40 +16,33 @@ void StrandScene::Draw() {
 }
 
 void StrandScene::DumpFrame() {
-  char dirname[512];
-  sprintf(dirname, "sim_output_frame_%04i", frame);
-  if (fs::exists(dirname)) {
-    fs::remove_all(dirname);
+  char filename[512];
+  sprintf(filename, "frame_%04i.obj", frame);
+
+  std::ofstream file;
+  file.open(filename);
+
+  for (const auto &mesh : meshes) {
+    const auto &vertices = mesh->der->vertices;
+    for (int jj = 0; jj < vertices.rows(); ++jj) {
+      // Write vertices.row(ii) to the file
+      file << "v " << vertices.row(jj) << std::endl;
+    }
   }
 
-  // Create a directory for this frame
-  fs::create_directory(dirname);
-
-  int strand = 0;
-  for (const auto &mesh : meshes) {
-    char strandName[512];
-    sprintf(strandName, "strand_%04i.obj", strand);
-    fs::path fullPath = fs::path(dirname) / fs::path(strandName);
-
-    std::ofstream file;
-    file.open(fullPath);
-
+  for (int ii = 0; ii < meshes.size(); ++ii) {
+    const auto &mesh = meshes.at(ii);
     const auto &vertices = mesh->der->vertices;
-    for (int ii = 0; ii < vertices.rows(); ++ii) {
-      // Write vertices.row(ii) to the file
-      file << "v " << vertices.row(ii) << std::endl;
-    }
-
     file << "l ";
-    for (int ii = 0; ii < vertices.rows(); ++ii) {
-      file << ii + 1 << " ";
+    for (int jj = 0; jj < vertices.rows(); ++jj) {
+      int index = (jj + 1) + (ii * vertices.rows());
+      file << index << " ";
     }
 
     file << std::endl;
-    file.close();
-
-    ++strand;
   }
+
+  file.close();
 }
 
 DiscreteElasticRods::DiscreteElasticRods(
@@ -74,7 +67,7 @@ DiscreteElasticRods::DiscreteElasticRods(
   }
 
   // Zoom out and set the center in a different spot
-  camera->SetRadius(26.1);
-  camera->SetTheta(1.5708);
-  camera->SetPhi(1.0308);
+  camera->SetRadius(39.5999);
+  camera->SetTheta(1.0108);
+  camera->SetPhi(1.6308);
 }

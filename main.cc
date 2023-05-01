@@ -17,6 +17,7 @@ bool gAnimating = false;
 bool gSingleStep = false;
 bool gShowGrid = true;
 bool gShowCenterAxes = true;
+bool gSaveFrame = false;
 
 // Gravity interactions
 bool gAddPosYAxisPull = false;
@@ -127,9 +128,16 @@ void GlutKeyboardFunc(unsigned char key, int x, int y) {
     std::cout << "Theta " << gCamera->GetTheta() << std::endl;
     std::cout << "Phi " << gCamera->GetPhi() << std::endl;
 
-    std::cout << "Eye " << gCamera->GetEye().transpose() << std::endl;
-    std::cout << "LookAt " << gCamera->GetLookAt().transpose() << std::endl;
-    std::cout << "Up " << gCamera->GetUp().transpose() << std::endl;
+    const auto &eye = gCamera->GetEye();
+    const auto &lookAt = gCamera->GetLookAt();
+    const auto &up = gCamera->GetUp();
+
+    std::cout << "Eye " << eye.x() << ", " << eye.y() << ", " << eye.z()
+              << std::endl;
+    std::cout << "Look At " << lookAt.x() << ", " << lookAt.y() << ", "
+              << lookAt.z() << std::endl;
+    std::cout << "Up " << up.x() << ", " << up.y() << ", " << up.z()
+              << std::endl;
     std::cout << "FOV " << gCamera->GetFOV() << std::endl;
   }
 
@@ -249,8 +257,10 @@ static void GlutIdle() {
     }
   }
 
-  if (gSteps % 100 == 0) {
-    gScene->DumpFrame();
+  if (gSteps % 100 == 0 && gAnimating) {
+    if (gSaveFrame) {
+      gScene->DumpFrame();
+    }
     glutPostRedisplay();
     ++gScene->frame;
   }
@@ -258,6 +268,7 @@ static void GlutIdle() {
 
 auto main(int argc, char **argv) -> int {
   if (argc > 1) {
+    gSaveFrame = strcmp(argv[1], "--save") == 0;
   } else {
     std::cout << "No Scene specified, defaulting to Scenes/CoarseBunnyExplicit"
               << std::endl;
@@ -267,6 +278,8 @@ auto main(int argc, char **argv) -> int {
 
   // Set initial camera zoom
   gCamera->Zoom(10);
+
+  //  gCamera->Set
 
   glutInit(&argc, argv);
   glutInitDisplayMode(GLUT_DEPTH | GLUT_RGBA);
