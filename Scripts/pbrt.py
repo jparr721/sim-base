@@ -132,4 +132,59 @@ def render(scene_dir: str, output_dir: str):
 
 
 if __name__ == "__main__":
-    app()
+    content = """
+LookAt 3 4 1.5  # eye
+   .5 .5 0  # look at point
+   0 0 1    # up vector
+Camera "perspective" "float fov" 45
+
+Sampler "halton" "integer pixelsamples" 128
+Integrator "path"
+Film "image" "string filename" "simple.png"
+     "integer xresolution" [400] "integer yresolution" [400]
+
+WorldBegin
+
+# uniform blue-ish illumination from all directions
+LightSource "infinite" "rgb L" [.4 .45 .5]
+
+# approximate the sun
+LightSource "distant"  "point from" [ -30 40  100 ]
+   "blackbody L" [3000 1.5]
+
+AttributeBegin
+  Material "glass"
+  Shape "sphere" "float radius" 1
+AttributeEnd
+
+AttributeBegin
+  Texture "checks" "spectrum" "checkerboard"
+          "float uscale" [8] "float vscale" [8]
+          "rgb tex1" [.1 .1 .1] "rgb tex2" [.8 .8 .8]
+  Material "matte" "texture Kd" "checks"
+  Translate 0 0 -1
+  Shape "trianglemesh"
+      "integer indices" [0 1 2 0 2 3]
+      "point P" [ -20 -20 0   20 -20 0   20 20 0   -20 20 0 ]
+      "float st" [ 0 0   1 0    1 1   0 1 ]
+AttributeEnd
+    """
+
+    for ii in range(300000):
+        x = np.random.uniform(0, 1)
+        y = np.random.uniform(0, 1)
+        z = np.random.uniform(0, 1)
+
+        sphere = f"""
+    AttributeBegin
+        Material "glass"
+        Translate {x} {y} {z}
+        Shape "sphere" "float radius" 1
+    AttributeEnd\n\n
+        """
+        content += sphere
+
+    content += "\nWorldEnd"
+
+    with open(os.path.join(os.path.expanduser("~"), "Downloads", "frame.pbrt"), "w+") as f:
+        f.write(content)

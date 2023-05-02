@@ -248,7 +248,7 @@ static void GlutIdle() {
       gAddNegXAxisPull = false;
     }
 
-    gScene->Step(gravity);
+    gScene->StepScriptedScene(gravity);
 
     ++gSteps;
 
@@ -263,6 +263,9 @@ static void GlutIdle() {
     }
     glutPostRedisplay();
     ++gScene->frame;
+    if (gScene->frame > 400) {
+      ++gScene->sceneFrames;
+    }
   }
 }
 
