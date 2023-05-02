@@ -7,6 +7,28 @@
     <default name="resy" value="1080"/>
     <default name="max_depth" value="8"/>
 
+
+    <!--    Radius 17.5-->
+    <!--    Theta -0.0391999-->
+    <!--    Phi 1.7608-->
+    <!--    Eye 12.0753, -3.86577, 8.59707-->
+    <!--    Look At -5.09655, -0.560674, 9.27055-->
+    <!--    Up 0.188717, 0.982004, -0.0074015-->
+    <!--    FOV 65-->
+
+    <!-- Maybe another option -->
+    <!--    Eye 9.21331, -1.59174, 8.86574-->
+    <!--    Look At 0.38209, 0.10802, 9.2121-->
+    <!--    Up 0.188717, 0.982004, -0.00740149-->
+    <!--    FOV 65-->
+
+    <!-- Another option -->
+    <!--    Eye 12.1386, -1.41318, 9.85186-->
+    <!--    Look At 0.463037, 0.233464, 10.3098-->
+    <!--    Up 0.13944, 0.990216, -0.00546882-->
+    <!--    FOV 65-->
+
+
     <!-- Camera and Rendering Parameters -->
 
     <integrator type="path">
@@ -15,10 +37,10 @@
     </integrator>
     <sensor type="perspective">
         <string name="fov_axis" value="y"/>
-        <float name="fov" value="45"/>
+        <float name="fov" value="65"/>
         <transform name="to_world">
-            <lookat origin="7.36662, 10.9175, 59.9311" target="7.24475, 10.7761, 58.9487"
-                    up="0.0176622, 0.989334, -0.144589"/>
+            <lookat origin="12.1386, -1.41318, 9.85186" target="0.463037, 0.233464, 10.3098"
+                    up="0.13944, 0.990216, -0.00546882"/>
         </transform>
         <sampler type="multijitter">
             <integer name="sample_count" value="$spp"/>
@@ -45,30 +67,13 @@
     </bsdf>
 
     <!-- Emitters -->
-<!--    <emitter type="envmap" id="Area_002-light">-->
-<!--        <string name="filename" value="envmap.exr"/>-->
-<!--        <float name="scale" value="3"/>-->
-<!--    </emitter>-->
+    <emitter type="envmap" id="Area_002-light">
+        <string name="filename" value="envmap.exr"/>
+        <float name="scale" value="3"/>
+    </emitter>
 
-<!--    &lt;!&ndash; Fill Light &ndash;&gt;-->
-<!--    <shape type="sphere">-->
-<!--        <point name="center" x="40" y="3" z="30"/>-->
-<!--        <float name="radius" value="10"/>-->
-<!--        <emitter type="area">-->
-<!--            <rgb name="radiance" value="6.0, 5.0, 6.0"/>-->
-<!--        </emitter>-->
-<!--    </shape>-->
-
-    <!-- Shapes -->
-<!--    <shape type="sphere">-->
-<!--        <float name="radius" value="15.25"/>-->
-<!--        <transform name="to_world">-->
-<!--            <rotate x="1" angle="90"/>-->
-<!--        </transform>-->
-<!--        <bsdf type="twosided">-->
-<!--            <bsdf type="diffuse">-->
-<!--            </bsdf>-->
-<!--        </bsdf>-->
-<!--    </shape>-->
+    <shape type="bsplinecurve">
+        <string name="filename" value="spline.txt"/>
+    </shape>
 
 </scene>

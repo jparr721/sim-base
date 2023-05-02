@@ -105,10 +105,10 @@ auto DiscreteElasticRod::ComputeCenterlineForcesGeneral() -> Vec<Real> {
 auto DiscreteElasticRod::ComputeCenterlineForcesStraight() -> Vec<Real> {
   Vec<Real> R = Vec<Real>::Zero(DOFs());
 
-  //  for (int ii = 0; ii < nRods - 2; ++ii) {
-  //    const Vec3<Real> vertexForce = ComputepEpxi(ii);
-  //    R.segment<3>(3 * ii + 1) += vertexForce;
-  //  }
+  for (int ii = 0; ii < nRods - 2; ++ii) {
+    const Vec3<Real> vertexForce = ComputepEpxi(ii);
+    R.segment<3>(3 * ii + 1) += vertexForce;
+  }
 
   // Compute spring-mass forces
   for (int ii = 0; ii < nRods; ++ii) {

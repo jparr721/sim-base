@@ -19,9 +19,9 @@ public:
                       T farPlane);
   void SetFrustum(T left, T right, T top, T bottom, T nearPlane, T farPlane);
 
-  void SetPosition(const Vec3<T> &position);
-  void SetPosition(T x, T y, T z);
-  void AddPosition(const Vec3<T> &displacement);
+  void SetDisplacement(const Vec3<T> &position);
+  void SetDisplacement(T x, T y, T z);
+  auto GetDisplacement() -> Vec3<T> { return displacement; }
   void AddPosition(T dx, T dy, T dz);
 
   void SetRotation(T theta, T phi);
@@ -277,22 +277,17 @@ void Camera<T>::SetFrustum(T left, T right, T top, T bottom, T nearPlane,
   this->projectionMatrix(14) = (-temp * farPlane) / temp4;
 }
 
-template <typename T> void Camera<T>::SetPosition(const Vec3<T> &pos) {
-  this->position.x() = pos.x();
-  this->position.y() = pos.y();
-  this->position.z() = pos.z();
+template <typename T> void Camera<T>::SetDisplacement(const Vec3<T> &pos) {
+  this->displacement.x() = pos.x();
+  this->displacement.y() = pos.y();
+  this->displacement.z() = pos.z();
   this->Compile();
 }
 
-template <typename T> void Camera<T>::SetPosition(T x, T y, T z) {
-  this->position.x() = x;
-  this->position.y() = y;
-  this->position.z() = z;
-  this->Compile();
-}
-
-template <typename T> void Camera<T>::AddPosition(const Vec3<T> &displacement) {
-  this->position += displacement;
+template <typename T> void Camera<T>::SetDisplacement(T x, T y, T z) {
+  this->displacement.x() = x;
+  this->displacement.y() = y;
+  this->displacement.z() = z;
   this->Compile();
 }
 

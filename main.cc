@@ -124,9 +124,12 @@ void GlutKeyboardFunc(unsigned char key, int x, int y) {
   }
 
   if (key == 'c') {
-    std::cout << "Radius " << gCamera->GetR() << std::endl;
-    std::cout << "Theta " << gCamera->GetTheta() << std::endl;
-    std::cout << "Phi " << gCamera->GetPhi() << std::endl;
+    const auto &disp = gCamera->GetDisplacement().transpose();
+    std::cout << "->SetRadius(" << gCamera->GetR() << ")" << std::endl;
+    std::cout << "->SetTheta(" << gCamera->GetTheta() << ")" << std::endl;
+    std::cout << "->SetPhi(" << gCamera->GetPhi() << ")" << std::endl;
+    std::cout << "->SetDisplacement(Vec3<Real>(" << disp.x() << ", " << disp.y()
+              << ", " << disp.z() << "))" << std::endl;
 
     const auto &eye = gCamera->GetEye();
     const auto &lookAt = gCamera->GetLookAt();
@@ -177,6 +180,41 @@ static void DrawGLGrid(int size, float spacing) {
   glEnd();
 }
 
+static void DrawText(const std::string &text, int windowWidth,
+                     int windowHeight) {
+  // Set the current matrix mode to "projection"
+  glMatrixMode(GL_PROJECTION);
+  glPushMatrix();
+  glLoadIdentity();
+  // Set the viewport to cover the entire screen
+  glViewport(0, 0, windowWidth, windowHeight);
+  // Set the orthographic projection
+  glOrtho(0, windowWidth, 0, windowHeight, -1, 1);
+  // Set the current matrix mode to "modelview"
+  glMatrixMode(GL_MODELVIEW);
+  glPushMatrix();
+  glLoadIdentity();
+  // Translate to the bottom right corner of the screen
+  int string_width = glutBitmapLength(GLUT_BITMAP_HELVETICA_18,
+                                      (const unsigned char *)text.c_str());
+  glTranslatef(windowWidth - (string_width + 10), 10, 0);
+  // Set the raster position to the bottom left corner of the screen
+  glRasterPos2i(0, 0);
+  // Loop through the characters in the string and draw them using
+  // glutBitmapCharacter
+  glColor3f(1, 1, 1);
+  for (const auto &c : text) {
+    glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, c);
+  }
+  // Pop the modelview matrix
+  glPopMatrix();
+  // Pop the projection matrix
+  glMatrixMode(GL_PROJECTION);
+  glPopMatrix();
+  // Set the current matrix mode back to "modelview"
+  glMatrixMode(GL_MODELVIEW);
+}
+
 void Display() {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -201,6 +239,10 @@ void Display() {
     glVertex3f(0, 0, 1);
     glEnd();
   }
+
+  // Show the frame number in the bottom right
+  DrawText("Frame: " + std::to_string(gScene->frame), gScreenSize.x(),
+           gScreenSize.y());
 
   float density = 0.15;
   float fogColor[4] = {0.15, 0.15, 0.15, 1.0};
@@ -257,7 +299,7 @@ static void GlutIdle() {
     }
   }
 
-  if (gSteps % 500 == 0 && gAnimating) {
+  if (gSteps % 100 == 0 && gAnimating) {
     if (gSaveFrame) {
       gScene->DumpFrame();
     }

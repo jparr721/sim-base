@@ -15,7 +15,7 @@ public:
                      Real dt = 1.0 / 3000.0)
       : TimestepperStrand(std::move(strandMesh), std::move(material), dt) {
     vertexFaceSqrtCollision =
-        std::make_unique<VertexFaceSqrtCollision>(15.0, 0.4);
+        std::make_unique<VertexFaceSqrtCollision>(5.0, 0.2);
   }
 
   INLINE void Step() override {
@@ -37,8 +37,8 @@ public:
       x.segment<3>(6) = v2;
       x.segment<3>(9) = v3;
 
-      const Vec12<Real> force = -0.25 * TriangleArea(v1, v2, v3) *
-                                vertexFaceSqrtCollision->Gradient(x);
+      const Vec12<Real> force =
+          -TriangleArea(v1, v2, v3) * vertexFaceSqrtCollision->Gradient(x);
 
       R.segment<3>(3 * vertexFaceCollision.vertexIndex) += force.segment<3>(0);
     }

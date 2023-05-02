@@ -4,7 +4,7 @@
 #include <igl/readOBJ.h>
 
 Comb::Comb() {
-  igl::readOBJ(Meshes / "comb.obj", v, f);
+  igl::readOBJ(Meshes / "comb_coarse.obj", v, f);
   rv = v;
 }
 
@@ -29,7 +29,7 @@ void StrandScene::Step(const Vec3<Real> &gravity) {
   igl::parallel_for(meshes.size(), [&](int ii) {
     auto &mesh = meshes.at(ii);
     vertexFaceCollisionsPerStrand.at(ii) =
-        comb->DetectFaceCollisions(0.5, mesh->der->vertices);
+        comb->DetectFaceCollisions(0.35, mesh->der->vertices);
   });
 
   igl::parallel_for(integrators.size(), [&](int ii) {
@@ -91,7 +91,7 @@ DiscreteElasticRods::DiscreteElasticRods(
   comb->Translate(Vec3<Real>(-1, -1, 10));
   combTranslation = Vec<Real>::LinSpaced(200, -8, -1).reverse();
 
-  for (Real ss = 11; ss < 12; ss += 0.25) {
+  for (Real ss = 6; ss < 15; ss += 0.10) {
     // Construct a trivial point set
     std::vector<Vec3<Real>> points;
     for (Real ii = 0; ii < 8; ii += 0.25) {
@@ -135,4 +135,8 @@ DiscreteElasticRods::DiscreteElasticRods(
   camera->SetRadius(16.9);
   camera->SetTheta(1.4508);
   camera->SetPhi(1.7208);
+
+  camera->SetRadius(17.5);
+  camera->SetTheta(-0.0391999);
+  camera->SetPhi(1.7608);
 }
