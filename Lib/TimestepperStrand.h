@@ -6,6 +6,8 @@
 
 class TimestepperStrand {
 public:
+  std::vector<VertexFaceCollision> vertexFaceCollisions;
+
   TimestepperStrand(std::shared_ptr<StrandMesh> strandMesh,
                     std::shared_ptr<DiscreteElasticRod> material,
                     Real dt = 1.0 / 3000.0)

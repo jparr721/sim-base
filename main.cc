@@ -257,7 +257,7 @@ static void GlutIdle() {
     }
   }
 
-  if (gSteps % 100 == 0 && gAnimating) {
+  if (gSteps % 500 == 0 && gAnimating) {
     if (gSaveFrame) {
       gScene->DumpFrame();
     }

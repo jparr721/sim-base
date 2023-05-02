@@ -5,6 +5,7 @@
 #include <Eigen/Geometry>
 #include <Eigen/Sparse>
 #include <Settings.h>
+#include <cfloat>
 #include <cmath>
 #include <iostream>
 #include <random>
@@ -42,10 +43,12 @@ template <typename T> using Vec = Eigen::Matrix<T, -1, 1>;
 
 template <typename T> using Mat2 = Eigen::Matrix<T, 2, 2>;
 template <typename T> using Mat3 = Eigen::Matrix<T, 3, 3>;
+template <typename T> using Mat3x12 = Eigen::Matrix<T, 3, 12>;
 template <typename T> using Mat2x3 = Eigen::Matrix<T, 2, 3>;
 template <typename T> using Mat4 = Eigen::Matrix<T, 4, 4>;
 template <typename T> using Mat9 = Eigen::Matrix<T, 9, 9>;
 template <typename T> using Mat9x12 = Eigen::Matrix<T, 9, 12>;
+template <typename T> using Mat12 = Eigen::Matrix<T, 12, 12>;
 template <typename T> using Mat = Eigen::Matrix<T, -1, -1>;
 
 template <typename T> using SparseMat = Eigen::SparseMatrix<T>;
@@ -414,4 +417,138 @@ INLINE auto OrthogonalVectorUnsafe(const Vec3<Real> &v) -> Vec3<Real> {
   // Normalize the result vector
   result.normalize();
   return result;
+}
+
+INLINE auto PointTriangleDistance(const Vec3<Real> &v0, const Vec3<Real> &v1,
+                                  const Vec3<Real> &v2, const Vec3<Real> &v)
+    -> Real {
+  // get the barycentric coordinates
+  const Vec3<Real> e1 = v1 - v0;
+  const Vec3<Real> e2 = v2 - v0;
+  const Vec3<Real> n = e1.cross(e2);
+  const Vec3<Real> na = (v2 - v1).cross(v - v1);
+  const Vec3<Real> nb = (v0 - v2).cross(v - v2);
+  const Vec3<Real> nc = (v1 - v0).cross(v - v0);
+  const Vec3<Real> barycentric(n.dot(na) / n.squaredNorm(),
+                               n.dot(nb) / n.squaredNorm(),
+                               n.dot(nc) / n.squaredNorm());
+
+  const Real barySum =
+      fabs(barycentric[0]) + fabs(barycentric[1]) + fabs(barycentric[2]);
+
+  // if the point projects to inside the triangle, it should sum to 1
+  if (barySum - 1.0 < 1e-8) {
+    const Vec3<Real> nHat = n / n.norm();
+    const Real normalDistance = (nHat.dot(v - v0));
+    return fabs(normalDistance);
+  }
+
+  // project onto each edge, find the distance to each edge
+  const Vec3<Real> e3 = v2 - v1;
+  const Vec3<Real> ev = v - v0;
+  const Vec3<Real> ev3 = v - v1;
+  const Vec3<Real> e1Hat = e1 / e1.norm();
+  const Vec3<Real> e2Hat = e2 / e2.norm();
+  const Vec3<Real> e3Hat = e3 / e3.norm();
+  Vec3<Real> edgeDistances(FLT_MAX, FLT_MAX, FLT_MAX);
+
+  // see if it projects onto the interval of the edge
+  // if it doesn't, then the vertex distance will be smaller,
+  // so we can skip computing anything
+  const Real e1Dot = e1Hat.dot(ev);
+  if (e1Dot > 0.0 && e1Dot < e1.norm()) {
+    const Vec3<Real> projected = v0 + e1Hat * e1Dot;
+    edgeDistances[0] = (v - projected).norm();
+  }
+  const Real e2Dot = e2Hat.dot(ev);
+  if (e2Dot > 0.0 && e2Dot < e2.norm()) {
+    const Vec3<Real> projected = v0 + e2Hat * e2Dot;
+    edgeDistances[1] = (v - projected).norm();
+  }
+  const Real e3Dot = e3Hat.dot(ev3);
+  if (e3Dot > 0.0 && e3Dot < e3.norm()) {
+    const Vec3<Real> projected = v1 + e3Hat * e3Dot;
+    edgeDistances[2] = (v - projected).norm();
+  }
+
+  // get the distance to each vertex
+  const Vec3<Real> vertexDistances((v - v0).norm(), (v - v1).norm(),
+                                   (v - v2).norm());
+
+  // get the smallest of both the edge and vertex distances
+  const Real vertexMin = vertexDistances.minCoeff();
+  const Real edgeMin = edgeDistances.minCoeff();
+
+  // return the smallest of those
+  return (vertexMin < edgeMin) ? vertexMin : edgeMin;
+}
+
+INLINE auto GetBarycentricCoordinates(const std::vector<Vec3<Real>> &vertices)
+    -> Vec3<Real> {
+  const Vec3<Real> &v0 = vertices[1];
+  const Vec3<Real> &v1 = vertices[2];
+  const Vec3<Real> &v2 = vertices[3];
+
+  const Vec3<Real> e1 = v1 - v0;
+  const Vec3<Real> e2 = v2 - v0;
+  const Vec3<Real> n = e1.cross(e2);
+  const Vec3<Real> nHat = n / n.norm();
+  const Vec3<Real> v = vertices[0] - (nHat.dot(vertices[0] - v0)) * nHat;
+
+  // get the barycentric coordinates
+  const Vec3<Real> na = (v2 - v1).cross(v - v1);
+  const Vec3<Real> nb = (v0 - v2).cross(v - v2);
+  const Vec3<Real> nc = (v1 - v0).cross(v - v0);
+  Vec3<Real> barycentric(n.dot(na) / n.squaredNorm(),
+                         n.dot(nb) / n.squaredNorm(),
+                         n.dot(nc) / n.squaredNorm());
+
+  return barycentric;
+}
+
+INLINE auto PointLineDistance(const Vec3<Real> &v0, const Vec3<Real> &v1,
+                              const Vec3<Real> &v2) -> Real {
+  const Vec3<Real> e0 = v0 - v1;
+  const Vec3<Real> e1 = v2 - v1;
+  const Vec3<Real> e1hat = e1 / e1.norm();
+  const Real projection = e0.dot(e1hat);
+
+  // if it projects onto the line segment, use that length
+  if (projection > 0.0 && projection < e1.norm()) {
+    const Vec3<Real> normal = e0 - projection * e1hat;
+    return normal.norm();
+  }
+
+  // if it doesn't, find the point-point distances
+  const Real diff01 = (v0 - v1).norm();
+  const Real diff02 = (v0 - v2).norm();
+
+  return (diff01 < diff02) ? diff01 : diff02;
+}
+
+INLINE auto GetLerp(const Vec3<Real> &v0, const Vec3<Real> &v1,
+                    const Vec3<Real> &v2) -> Vec2<Real> {
+  const Vec3<Real> e0 = v0 - v1;
+  const Vec3<Real> e1 = v2 - v1;
+  const Vec3<Real> e1hat = e1 / e1.norm();
+  const Real projection = e0.dot(e1hat);
+
+  if (projection < 0.0) {
+    return {1.0, 0.0};
+  }
+
+  if (projection >= e1.norm()) {
+    return {0.0, 1.0};
+  }
+
+  const Real ratio = projection / e1.norm();
+  return {1.0 - ratio, ratio};
+}
+
+INLINE auto TriangleArea(const Vec3<Real> &v0, const Vec3<Real> &v1,
+                         const Vec3<Real> &v2) -> Real {
+  const Vec3<Real> e0 = v1 - v0;
+  const Vec3<Real> e1 = v2 - v0;
+  const Vec3<Real> cross = e0.cross(e1);
+  return cross.norm() * 0.5;
 }

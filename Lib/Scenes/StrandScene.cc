@@ -8,64 +8,6 @@ Comb::Comb() {
   rv = v;
 }
 
-void Comb::Draw() {
-  GLOBAL GLfloat lightAmbient[] = {0.2f, 0.2f, 0.2f, 1.0f};
-  GLOBAL GLfloat lightDiffuse[] = {0.8f, 0.8f, 0.8f, 1.0f};
-  GLOBAL GLfloat lightSpecular[] = {0.5f, 0.5f, 0.5f, 1.0f};
-  glLightfv(GL_LIGHT0, GL_AMBIENT, lightAmbient);
-  glLightfv(GL_LIGHT0, GL_DIFFUSE, lightDiffuse);
-  glLightfv(GL_LIGHT0, GL_SPECULAR, lightSpecular);
-
-  // USE THESE TO SHADE MATERIALS
-  glShadeModel(GL_SMOOTH);
-  glMaterialfv(GL_FRONT, GL_DIFFUSE, gDiffuseGray.data());
-  glMaterialfv(GL_FRONT, GL_AMBIENT, gAmbientFull.data());
-  glMaterialfv(GL_FRONT, GL_SPECULAR, gSpecularFull.data());
-  glMaterialfv(GL_FRONT, GL_SHININESS, gShininess.data());
-
-  glEnable(GL_DEPTH_TEST);
-
-  // Draw lines
-  glEnable(GL_POLYGON_OFFSET_LINE);
-  glPolygonOffset(-1.0, -1.0);
-  glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-  glColor3d(0.0, 0.0, 0.0);
-  glBegin(GL_TRIANGLES);
-  for (int ii = 0; ii < f.rows(); ++ii) {
-    const Vec3<int> face = f.row(ii);
-    const Vec3<Real> a = v.row(face(0));
-    const Vec3<Real> b = v.row(face(1));
-    const Vec3<Real> c = v.row(face(2));
-    glVertex3dv(a.data());
-    glVertex3dv(b.data());
-    glVertex3dv(c.data());
-  }
-  glEnd();
-
-  // Draw without lines
-  glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-  glColor4d(0.7, 0.7, 0.7, 0.25);
-  glBegin(GL_TRIANGLES);
-  for (int ii = 0; ii < f.rows(); ++ii) {
-    const Vec3<int> face = f.row(ii);
-    const Vec3<Real> a = v.row(face(0));
-    const Vec3<Real> b = v.row(face(1));
-    const Vec3<Real> c = v.row(face(2));
-    glVertex3dv(a.data());
-    glVertex3dv(b.data());
-    glVertex3dv(c.data());
-  }
-  glEnd();
-  glDisable(GL_POLYGON_OFFSET_LINE);
-}
-
-void Comb::Translate(const Vec3<Real> &translation) {
-  for (int ii = 0; ii < v.rows(); ++ii) {
-    const Vec3<Real> restRow = rv.row(ii);
-    v.row(ii) = restRow + translation;
-  }
-}
-
 void StrandScene::StepScriptedScene(const Vec3<Real> &gravity) {
   if (sceneFrames > 200) {
     return;
@@ -80,8 +22,19 @@ void StrandScene::StepScriptedScene(const Vec3<Real> &gravity) {
 }
 
 void StrandScene::Step(const Vec3<Real> &gravity) {
+  // Compute collisions over all meshes
+  vertexFaceCollisionsPerStrand.clear();
+  vertexFaceCollisionsPerStrand.resize(meshes.size());
+
+  igl::parallel_for(meshes.size(), [&](int ii) {
+    auto &mesh = meshes.at(ii);
+    vertexFaceCollisionsPerStrand.at(ii) =
+        comb->DetectFaceCollisions(0.5, mesh->der->vertices);
+  });
+
   igl::parallel_for(integrators.size(), [&](int ii) {
     auto &integrator = integrators.at(ii);
+    integrator->vertexFaceCollisions = vertexFaceCollisionsPerStrand.at(ii);
     integrator->AddGravity(gravity);
     integrator->Step();
   });
@@ -91,7 +44,15 @@ void StrandScene::Draw() {
   for (const auto &mesh : meshes) {
     mesh->Draw();
   }
-  comb->Draw();
+
+  // Combine vertexFaceCollisionsPerStrand into one vector
+  std::vector<VertexFaceCollision> vertexFaceCollisions;
+  for (const auto &collisions : vertexFaceCollisionsPerStrand) {
+    vertexFaceCollisions.insert(vertexFaceCollisions.end(), collisions.begin(),
+                                collisions.end());
+  }
+
+  comb->Draw(vertexFaceCollisions);
 }
 
 void StrandScene::DumpFrame() {
@@ -126,14 +87,14 @@ void StrandScene::DumpFrame() {
 
 DiscreteElasticRods::DiscreteElasticRods(
     std::shared_ptr<Camera<float>> &camera) {
-  comb = std::make_unique<Comb>();
+  comb = std::make_shared<Comb>();
   comb->Translate(Vec3<Real>(-1, -1, 10));
   combTranslation = Vec<Real>::LinSpaced(200, -8, -1).reverse();
 
-  for (Real ss = 0; ss < 20; ss += 0.1) {
+  for (Real ss = 11; ss < 12; ss += 0.25) {
     // Construct a trivial point set
     std::vector<Vec3<Real>> points;
-    for (int ii = 0; ii < 10; ++ii) {
+    for (Real ii = 0; ii < 8; ii += 0.25) {
       points.emplace_back(ii, 0, ss);
     }
 
@@ -144,13 +105,34 @@ DiscreteElasticRods::DiscreteElasticRods(
 
     auto mesh = std::make_shared<StrandMesh>(v);
     auto integrator =
-        std::make_unique<ForwardEulerStrand>(mesh, nullptr, 1.0 / 1'000.0);
+        std::make_unique<ForwardEulerStrand>(mesh, nullptr, 1.0 / 10'000.0);
     meshes.emplace_back(mesh);
     integrators.emplace_back(std::move(integrator));
   }
 
   // Zoom out and set the center in a different spot
-  camera->SetRadius(39.5999);
-  camera->SetTheta(1.0108);
-  camera->SetPhi(1.6308);
+
+  //  Radius 15.4999
+  //      Theta 0.0108005
+  //      Phi 1.5108
+  //      Eye 8.77399, -2.67725, 9.03442
+  //                    Look At -6.69713, -3.60663, 8.86732
+  //                    Up -0.0599567, 0.998201, -0.000647587
+  //                 FOV 65
+  //
+
+  camera->SetRadius(15.5);
+  camera->SetTheta(0.0108005);
+  camera->SetPhi(1.5108);
+
+  //  Radius 16.9
+  //  Theta 1.4508
+  //  Phi 1.7208
+  //  Eye 2.00036, -2.52556, 16.59
+  //  Look At 0, 0, 0
+  //  Up 0.0178895, 0.988771, 0.148367
+  //  FOV 65
+  camera->SetRadius(16.9);
+  camera->SetTheta(1.4508);
+  camera->SetPhi(1.7208);
 }

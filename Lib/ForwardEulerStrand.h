@@ -1,18 +1,47 @@
 #pragma once
 
+#include <Collision/CollisionMesh.h>
+#include <Energy/Collision/VertexFaceSqrtCollision.h>
 #include <Energy/Strand/DiscreteElasticRod.h>
 #include <StrandMesh.h>
 #include <TimestepperStrand.h>
 
 class ForwardEulerStrand : public TimestepperStrand {
 public:
+  std::unique_ptr<VertexFaceSqrtCollision> vertexFaceSqrtCollision;
+
   ForwardEulerStrand(std::shared_ptr<StrandMesh> strandMesh,
                      std::shared_ptr<DiscreteElasticRod> material,
                      Real dt = 1.0 / 3000.0)
-      : TimestepperStrand(std::move(strandMesh), std::move(material), dt) {}
+      : TimestepperStrand(std::move(strandMesh), std::move(material), dt) {
+    vertexFaceSqrtCollision =
+        std::make_unique<VertexFaceSqrtCollision>(15.0, 0.4);
+  }
 
   INLINE void Step() override {
-    const Vec<Real> R = this->strandMesh->ComputeMaterialForces();
+    Vec<Real> R = this->strandMesh->ComputeMaterialForces();
+
+    std::vector<Vec12<Real>> perElementForces;
+    for (const auto &vertexFaceCollision : vertexFaceCollisions) {
+      const auto &collisionVertices = vertexFaceCollision.faceVertices;
+
+      const Vec<Real> &v0 =
+          this->strandMesh->der->vertices.row(vertexFaceCollision.vertexIndex);
+      const Vec3<Real> &v1 = collisionVertices.at(0);
+      const Vec3<Real> &v2 = collisionVertices.at(1);
+      const Vec3<Real> &v3 = collisionVertices.at(2);
+
+      Vec12<Real> x;
+      x.segment<3>(0) = v0;
+      x.segment<3>(3) = v1;
+      x.segment<3>(6) = v2;
+      x.segment<3>(9) = v3;
+
+      const Vec12<Real> force = -0.25 * TriangleArea(v1, v2, v3) *
+                                vertexFaceSqrtCollision->Gradient(x);
+
+      R.segment<3>(3 * vertexFaceCollision.vertexIndex) += force.segment<3>(0);
+    }
 
 // If in debug, print out R norm to get an idea of the intensity
 #ifndef NDEBUG
@@ -34,7 +63,7 @@ public:
     SparseMat<Real> filter =
         ConstructDiagonalSparseMatrix(
             Vec<Real>::Ones(this->strandMesh->DOFs()).eval()) -
-        this->dt * 0.05 * this->strandMesh->der->mInv;
+        this->dt * 0.25 * this->strandMesh->der->mInv;
     this->velocity = filter * this->velocity;
 
     Vec<Real> positions = this->strandMesh->Positions();
