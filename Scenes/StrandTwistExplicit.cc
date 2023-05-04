@@ -1,5 +1,6 @@
 #include "Camera.h"
 #include "OpenGL.h"
+#include <LibGui.h>
 #include <Scenes/StrandDropScene.h>
 #include <igl/writeOBJ.h>
 #include <memory>
@@ -19,19 +20,15 @@ bool gShowGrid = true;
 bool gShowCenterAxes = true;
 bool gSaveFrame = false;
 
-// Gravity interactions
-bool gAddPosYAxisPull = false;
-bool gAddNegYAxisPull = false;
-bool gAddPosXAxisPull = false;
-bool gAddNegXAxisPull = false;
-
 int gSteps = 0;
 
 auto gCamera = std::make_shared<Camera<float>>();
 
 // UNCOMMENT HERE FOR BUNNY SCENE
-auto gScene = std::make_unique<DiscreteElasticRods>(gCamera);
-// auto gScene = std::make_unique<CoarseBunnyExplicit>();
+bool gStopped = false;
+Real gCollisionEnvelopeCheck = 0.4;
+std::shared_ptr<StrandMesh> gMesh;
+std::shared_ptr<ForwardEulerStrand> gIntegrator;
 
 void GlutMotionFunc(int x, int y) {
   gMouseCur[0] = x;
@@ -147,73 +144,7 @@ void GlutKeyboardFunc(unsigned char key, int x, int y) {
   glutPostRedisplay();
 }
 
-void GlutSpecialInputFunc(int key, int x, int y) {
-  if (key == GLUT_KEY_UP) {
-    gAddPosYAxisPull = true;
-  }
-
-  if (key == GLUT_KEY_DOWN) {
-    gAddNegYAxisPull = true;
-  }
-
-  if (key == GLUT_KEY_LEFT) {
-    gAddNegXAxisPull = true;
-  }
-
-  if (key == GLUT_KEY_RIGHT) {
-    gAddPosXAxisPull = true;
-  }
-
-  glutPostRedisplay();
-}
-
-static void DrawGLGrid(int size, float spacing) {
-  glColor3f(0.5, 0.5, 0.5);
-  glBegin(GL_LINES);
-  for (float ii = -size; ii < size; ii += spacing) {
-    glVertex3f(ii, 0, -size);
-    glVertex3f(ii, 0, size);
-
-    glVertex3f(size, 0, ii);
-    glVertex3f(-size, 0, ii);
-  }
-  glEnd();
-}
-
-static void DrawText(const std::string &text, int windowWidth,
-                     int windowHeight) {
-  // Set the current matrix mode to "projection"
-  glMatrixMode(GL_PROJECTION);
-  glPushMatrix();
-  glLoadIdentity();
-  // Set the viewport to cover the entire screen
-  glViewport(0, 0, windowWidth, windowHeight);
-  // Set the orthographic projection
-  glOrtho(0, windowWidth, 0, windowHeight, -1, 1);
-  // Set the current matrix mode to "modelview"
-  glMatrixMode(GL_MODELVIEW);
-  glPushMatrix();
-  glLoadIdentity();
-  // Translate to the bottom right corner of the screen
-  int string_width = glutBitmapLength(GLUT_BITMAP_HELVETICA_18,
-                                      (const unsigned char *)text.c_str());
-  glTranslatef(windowWidth - (string_width + 10), 10, 0);
-  // Set the raster position to the bottom left corner of the screen
-  glRasterPos2i(0, 0);
-  // Loop through the characters in the string and draw them using
-  // glutBitmapCharacter
-  glColor3f(1, 1, 1);
-  for (const auto &c : text) {
-    glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, c);
-  }
-  // Pop the modelview matrix
-  glPopMatrix();
-  // Pop the projection matrix
-  glMatrixMode(GL_PROJECTION);
-  glPopMatrix();
-  // Set the current matrix mode back to "modelview"
-  glMatrixMode(GL_MODELVIEW);
-}
+void GlutSpecialInputFunc(int key, int x, int y) { glutPostRedisplay(); }
 
 void Display() {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -222,26 +153,11 @@ void Display() {
   glMultMatrixf(gCamera->ToViewMatrix().data());
 
   if (gShowCenterAxes) {
-    glBegin(GL_LINES);
-    // Red - X Axis
-    glColor3f(1, 0, 0);
-    glVertex3f(0, 0, 0);
-    glVertex3f(1, 0, 0);
-
-    // Green - Y Axis
-    glColor3f(0, 1, 0);
-    glVertex3f(0, 0, 0);
-    glVertex3f(0, 1, 0);
-
-    // Blue - Z Axis
-    glColor3f(0, 0, 1);
-    glVertex3f(0, 0, 0);
-    glVertex3f(0, 0, 1);
-    glEnd();
+    DrawCenterAxes();
   }
 
   // Show the frame number in the bottom right
-  DrawText("Frame: " + std::to_string(gScene->frame), gScreenSize.x(),
+  DrawText("Frame: " + std::to_string(gSteps), gScreenSize.x(),
            gScreenSize.y());
 
   float density = 0.15;
@@ -260,54 +176,33 @@ void Display() {
     DrawGLGrid(100, 0.25);
   }
 
-  gScene->Draw();
+  gMesh->Draw();
 
   glPopMatrix();
   glFlush();
 }
 
 static void GlutIdle() {
+  if (gStopped) {
+    return;
+  }
+
   if (gAnimating || gSingleStep) {
-    Vec3<Real> gravity(0, -0.981, 0);
-
-    if (gAddPosYAxisPull) {
-      gravity += Vec3<Real>(0, 9, 0);
-      gAddPosYAxisPull = false;
-    }
-
-    if (gAddNegYAxisPull) {
-      gravity += Vec3<Real>(0, -9, 0);
-      gAddNegYAxisPull = false;
-    }
-
-    if (gAddPosXAxisPull) {
-      gravity += Vec3<Real>(9, 0, 0);
-      gAddPosXAxisPull = false;
-    }
-
-    if (gAddNegXAxisPull) {
-      gravity += Vec3<Real>(-9, 0, 0);
-      gAddNegXAxisPull = false;
-    }
-
-    gScene->StepScriptedScene(gravity);
-
+    Vec3<Real> gravity;
+    gravity.setZero();
     ++gSteps;
+
+    gMesh->der->thetas(0) += 0.01;
+    gMesh->der->thetas(gMesh->der->thetas.rows() - 1) += 0.01;
+    gIntegrator->Step();
 
     if (gSingleStep) {
       gSingleStep = !gSingleStep;
     }
   }
 
-  if (gSteps % 50 == 0 && gAnimating) {
-    if (gSaveFrame) {
-      gScene->DumpFrame();
-    }
+  if (gSteps % 10 == 0 && gAnimating) {
     glutPostRedisplay();
-    ++gScene->frame;
-    if (gScene->frame > 400) {
-      ++gScene->sceneFrames;
-    }
   }
 }
 
@@ -324,7 +219,15 @@ auto main(int argc, char **argv) -> int {
   // Set initial camera zoom
   gCamera->Zoom(10);
 
-  //  gCamera->Set
+  // Set the mesh
+  Mat<Real> v(5, 3);
+  for (int ii = 0; ii < v.rows(); ++ii) {
+    v.row(ii) = Vec3<Real>(ii, 2, 0);
+  }
+
+  gMesh = std::make_shared<StrandMesh>(v);
+  gIntegrator =
+      std::make_shared<ForwardEulerStrand>(gMesh, nullptr, 1 / 100'000, 5, 0.3);
 
   glutInit(&argc, argv);
   glutInitDisplayMode(GLUT_DEPTH | GLUT_RGBA);

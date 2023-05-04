@@ -7,6 +7,10 @@ class StrandMesh {
 public:
   bool drawMaterialFrame = false;
 
+  // N x 1 boolean vector indicating whether a vertex is pinned. This matches
+  // the dimension of der->vertices.
+  Vec<int> pinned;
+
   std::shared_ptr<DiscreteElasticRod> der;
 
   explicit StrandMesh(const Mat<Real> &points);
@@ -20,5 +24,5 @@ public:
    * Compute forces on the centerline
    * @return n*3 x 1 vector of forces where n is the number of points
    */
-  auto ComputeMaterialForces() -> Vec<Real>;
+  auto ComputeMaterialForces(bool straight = true) -> Vec<Real>;
 };

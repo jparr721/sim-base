@@ -8,17 +8,23 @@
 
 class ForwardEulerStrand : public TimestepperStrand {
 public:
+  Real collisionStiffness = 10;
+  Real collisionEpsilon = 0.2;
+
   std::unique_ptr<VertexFaceSqrtCollision> vertexFaceSqrtCollision;
 
   ForwardEulerStrand(std::shared_ptr<StrandMesh> strandMesh,
                      std::shared_ptr<DiscreteElasticRod> material,
-                     Real dt = 1.0 / 3000.0)
-      : TimestepperStrand(std::move(strandMesh), std::move(material), dt) {
-    vertexFaceSqrtCollision =
-        std::make_unique<VertexFaceSqrtCollision>(5.0, 0.2);
+                     Real dt = 1.0 / 3000.0, Real collisionStiffness = 10,
+                     Real collisionEpsilon = 0.2)
+      : TimestepperStrand(std::move(strandMesh), std::move(material), dt),
+        collisionStiffness(collisionStiffness),
+        collisionEpsilon(collisionEpsilon) {
+    vertexFaceSqrtCollision = std::make_unique<VertexFaceSqrtCollision>(
+        collisionStiffness, collisionEpsilon);
   }
 
-  INLINE void Step() override {
+  INLINE void Step(bool bump = false) override {
     Vec<Real> R = this->strandMesh->ComputeMaterialForces();
 
     std::vector<Vec12<Real>> perElementForces;
@@ -55,15 +61,20 @@ public:
                   this->dt * this->velocity;
 
     // Pin the ends
-    u.segment<3>(0) = Vec3<Real>::Zero();
+    for (int ii = 0; ii < this->strandMesh->pinned.rows(); ++ii) {
+      if (this->strandMesh->pinned(ii) == 1) {
+        u.segment<3>(3 * ii) = Vec3<Real>::Zero();
+      }
+    }
 
     this->velocity = u / this->dt;
 
     // Sparse identity matrix
+    Real coeff = bump ? 0.75 : 0.25;
     SparseMat<Real> filter =
         ConstructDiagonalSparseMatrix(
             Vec<Real>::Ones(this->strandMesh->DOFs()).eval()) -
-        this->dt * 0.25 * this->strandMesh->der->mInv;
+        this->dt * coeff * this->strandMesh->der->mInv;
     this->velocity = filter * this->velocity;
 
     Vec<Real> positions = this->strandMesh->Positions();

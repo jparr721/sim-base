@@ -3,7 +3,8 @@
 #include <StrandMesh.h>
 
 StrandMesh::StrandMesh(const Mat<Real> &points)
-    : der(new DiscreteElasticRod(points)) {}
+    : der(new DiscreteElasticRod(points)),
+      pinned(Vec<int>::Zero(points.rows())) {}
 
 void StrandMesh::Draw() {
   if (drawMaterialFrame) {
@@ -50,8 +51,12 @@ void StrandMesh::Draw() {
   }
 }
 
-auto StrandMesh::ComputeMaterialForces() -> Vec<Real> {
-  Vec<Real> R = der->ComputeCenterlineForcesStraight();
+auto StrandMesh::ComputeMaterialForces(bool straight) -> Vec<Real> {
+  if (straight) {
+    return der->ComputeCenterlineForcesStraight();
+  }
+
+  Vec<Real> R = der->ComputeCenterlineForcesGeneral();
 
   // Add collision forces
 

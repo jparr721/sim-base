@@ -1,15 +1,17 @@
-#include "StrandScene.h"
+#include "StrandDropScene.h"
 #include <LibGui.h>
 #include <igl/parallel_for.h>
 #include <igl/readOBJ.h>
+#include <igl/writeOBJ.h>
 
 Comb::Comb() {
-  igl::readOBJ(Meshes / "comb_coarse.obj", v, f);
+  igl::readOBJ(Meshes / "comb_more_teeth.obj", v, f);
   rv = v;
 }
 
-void StrandScene::StepScriptedScene(const Vec3<Real> &gravity) {
+void StrandDropScene::StepScriptedScene(const Vec3<Real> &gravity) {
   if (sceneFrames > 200) {
+    stopped = true;
     return;
   }
 
@@ -21,7 +23,7 @@ void StrandScene::StepScriptedScene(const Vec3<Real> &gravity) {
   Step(gravity);
 }
 
-void StrandScene::Step(const Vec3<Real> &gravity) {
+void StrandDropScene::Step(const Vec3<Real> &gravity) {
   // Compute collisions over all meshes
   vertexFaceCollisionsPerStrand.clear();
   vertexFaceCollisionsPerStrand.resize(meshes.size());
@@ -29,18 +31,18 @@ void StrandScene::Step(const Vec3<Real> &gravity) {
   igl::parallel_for(meshes.size(), [&](int ii) {
     auto &mesh = meshes.at(ii);
     vertexFaceCollisionsPerStrand.at(ii) =
-        comb->DetectFaceCollisions(0.35, mesh->der->vertices);
+        comb->DetectFaceCollisions(collisionEnvelopeSize, mesh->der->vertices);
   });
 
   igl::parallel_for(integrators.size(), [&](int ii) {
     auto &integrator = integrators.at(ii);
     integrator->vertexFaceCollisions = vertexFaceCollisionsPerStrand.at(ii);
     integrator->AddGravity(gravity);
-    integrator->Step();
+    integrator->Step(sceneFrames > 0);
   });
 }
 
-void StrandScene::Draw() {
+void StrandDropScene::Draw() {
   for (const auto &mesh : meshes) {
     mesh->Draw();
   }
@@ -55,9 +57,9 @@ void StrandScene::Draw() {
   comb->Draw(vertexFaceCollisions);
 }
 
-void StrandScene::DumpFrame() {
+void StrandDropScene::DumpFrame() {
   char filename[512];
-  sprintf(filename, "frame_%04i.obj", frame);
+  sprintf(filename, "/Users/jarredparr/Downloads/output/frame_%04i.obj", frame);
 
   std::ofstream file;
   file.open(filename);
@@ -81,8 +83,13 @@ void StrandScene::DumpFrame() {
 
     file << std::endl;
   }
-
   file.close();
+
+  char combFilename[512];
+  sprintf(combFilename, "/Users/jarredparr/Downloads/output/comb_%04i.obj",
+          frame);
+
+  igl::writeOBJ(combFilename, comb->v, comb->f);
 }
 
 DiscreteElasticRods::DiscreteElasticRods(
@@ -91,7 +98,7 @@ DiscreteElasticRods::DiscreteElasticRods(
   comb->Translate(Vec3<Real>(-1, -1, 10));
   combTranslation = Vec<Real>::LinSpaced(200, -8, -1).reverse();
 
-  for (Real ss = 6; ss < 15; ss += 0.10) {
+  for (Real ss = 8; ss < 12; ss += 0.05) {
     // Construct a trivial point set
     std::vector<Vec3<Real>> points;
     for (Real ii = 0; ii < 8; ii += 0.25) {
@@ -104,8 +111,9 @@ DiscreteElasticRods::DiscreteElasticRods(
     }
 
     auto mesh = std::make_shared<StrandMesh>(v);
-    auto integrator =
-        std::make_unique<ForwardEulerStrand>(mesh, nullptr, 1.0 / 10'000.0);
+    mesh->pinned(0) = 1;
+    auto integrator = std::make_unique<ForwardEulerStrand>(
+        mesh, nullptr, 1.0 / 1'000.0, 5, 0.3);
     meshes.emplace_back(mesh);
     integrators.emplace_back(std::move(integrator));
   }
@@ -139,4 +147,27 @@ DiscreteElasticRods::DiscreteElasticRods(
   camera->SetRadius(17.5);
   camera->SetTheta(-0.0391999);
   camera->SetPhi(1.7608);
+
+  //  Eye 11.3409, -1.68621, 10.2012
+  //  Look At -0.627491, -0.846851, 10.431
+  //  Up 0.0699339, 0.997551, -0.00134284
+  //  FOV 65
+
+  camera->SetRadius(15.7);
+  camera->SetTheta(1.5008);
+  camera->SetPhi(1.6008);
+  camera->SetDisplacement(Vec3<float>(0, 0, 0));
+
+  std::cout << "------------------" << std::endl;
+  std::cout << "SIM RUN" << std::endl;
+  std::cout << "STRANDS: " << meshes.size() << std::endl;
+  std::cout << "TOTAL PARTICLES: "
+            << meshes.size() * meshes.at(0)->der->vertices.rows() << std::endl;
+  std::cout << "TIMESTEP SIZE: " << integrators.at(0)->dt << std::endl;
+  std::cout << "COLLISION ENVLOPE SIZE: " << collisionEnvelopeSize << std::endl;
+  std::cout << "INTEGRATOR COLLISION EPSILON: "
+            << integrators.at(0)->collisionEpsilon << std::endl;
+  std::cout << "INTEGRATOR COLLISION STIFFNESS: "
+            << integrators.at(0)->collisionStiffness << std::endl;
+  std::cout << "------------------" << std::endl;
 }

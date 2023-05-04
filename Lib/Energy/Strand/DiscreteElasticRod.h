@@ -4,13 +4,15 @@
 #include <Energy/Spring/MassSpring.h>
 #include <LibMath.h>
 
-constexpr Real gBendingModulus = 0.001;
-constexpr Real gTwistingModulus = 0.07;
+constexpr Real gBendingModulus = 0.1;
+constexpr Real gTwistingModulus = 0.7;
 
 class DiscreteElasticRod {
 public:
   int nRods;
   Real totalRestLength;
+  Real rightAngularVelocity = 0.0;
+  Real leftAngularVelocity = 0.0;
 
   std::unique_ptr<MassSpring> massSpring;
 
@@ -82,4 +84,5 @@ public:
                               Vec<Real> &lower);
 
   auto ComputepEpxi(int j) -> Vec3<Real>;
+  auto ComputepEpTheta() -> Real;
 };
