@@ -3,8 +3,8 @@
     <!-- Defaults, these can be set via the command line: -Darg=value -->
 
     <default name="spp" value="300"/>
-    <default name="resx" value="1920"/>
-    <default name="resy" value="1080"/>
+    <default name="resx" value="1000"/>
+    <default name="resy" value="800"/>
     <default name="max_depth" value="8"/>
 
 
@@ -22,10 +22,20 @@
     <!--    Up 0.188717, 0.982004, -0.00740149-->
     <!--    FOV 65-->
 
-    <!-- Another option -->
+    <!-- This one is good -->
     <!--    Eye 12.1386, -1.41318, 9.85186-->
     <!--    Look At 0.463037, 0.233464, 10.3098-->
     <!--    Up 0.13944, 0.990216, -0.00546882-->
+    <!--    FOV 65-->
+
+    <!-- Fast Drop -->
+    <!--    ->SetRadius(11.7)-->
+    <!--    ->SetTheta(-0.0091999)-->
+    <!--    ->SetPhi(1.7208)-->
+    <!--    ->SetDisplacement(Vec3<Real>(-1.04227e+17, 6.4785e+22, 3.32053e+27))-->
+    <!--    Eye 11.9113, -2.16091, 10.6684-->
+    <!--    Look At 0.343205, -0.412442, 10.7748-->
+    <!--    Up 0.149435, 0.988771, -0.00137483-->
     <!--    FOV 65-->
 
 

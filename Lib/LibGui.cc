@@ -75,3 +75,69 @@ void DrawCylinder(const Vec3<Real> &p0, const Vec3<Real> &p1, Real radius) {
   // Restore the modelview matrix
   glPopMatrix();
 }
+
+void DrawText(const std::string &text, int windowWidth, int windowHeight) {
+  // Set the current matrix mode to "projection"
+  glMatrixMode(GL_PROJECTION);
+  glPushMatrix();
+  glLoadIdentity();
+  // Set the viewport to cover the entire screen
+  glViewport(0, 0, windowWidth, windowHeight);
+  // Set the orthographic projection
+  glOrtho(0, windowWidth, 0, windowHeight, -1, 1);
+  // Set the current matrix mode to "modelview"
+  glMatrixMode(GL_MODELVIEW);
+  glPushMatrix();
+  glLoadIdentity();
+  // Translate to the bottom right corner of the screen
+  int string_width = glutBitmapLength(GLUT_BITMAP_HELVETICA_18,
+                                      (const unsigned char *)text.c_str());
+  glTranslatef(windowWidth - (string_width + 10), 10, 0);
+  // Set the raster position to the bottom left corner of the screen
+  glRasterPos2i(0, 0);
+  // Loop through the characters in the string and draw them using
+  // glutBitmapCharacter
+  glColor3f(1, 1, 1);
+  for (const auto &c : text) {
+    glutBitmapCharacter(GLUT_BITMAP_HELVETICA_18, c);
+  }
+  // Pop the modelview matrix
+  glPopMatrix();
+  // Pop the projection matrix
+  glMatrixMode(GL_PROJECTION);
+  glPopMatrix();
+  // Set the current matrix mode back to "modelview"
+  glMatrixMode(GL_MODELVIEW);
+}
+
+void DrawGLGrid(int size, float spacing) {
+  glColor3f(0.5, 0.5, 0.5);
+  glBegin(GL_LINES);
+  for (float ii = -size; ii < size; ii += spacing) {
+    glVertex3f(ii, 0, -size);
+    glVertex3f(ii, 0, size);
+
+    glVertex3f(size, 0, ii);
+    glVertex3f(-size, 0, ii);
+  }
+  glEnd();
+}
+
+void DrawCenterAxes() {
+  glBegin(GL_LINES);
+  // Red - X Axis
+  glColor3f(1, 0, 0);
+  glVertex3f(0, 0, 0);
+  glVertex3f(1, 0, 0);
+
+  // Green - Y Axis
+  glColor3f(0, 1, 0);
+  glVertex3f(0, 0, 0);
+  glVertex3f(0, 1, 0);
+
+  // Blue - Z Axis
+  glColor3f(0, 0, 1);
+  glVertex3f(0, 0, 0);
+  glVertex3f(0, 0, 1);
+  glEnd();
+}

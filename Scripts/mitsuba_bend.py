@@ -5,48 +5,19 @@ from rich import print
 from rich.progress import track
 
 app = typer.Typer()
+# Eye 1.88, -0.0300002, 4.4
+# Look At 1.88, -0.03, 8.42896e-08
+# Up -1.91069e-15, 1, 4.37114e-08
+# FOV 65
 
-scene_drop = """
+scene_bend = """
 <scene version="3.0.0">
-
     <!-- Defaults, these can be set via the command line: -Darg=value -->
 
     <default name="spp" value="300"/>
     <default name="resx" value="1000"/>
     <default name="resy" value="800"/>
     <default name="max_depth" value="8"/>
-
-
-    <!--    Radius 17.5-->
-    <!--    Theta -0.0391999-->
-    <!--    Phi 1.7608-->
-    <!--    Eye 12.0753, -3.86577, 8.59707-->
-    <!--    Look At -5.09655, -0.560674, 9.27055-->
-    <!--    Up 0.188717, 0.982004, -0.0074015-->
-    <!--    FOV 65-->
-
-    <!-- Maybe another option -->
-    <!--    Eye 9.21331, -1.59174, 8.86574-->
-    <!--    Look At 0.38209, 0.10802, 9.2121-->
-    <!--    Up 0.188717, 0.982004, -0.00740149-->
-    <!--    FOV 65-->
-
-    <!-- This one is good -->
-    <!--    Eye 12.1386, -1.41318, 9.85186-->
-    <!--    Look At 0.463037, 0.233464, 10.3098-->
-    <!--    Up 0.13944, 0.990216, -0.00546882-->
-    <!--    FOV 65-->
-
-    <!-- Fast Drop -->
-    <!--    ->SetRadius(11.7)-->
-    <!--    ->SetTheta(-0.0091999)-->
-    <!--    ->SetPhi(1.7208)-->
-    <!--    ->SetDisplacement(Vec3<Real>(-1.04227e+17, 6.4785e+22, 3.32053e+27))-->
-    <!--    Eye 11.9113, -2.16091, 10.6684-->
-    <!--    Look At 0.343205, -0.412442, 10.7748-->
-    <!--    Up 0.149435, 0.988771, -0.00137483-->
-    <!--    FOV 65-->
-
 
     <!-- Camera and Rendering Parameters -->
 
@@ -58,8 +29,8 @@ scene_drop = """
         <string name="fov_axis" value="y"/>
         <float name="fov" value="65"/>
         <transform name="to_world">
-            <lookat origin="12.1386, -1.41318, 9.85186" target="0.463037, 0.233464, 10.3098"
-                    up="0.13944, 0.990216, -0.00546882"/>
+            <lookat origin="1.88, -0.0300002, 4.4" target="1.88, -0.03, 0"
+                    up="0, 1, 0"/>
         </transform>
         <sampler type="multijitter">
             <integer name="sample_count" value="$spp"/>
@@ -88,7 +59,7 @@ scene_drop = """
     <!-- Emitters -->
     <emitter type="envmap" id="Area_002-light">
         <string name="filename" value="../envmap.exr"/>
-        <float name="scale" value="3"/>
+        <float name="scale" value="5"/>
     </emitter>
 """
 
@@ -135,16 +106,17 @@ def load_obj_into_spline(obj_file: str, radius: float):
 
 def make_bspline(filename: str):
     return f"""
-    <shape type="bsplinecurve">
+    <shape type="linearcurve">
         <string name="filename" value="{filename}"/>
     </shape>
     """
 
 
-def make_obj(filename: str):
+def make_sphere(radius: float, cx, cy, cz):
     return f"""
-    <shape type="obj">
-        <string name="filename" value="{filename}"/>
+    <shape type="sphere">
+        <float name="radius" value="{radius}"/>
+        <point name="center" x="{cx}" y="{cy}" z="{cz}"/>
     </shape>
     """
 
@@ -159,17 +131,30 @@ def make_render_scene(folder: str, radius: float):
         if file.startswith("frame") and file.endswith(".obj"):
             load_obj_into_spline(os.path.join(folder, file), radius)
 
-    # Now create the scene, first by copying the template
-    s = scene_drop
-
     # Now create the spline entry and dump the scenes
     for file in track(os.listdir(folder)):
-        if file.startswith("frame") and file.endswith(".txt"):
-            s += make_bspline(os.path.join(folder, file))
-        if file.startswith("comb") and file.endswith(".obj"):
-            s += make_obj(os.path.join(folder, file))
+        if "txt" not in file:
+            continue
+        # Now create the scene, first by copying the template
+        s = scene_bend
+
+        if "txt" in file:
+            # Holds the spline geometry
+            txt_file = os.path.join(folder, file)
+            s += make_bspline(txt_file)
+
+            # Also add a sphere to the scene using the first and last values
+            # of the spline geometry file
+            with open(txt_file, "r") as f:
+                center1 = f.readline().split()[0:3]
+                # The last line is always empty, so take the previous
+                center2 = f.readlines()[-2].split()[0:3]
+                s += make_sphere(radius, *center1)
+                s += make_sphere(radius, *center2)
 
         s += "</scene>\n"
+
+        # Filename without the extension
         fn = os.path.splitext(file)[0]
         with open(os.path.join(folder, fn + ".xml"), "w") as f:
             f.write(s)

@@ -11,7 +11,7 @@ void VolumeScene::Draw() { mesh->Draw(); }
 
 CoarseBunnyExplicit::CoarseBunnyExplicit() {
   mesh = std::make_shared<TetMesh>(Meshes / "bunny.obj");
-  material = std::make_shared<SNH>(30.0, 0.45);
+  material = std::make_shared<SNH>(5.0, 0.45);
 
   // std::shared_ptr<STVK> gMaterial = std::make_shared<STVK>(30.0, 0.45);
   integrator = std::make_unique<ForwardEulerVolume>(mesh, material, 1.0 / 3000.0);

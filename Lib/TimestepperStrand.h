@@ -6,6 +6,7 @@
 
 class TimestepperStrand {
 public:
+  Real dt;
   std::vector<VertexFaceCollision> vertexFaceCollisions;
 
   TimestepperStrand(std::shared_ptr<StrandMesh> strandMesh,
@@ -15,7 +16,7 @@ public:
         dt(dt), externalForce(Vec<Real>::Zero(this->strandMesh->DOFs())),
         velocity(Vec<Real>::Zero(this->strandMesh->DOFs())) {}
 
-  virtual void Step() = 0;
+  virtual void Step(bool bump = false) = 0;
   INLINE void AddGravity(const Vec3<Real> &gravity) {
     for (int ii = 0; ii < strandMesh->der->vertices.rows(); ++ii) {
       this->externalForce.template segment<3>(3 * ii) = gravity;
@@ -25,8 +26,6 @@ public:
 protected:
   std::shared_ptr<StrandMesh> strandMesh;
   std::shared_ptr<DiscreteElasticRod> material;
-
-  Real dt;
 
   // Externally applied forces
   Vec<Real> externalForce;

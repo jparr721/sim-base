@@ -10,7 +10,9 @@ struct Comb : public CollisionMesh {
   Comb();
 };
 
-struct StrandScene {
+struct StrandDropScene {
+  bool stopped = false;
+  Real collisionEnvelopeSize = 0.4;
   int frame = 0;
   int sceneFrames = 0;
   Vec<Real> combTranslation;
@@ -25,6 +27,6 @@ struct StrandScene {
   void DumpFrame();
 };
 
-struct DiscreteElasticRods : public StrandScene {
+struct DiscreteElasticRods : public StrandDropScene {
   explicit DiscreteElasticRods(std::shared_ptr<Camera<float>> &camera);
 };
