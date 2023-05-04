@@ -106,7 +106,7 @@ def load_obj_into_spline(obj_file: str, radius: float):
 
 def make_bspline(filename: str):
     return f"""
-    <shape type="bsplinecurve">
+    <shape type="linearcurve">
         <string name="filename" value="{filename}"/>
     </shape>
     """
@@ -133,10 +133,12 @@ def make_render_scene(folder: str, radius: float):
 
     # Now create the spline entry and dump the scenes
     for file in track(os.listdir(folder)):
+        if "txt" not in file:
+            continue
         # Now create the scene, first by copying the template
         s = scene_bend
 
-        if file.startswith("frame") and file.endswith(".txt"):
+        if "txt" in file:
             # Holds the spline geometry
             txt_file = os.path.join(folder, file)
             s += make_bspline(txt_file)
