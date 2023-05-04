@@ -2,7 +2,7 @@
 
 DiscreteElasticRod::DiscreteElasticRod(Mat<Real> vertices)
     : vertices(std::move(vertices)), nRods(vertices.rows() - 1),
-      massSpring(new MassSpring(100000, 0.25)) {
+      massSpring(new MassSpring(100000, 1)) {
   // At least 3 nodes is required
   ASSERT(this->vertices.rows() >= 3, "At least 3 nodes are required");
 
@@ -109,10 +109,14 @@ auto DiscreteElasticRod::ComputeCenterlineForcesGeneral() -> Vec<Real> {
 auto DiscreteElasticRod::ComputeCenterlineForcesStraight() -> Vec<Real> {
   Vec<Real> R = Vec<Real>::Zero(DOFs());
 
-//  for (int ii = 0; ii < nRods - 2; ++ii) {
-//    const Vec3<Real> vertexForce = ComputepEpxi(ii);
-//    R.segment<3>(3 * ii + 1) += vertexForce;
-//  }
+  for (int ii = 0; ii < nRods - 2; ++ii) {
+    const Vec3<Real> vertexForce = ComputepEpxi(ii);
+    R.segment<3>(3 * ii + 1) += vertexForce;
+  }
+
+#ifndef NDEBUG
+  std::cout << "forces: " << R.transpose() << std::endl;
+#endif
 
   // Compute spring-mass forces
   for (int ii = 0; ii < nRods; ++ii) {
@@ -286,10 +290,6 @@ auto DiscreteElasticRod::ComputeTwistingForce() -> Vec<Real> {
                  (thetaDiff1 / restEdges.at(j + 1).length));
   }
 
-#ifndef NDEBUG
-  std::cout << "forces: " << forces.transpose() << std::endl;
-#endif
-
   return forces;
 }
 
@@ -329,13 +329,18 @@ void DiscreteElasticRod::ComputeTwistingHessian(Vec<Real> &upper,
 }
 
 auto DiscreteElasticRod::ComputepEpxi(int j) -> Vec3<Real> {
-  const auto scaledTwistContrib = 2 * gTwistingModulus / restEdges.at(j).length;
+  Mat2<Real> J;
+  J << 0, -1, 1, 0;
+  const Mat2<Real> Bhat = Mat2<Real>::Identity() * gBendingModulus;
+
+  const auto &restLength = restEdges.at(j).length;
   const auto &gradKb = kbGradients.at(j);
-  const auto &kb = kbs.at(j);
-  const auto &gradHolo = holonomyGradients.at(j);
-  const Real thetaDiff = thetas(thetas.rows() - 1) - thetas(0);
-  return scaledTwistContrib * gradKb.transpose() * kb +
-         (gBendingModulus * thetaDiff) / totalRestLength * gradHolo;
+
+  const auto gradW = ComputeGradOmega(gradKb, m1s.at(j), m2s.at(j),
+                                      holonomyGradients.at(j), curvature.at(j));
+  const Vec2<Real> curvatureDiff = (curvature.at(j) - restCurvature.at(j));
+
+  return gradW.transpose() * Bhat * curvatureDiff / restLength;
 }
 
 auto DiscreteElasticRod::ComputepEpTheta() -> Real {

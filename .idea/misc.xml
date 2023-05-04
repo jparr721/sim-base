@@ -6,6 +6,7 @@
       <file path="$PROJECT_DIR$/ext" />
     </libraryRoots>
     <excludeRoots>
+      <file path="$PROJECT_DIR$/Scripts/venv" />
       <file path="$PROJECT_DIR$/bin" />
       <file path="$PROJECT_DIR$/cmake-build-debug" />
       <file path="$PROJECT_DIR$/cmake-build-release" />

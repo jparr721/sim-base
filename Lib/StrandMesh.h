@@ -18,6 +18,11 @@ public:
   [[nodiscard]] INLINE auto DOFs() const -> int { return der->DOFs(); }
   INLINE void SetPositions(const Vec<Real> &x) { der->SetPositions(x); }
   INLINE auto Positions() const -> Vec<Real> { return der->Positions(); }
+  INLINE void TranslatePinnedX(Real dx, int ii) {
+    if (pinned[ii] == 1) {
+      der->vertices(ii, 0) = der->restVertices(ii, 0) + dx;
+    }
+  }
   void Draw();
 
   /**

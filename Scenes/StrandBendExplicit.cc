@@ -16,8 +16,8 @@ bool gCameraZooming = false;
 bool gCameraPanning = false;
 bool gAnimating = false;
 bool gSingleStep = false;
-bool gShowGrid = true;
-bool gShowCenterAxes = true;
+bool gShowGrid = false;
+bool gShowCenterAxes = false;
 bool gSaveFrame = false;
 
 int gSteps = 0;
@@ -182,26 +182,67 @@ void Display() {
   glFlush();
 }
 
+static Vec<Real> gTranslationStart = Vec<Real>::LinSpaced(5000, 0, 2.5);
+static Vec<Real> gTranslationEnd = Vec<Real>::LinSpaced(5000, -2.5, 0);
+static int gTranslationIndex = 0;
+static int gFramesSaved = 0;
+static int gStopFrame = 10000;
 static void GlutIdle() {
   if (gStopped) {
     return;
   }
 
   if (gAnimating || gSingleStep) {
-    Vec3<Real> gravity;
-    gravity.setZero();
+    Vec3<Real> gravity(0, -0.981, 0);
     ++gSteps;
 
-    gMesh->der->thetas(0) += 0.01;
-    gMesh->der->thetas(gMesh->der->thetas.rows() - 1) += 0.01;
+    gIntegrator->AddGravity(gravity);
     gIntegrator->Step();
 
     if (gSingleStep) {
       gSingleStep = !gSingleStep;
     }
+
+    if (gSteps > 1000 && gTranslationIndex < gTranslationStart.rows()) {
+      gMesh->TranslatePinnedX(gTranslationStart(gTranslationIndex), 0);
+      gMesh->TranslatePinnedX(
+          gTranslationEnd.reverse().eval()(gTranslationIndex), 4);
+      ++gTranslationIndex;
+    }
+  }
+
+  if (gSteps == gStopFrame) {
+    gAnimating = false;
+    gStopped = true;
   }
 
   if (gSteps % 10 == 0 && gAnimating) {
+    if (gSaveFrame) {
+
+
+      char filename[512];
+      sprintf(filename, "/Users/jarredparr/Downloads/output/frame_%05i.obj",
+              gFramesSaved);
+      ++gFramesSaved;
+
+      std::ofstream file(filename);
+
+      const auto &vertices = gMesh->der->vertices;
+      for (int jj = 0; jj < vertices.rows(); ++jj) {
+        // Write vertices.row(ii) to the file
+        file << "v " << vertices.row(jj) << std::endl;
+      }
+
+      file << "l ";
+      for (int jj = 0; jj < vertices.rows(); ++jj) {
+        int index = (jj + 1);
+        file << index << " ";
+      }
+
+      file << std::endl;
+      file.close();
+    }
+
     glutPostRedisplay();
   }
 }
@@ -222,12 +263,14 @@ auto main(int argc, char **argv) -> int {
   // Set the mesh
   Mat<Real> v(5, 3);
   for (int ii = 0; ii < v.rows(); ++ii) {
-    v.row(ii) = Vec3<Real>(ii, 2, 0);
+    v.row(ii) = Vec3<Real>(ii, 0, 0);
   }
 
   gMesh = std::make_shared<StrandMesh>(v);
-  gIntegrator =
-      std::make_shared<ForwardEulerStrand>(gMesh, nullptr, 1 / 100'000, 5, 0.3);
+  gMesh->pinned(0) = 1;
+  gMesh->pinned(v.rows() - 1) = 1;
+  gIntegrator = std::make_shared<ForwardEulerStrand>(gMesh, nullptr,
+                                                     1.0 / 1'000.0, 5, 0.3);
 
   glutInit(&argc, argv);
   glutInitDisplayMode(GLUT_DEPTH | GLUT_RGBA);

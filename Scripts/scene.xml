@@ -3,8 +3,8 @@
     <!-- Defaults, these can be set via the command line: -Darg=value -->
 
     <default name="spp" value="300"/>
-    <default name="resx" value="1920"/>
-    <default name="resy" value="1080"/>
+    <default name="resx" value="1000"/>
+    <default name="resy" value="800"/>
     <default name="max_depth" value="8"/>
 
 
