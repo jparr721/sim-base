@@ -4,7 +4,7 @@
 #include <Energy/Spring/MassSpring.h>
 #include <LibMath.h>
 
-constexpr Real gBendingModulus = 0.0001;
+constexpr Real gBendingModulus = 0.1;
 constexpr Real gTwistingModulus = 1;
 
 class DiscreteElasticRod {

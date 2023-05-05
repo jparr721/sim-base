@@ -40,6 +40,7 @@ package_add_scene(BunnyDropExplicit)
 package_add_scene(StrandDropExplicit)
 package_add_scene(StrandBendExplicit)
 package_add_scene(StrandTwistExplicit)
+package_add_scene(FrameDebug)
 
 add_executable(viewer main.cc)
 target_link_libraries(viewer PRIVATE ${OPENGL_LIBRARIES} GLUT::GLUT ${PROJECT_NAME})

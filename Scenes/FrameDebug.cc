@@ -23,12 +23,7 @@ bool gSaveFrame = false;
 int gSteps = 0;
 
 auto gCamera = std::make_shared<Camera<float>>();
-
-// UNCOMMENT HERE FOR BUNNY SCENE
-bool gStopped = false;
-Real gCollisionEnvelopeCheck = 0.4;
-std::shared_ptr<StrandMesh> gMesh;
-std::shared_ptr<ForwardEulerStrand> gIntegrator;
+std::unique_ptr<StrandMesh> gMesh;
 
 void GlutMotionFunc(int x, int y) {
   gMouseCur[0] = x;
@@ -182,63 +177,7 @@ void Display() {
   glFlush();
 }
 
-static int gFramesSaved = 0;
-static int gStopFrame = 20000;
-static void GlutIdle() {
-  if (gStopped) {
-    return;
-  }
-
-  if (gAnimating || gSingleStep) {
-    Vec3<Real> gravity(0, -0.981, 0);
-    ++gSteps;
-
-    gIntegrator->AddGravity(gravity);
-    gIntegrator->Step();
-
-    if (gSingleStep) {
-      gSingleStep = !gSingleStep;
-    }
-  }
-
-  if (gSteps == gStopFrame) {
-    gAnimating = false;
-    gStopped = true;
-  }
-
-  if (gSteps > 2'000) {
-    gMesh->der->rightAngularVelocity = 0;
-    gMesh->der->leftAngularVelocity = 0;
-  }
-
-  if (gSteps % 10 == 0 && gAnimating) {
-    if (gSaveFrame) {
-      char filename[512];
-      sprintf(filename, "/Users/jarredparr/Downloads/output/frame_%05i.obj",
-              gFramesSaved);
-      ++gFramesSaved;
-
-      std::ofstream file(filename);
-
-      const auto &vertices = gMesh->der->vertices;
-      for (int jj = 0; jj < vertices.rows(); ++jj) {
-        // Write vertices.row(ii) to the file
-        file << "v " << vertices.row(jj) << std::endl;
-      }
-
-      file << "l ";
-      for (int jj = 0; jj < vertices.rows(); ++jj) {
-        int index = (jj + 1);
-        file << index << " ";
-      }
-
-      file << std::endl;
-      file.close();
-    }
-
-    glutPostRedisplay();
-  }
-}
+static void GlutIdle() {}
 
 auto main(int argc, char **argv) -> int {
   if (argc > 1) {
@@ -254,18 +193,13 @@ auto main(int argc, char **argv) -> int {
   gCamera->Zoom(10);
 
   // Set the mesh
-  Mat<Real> v(8, 3);
+  Mat<Real> v(5, 3);
   for (int ii = 0; ii < v.rows(); ++ii) {
-    v.row(ii) = Vec3<Real>(ii, 0, 0);
+    v.row(ii) = Vec3<Real>(ii, (ii * ii) * 0.25, 0);
   }
 
-  gMesh = std::make_shared<StrandMesh>(v);
-  gMesh->pinned(0) = 1;
-  gMesh->pinned(v.rows() - 1) = 1;
-  gMesh->der->rightAngularVelocity = 50;
-  gMesh->der->leftAngularVelocity = 0;
-  gIntegrator = std::make_shared<ForwardEulerStrand>(gMesh, nullptr,
-                                                     1.0 / 1'000.0, 5, 0.3);
+  gMesh = std::make_unique<StrandMesh>(v);
+  gMesh->drawMaterialFrame = true;
 
   glutInit(&argc, argv);
   glutInitDisplayMode(GLUT_DEPTH | GLUT_RGBA);
