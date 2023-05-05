@@ -109,9 +109,14 @@ auto DiscreteElasticRod::ComputeCenterlineForcesGeneral() -> Vec<Real> {
 auto DiscreteElasticRod::ComputeCenterlineForcesStraight() -> Vec<Real> {
   Vec<Real> R = Vec<Real>::Zero(DOFs());
 
-  for (int ii = 0; ii < nRods - 2; ++ii) {
-    const Vec3<Real> vertexForce = ComputepEpxi(ii);
-    R.segment<3>(3 * ii + 1) += vertexForce;
+  const Real outer = -2 * gTwistingModulus / restEdges.at(0).length;
+  const Real thetaDiff = thetas(thetas.rows() - 1) - thetas(0);
+  const Real twistContrib = gTwistingModulus * thetaDiff / totalRestLength;
+  for (int ii = 0; ii < nRods - 1; ++ii) {
+    const auto &kbGradient = kbGradients.at(ii);
+    const auto &kb = kbs.at(ii);
+    R.segment<3>(3 * ii) += outer * kbGradient.transpose() * kb +
+                            twistContrib * holonomyGradients.at(ii);
   }
 
 #ifndef NDEBUG
@@ -220,9 +225,9 @@ void DiscreteElasticRod::UpdateKbGradients() {
 
 void DiscreteElasticRod::UpdateHolonomyGradient() {
   holonomyGradients.resize(nRods - 1);
-  for (int ii = 0; ii < nRods - 1; ++ii) {
-    const auto lhs = kbs.at(ii) / 2 * (restEdges.at(ii).length);
-    const auto rhs = -kbs.at(ii) / 2 * (restEdges.at(ii + 1).length);
+  for (int ii = 1; ii < nRods - 1; ++ii) {
+    const Vec3<Real> lhs = kbs.at(ii - 1) / 2 * (restEdges.at(ii - 1).length);
+    const Vec3<Real> rhs = -kbs.at(ii) / 2 * (restEdges.at(ii).length);
     holonomyGradients.at(ii) = -1 * (lhs + rhs);
   }
 }
@@ -318,12 +323,12 @@ void DiscreteElasticRod::ComputeTwistingHessian(Vec<Real> &upper,
   center = Vec<Real>::Zero(nRods - 1);
 
   for (int j = 0; j < nRods - 2; ++j) {
-    lower(j) = -2 * gBendingModulus / restEdges.at(j).length;
-    upper(j) = -2 * gBendingModulus / restEdges.at(j + 1).length;
+    lower(j) = -2 * gTwistingModulus / restEdges.at(j).length;
+    upper(j) = -2 * gTwistingModulus / restEdges.at(j + 1).length;
 
     center(j) =
         hessW(j) + hessW(j + 1) +
-        2 * gBendingModulus *
+        2 * gTwistingModulus *
             (1 / restEdges.at(j).length + 1 / restEdges.at(j + 1).length);
   }
 }
@@ -345,7 +350,7 @@ auto DiscreteElasticRod::ComputepEpxi(int j) -> Vec3<Real> {
 
 auto DiscreteElasticRod::ComputepEpTheta() -> Real {
   // 7.1 Twist forces only happen on the fixed end.
-  int j = nRods - 2;
+  int j = nRods - 1;
   // J is a 90 degree rotation
   Mat2<Real> J;
   J << 0, -1, 1, 0;
@@ -354,7 +359,7 @@ auto DiscreteElasticRod::ComputepEpTheta() -> Real {
   const auto invRestLength = 1.0 / restLength;
   const auto &w = curvature.at(j);
   const auto &wbar = restCurvature.at(j);
-  const Real mn = thetas(j) - thetas(j - 1);
+  const Real mn = thetas(thetas.rows() - 1) - thetas(0);
 
   return invRestLength * w.transpose() * J * Bhat * (w - wbar) +
          2 * gTwistingModulus * mn * invRestLength;

@@ -3,6 +3,7 @@ import numpy as np
 import os
 from rich import print
 from rich.progress import track
+import copy
 
 app = typer.Typer()
 
@@ -46,8 +47,7 @@ scene_drop = """
     <!--    Look At 0.343205, -0.412442, 10.7748-->
     <!--    Up 0.149435, 0.988771, -0.00137483-->
     <!--    FOV 65-->
-
-
+    
     <!-- Camera and Rendering Parameters -->
 
     <integrator type="path">
@@ -58,8 +58,8 @@ scene_drop = """
         <string name="fov_axis" value="y"/>
         <float name="fov" value="65"/>
         <transform name="to_world">
-            <lookat origin="12.1386, -1.41318, 9.85186" target="0.463037, 0.233464, 10.3098"
-                    up="0.13944, 0.990216, -0.00546882"/>
+            <lookat origin="6.0885, -2.58997, 10.1868" target="-2.40966, -2.58994, 10.01"
+                    up="3.73839e-06, 1, 7.77733e-08"/>
         </transform>
         <sampler type="multijitter">
             <integer name="sample_count" value="$spp"/>
@@ -88,7 +88,7 @@ scene_drop = """
     <!-- Emitters -->
     <emitter type="envmap" id="Area_002-light">
         <string name="filename" value="../envmap.exr"/>
-        <float name="scale" value="3"/>
+        <float name="scale" value="6"/>
     </emitter>
 """
 
@@ -135,7 +135,7 @@ def load_obj_into_spline(obj_file: str, radius: float):
 
 def make_bspline(filename: str):
     return f"""
-    <shape type="bsplinecurve">
+    <shape type="linearcurve">
         <string name="filename" value="{filename}"/>
     </shape>
     """
@@ -159,15 +159,19 @@ def make_render_scene(folder: str, radius: float):
         if file.startswith("frame") and file.endswith(".obj"):
             load_obj_into_spline(os.path.join(folder, file), radius)
 
-    # Now create the scene, first by copying the template
-    s = scene_drop
-
     # Now create the spline entry and dump the scenes
     for file in track(os.listdir(folder)):
-        if file.startswith("frame") and file.endswith(".txt"):
-            s += make_bspline(os.path.join(folder, file))
-        if file.startswith("comb") and file.endswith(".obj"):
-            s += make_obj(os.path.join(folder, file))
+        if "txt" not in file:
+            continue
+
+        # Now create the scene, first by copying the template
+        s = copy.deepcopy(scene_drop)
+
+        if 'txt' in file:
+            comb_filename = file.replace("frame", "comb")
+            comb_filename = comb_filename.replace(".txt", ".obj")
+            s += make_bspline(file)
+            s += make_obj(comb_filename)
 
         s += "</scene>\n"
         fn = os.path.splitext(file)[0]

@@ -70,7 +70,7 @@ public:
     this->velocity = u / this->dt;
 
     // Sparse identity matrix
-    Real coeff = bump ? 0.75 : 0.25;
+    Real coeff = bump ? 0.45 : 0.75;
     SparseMat<Real> filter =
         ConstructDiagonalSparseMatrix(
             Vec<Real>::Ones(this->strandMesh->DOFs()).eval()) -
@@ -81,10 +81,16 @@ public:
     u += positions;
     this->strandMesh->SetPositions(u);
 
+    this->strandMesh->der->thetas(0) +=
+        this->strandMesh->der->leftAngularVelocity * this->dt;
+    this->strandMesh->der->thetas(this->strandMesh->der->thetas.rows() - 1) +=
+        this->strandMesh->der->rightAngularVelocity * this->dt;
+
     this->strandMesh->der->UpdateLengths();
     this->strandMesh->der->Computekbs();
     this->strandMesh->der->UpdateBishopFrames();
-    this->strandMesh->der->UpdateBishopFrames();
+    //    this->strandMesh->der->UpdateQuasistaticMaterialFrame();
+    this->strandMesh->der->UpdateMaterialFrames();
     this->strandMesh->der->UpdateMaterialCurvatures();
     this->strandMesh->der->UpdateKbGradients();
     this->strandMesh->der->UpdateHolonomyGradient();

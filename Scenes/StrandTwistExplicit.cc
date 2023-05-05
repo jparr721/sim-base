@@ -182,9 +182,6 @@ void Display() {
   glFlush();
 }
 
-static Vec<Real> gTranslationStart = Vec<Real>::LinSpaced(5000, 0, 2.5);
-static Vec<Real> gTranslationEnd = Vec<Real>::LinSpaced(5000, -2.5, 0);
-static int gTranslationIndex = 0;
 static int gFramesSaved = 0;
 static int gStopFrame = 20000;
 static void GlutIdle() {
@@ -202,13 +199,6 @@ static void GlutIdle() {
     if (gSingleStep) {
       gSingleStep = !gSingleStep;
     }
-
-    if (gSteps > 1000 && gTranslationIndex < gTranslationStart.rows()) {
-      gMesh->TranslatePinnedX(gTranslationStart(gTranslationIndex), 0);
-      gMesh->TranslatePinnedX(
-          gTranslationEnd.reverse().eval()(gTranslationIndex), 4);
-      ++gTranslationIndex;
-    }
   }
 
   if (gSteps == gStopFrame) {
@@ -218,8 +208,6 @@ static void GlutIdle() {
 
   if (gSteps % 10 == 0 && gAnimating) {
     if (gSaveFrame) {
-
-
       char filename[512];
       sprintf(filename, "/Users/jarredparr/Downloads/output/frame_%05i.obj",
               gFramesSaved);
@@ -269,6 +257,8 @@ auto main(int argc, char **argv) -> int {
   gMesh = std::make_shared<StrandMesh>(v);
   gMesh->pinned(0) = 1;
   gMesh->pinned(v.rows() - 1) = 1;
+  gMesh->der->rightAngularVelocity = -3.14;
+  gMesh->der->leftAngularVelocity = 3.14;
   gIntegrator = std::make_shared<ForwardEulerStrand>(gMesh, nullptr,
                                                      1.0 / 1'000.0, 5, 0.3);
 

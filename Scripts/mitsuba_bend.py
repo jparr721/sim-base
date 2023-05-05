@@ -141,7 +141,7 @@ def make_render_scene(folder: str, radius: float):
         if "txt" in file:
             # Holds the spline geometry
             txt_file = os.path.join(folder, file)
-            s += make_bspline(txt_file)
+            s += make_bspline(file)
 
             # Also add a sphere to the scene using the first and last values
             # of the spline geometry file
