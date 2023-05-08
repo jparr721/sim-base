@@ -16,7 +16,7 @@ bool gCameraZooming = false;
 bool gCameraPanning = false;
 bool gAnimating = false;
 bool gSingleStep = false;
-bool gShowGrid = false;
+bool gShowGrid = true;
 bool gShowCenterAxes = false;
 bool gSaveFrame = false;
 
@@ -195,7 +195,7 @@ auto main(int argc, char **argv) -> int {
   // Set the mesh
   Mat<Real> v(5, 3);
   for (int ii = 0; ii < v.rows(); ++ii) {
-    v.row(ii) = Vec3<Real>(ii, (ii * ii) * 0.25, 0);
+    v.row(ii) = Vec3<Real>(ii, 1, 0);
   }
 
   gMesh = std::make_unique<StrandMesh>(v);
