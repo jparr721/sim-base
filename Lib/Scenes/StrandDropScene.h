@@ -1,9 +1,10 @@
 #pragma once
 
 #include <Camera.h>
-#include <ForwardEulerStrand.h>
+#include <Collision/CollisionMesh.h>
+#include <Integrator/ForwardEulerStrand.h>
+#include <Integrator/VolumeIntegrator.h>
 #include <StrandMesh.h>
-#include <TimestepperVolume.h>
 #include <memory>
 
 struct Comb : public CollisionMesh {

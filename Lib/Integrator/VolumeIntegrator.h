@@ -5,9 +5,9 @@
 #include <memory>
 #include <utility>
 
-class TimestepperVolume {
+class VolumeIntegrator {
 public:
-  TimestepperVolume(std::shared_ptr<TetMesh> tetMesh,
+  VolumeIntegrator(std::shared_ptr<TetMesh> tetMesh,
                  std::shared_ptr<HyperelasticMaterial> material,
                  Real dt = 1.0 / 300.0, Real rayleighAlpha = 0.0,
                  Real rayleighBeta = 0.0)

@@ -3,10 +3,10 @@
 #include <Collision/CollisionMesh.h>
 #include <Energy/Collision/VertexFaceSqrtCollision.h>
 #include <Energy/Strand/DiscreteElasticRod.h>
+#include <Integrator/StrandIntegrator.h>
 #include <StrandMesh.h>
-#include <TimestepperStrand.h>
 
-class ForwardEulerStrand : public TimestepperStrand {
+class ForwardEulerStrand : public StrandIntegrator {
 public:
   Real collisionStiffness = 10;
   Real collisionEpsilon = 0.2;
@@ -17,7 +17,7 @@ public:
                      std::shared_ptr<DiscreteElasticRod> material,
                      Real dt = 1.0 / 3000.0, Real collisionStiffness = 10,
                      Real collisionEpsilon = 0.2)
-      : TimestepperStrand(std::move(strandMesh), std::move(material), dt),
+      : StrandIntegrator(std::move(strandMesh), std::move(material), dt),
         collisionStiffness(collisionStiffness),
         collisionEpsilon(collisionEpsilon) {
     vertexFaceSqrtCollision = std::make_unique<VertexFaceSqrtCollision>(

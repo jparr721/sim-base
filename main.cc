@@ -124,24 +124,7 @@ void GlutKeyboardFunc(unsigned char key, int x, int y) {
   }
 
   if (key == 'c') {
-    const auto &disp = gCamera->GetDisplacement().transpose();
-    std::cout << "->SetRadius(" << gCamera->GetR() << ")" << std::endl;
-    std::cout << "->SetTheta(" << gCamera->GetTheta() << ")" << std::endl;
-    std::cout << "->SetPhi(" << gCamera->GetPhi() << ")" << std::endl;
-    std::cout << "->SetDisplacement(Vec3<Real>(" << disp.x() << ", " << disp.y()
-              << ", " << disp.z() << "))" << std::endl;
-
-    const auto &eye = gCamera->GetEye();
-    const auto &lookAt = gCamera->GetLookAt();
-    const auto &up = gCamera->GetUp();
-
-    std::cout << "Eye " << eye.x() << ", " << eye.y() << ", " << eye.z()
-              << std::endl;
-    std::cout << "Look At " << lookAt.x() << ", " << lookAt.y() << ", "
-              << lookAt.z() << std::endl;
-    std::cout << "Up " << up.x() << ", " << up.y() << ", " << up.z()
-              << std::endl;
-    std::cout << "FOV " << gCamera->GetFOV() << std::endl;
+    std::cout << gCamera->Parameters() << std::endl;
   }
 
   glutPostRedisplay();
@@ -320,11 +303,6 @@ auto main(int argc, char **argv) -> int {
   }
 
   KeyboardControls();
-
-  // Set initial camera zoom
-  gCamera->Zoom(10);
-
-  //  gCamera->Set
 
   glutInit(&argc, argv);
   glutInitDisplayMode(GLUT_DEPTH | GLUT_RGBA);

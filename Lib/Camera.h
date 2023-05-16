@@ -15,9 +15,27 @@ public:
   auto Pan(T du, T dv) -> bool;
   auto Zoom(T du) -> bool;
 
+  auto Parameters() -> std::string {
+    std::stringstream ss;
+    ss << "->SetEye(Vec3<float>(" << eye.x() << ", " << eye.y() << ", "
+       << eye.z() << "));" << std::endl;
+    ss << "->SetLookAt(Vec3<float>(" << lookAt.x() << ", " << lookAt.y() << ", "
+       << lookAt.z() << "));" << std::endl;
+    ss << "->SetUp(Vec3<float>(" << up.x() << ", " << up.y() << ", " << up.z()
+       << "));" << std::endl;
+    ss << "->SetDisplacement(Vec3<float>(" << displacement.x() << ", "
+       << displacement.y() << ", " << displacement.z() << "));";
+
+    return ss.str();
+  }
+
   void SetPerspective(T fov, std::size_t width, std::size_t height, T nearPlane,
                       T farPlane);
   void SetFrustum(T left, T right, T top, T bottom, T nearPlane, T farPlane);
+
+  void SetEye(const Vec3<T> &newEye);
+  void SetLookAt(const Vec3<T> &newLookAt);
+  void SetUp(const Vec3<T> &newUp);
 
   void SetDisplacement(const Vec3<T> &position);
   void SetDisplacement(T x, T y, T z);
@@ -80,7 +98,7 @@ public:
   auto GetUp() const -> const Vec3<T> &;
   auto GetFOV() const -> const T &;
 
-  std::size_t GetWidth() const;
+  auto GetWidth() const -> std::size_t;
   auto GetHeight() const -> std::size_t;
   auto GetNear() const -> const T &;
   auto GetFar() const -> const T &;
@@ -277,10 +295,42 @@ void Camera<T>::SetFrustum(T left, T right, T top, T bottom, T nearPlane,
   this->projectionMatrix(14) = (-temp * farPlane) / temp4;
 }
 
+template <typename T> void Camera<T>::SetEye(const Vec3<T> &newEye) {
+  // Build the view matrix
+  this->eye = -newEye;
+
+  // Convert the eye, lookAt, and up vectors into spherical coordinates
+  Vec3<T> eyeToLookAt = this->lookAt - this->eye;
+  this->r = eyeToLookAt.norm();
+  this->theta = std::atan2(eyeToLookAt.z(), eyeToLookAt.x());
+  this->phi = std::acos(eyeToLookAt.y() / this->r);
+  this->Compile();
+}
+
+template <typename T> void Camera<T>::SetLookAt(const Vec3<T> &newLookAt) {
+  this->lookAt = newLookAt;
+
+  // Convert the eye, lookAt, and up vectors into spherical coordinates
+  Vec3<T> eyeToLookAt = this->lookAt - this->eye;
+  this->r = eyeToLookAt.norm();
+  this->theta = std::atan2(eyeToLookAt.z(), eyeToLookAt.x());
+  this->phi = std::acos(eyeToLookAt.y() / this->r);
+  this->Compile();
+}
+
+template <typename T> void Camera<T>::SetUp(const Vec3<T> &newUp) {
+  this->up = newUp;
+
+  // Convert the eye, lookAt, and up vectors into spherical coordinates
+  Vec3<T> eyeToLookAt = this->lookAt - this->eye;
+  this->r = eyeToLookAt.norm();
+  this->theta = std::atan2(eyeToLookAt.z(), eyeToLookAt.x());
+  this->phi = std::acos(eyeToLookAt.y() / this->r);
+  this->Compile();
+}
+
 template <typename T> void Camera<T>::SetDisplacement(const Vec3<T> &pos) {
-  this->displacement.x() = pos.x();
-  this->displacement.y() = pos.y();
-  this->displacement.z() = pos.z();
+  this->displacement = pos;
   this->Compile();
 }
 

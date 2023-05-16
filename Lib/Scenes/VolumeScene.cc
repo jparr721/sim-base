@@ -1,6 +1,6 @@
 #include "VolumeScene.h"
 #include <Energy/Volume/SNH.h>
-#include <ForwardEulerVolume.h>
+#include <Integrator/ForwardEulerVolume.h>
 
 void VolumeScene::Step(const Vec3<Real> &gravity) {
   integrator->AddGravity(gravity);

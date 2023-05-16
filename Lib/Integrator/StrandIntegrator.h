@@ -4,12 +4,12 @@
 #include <LibMath.h>
 #include <StrandMesh.h>
 
-class TimestepperStrand {
+class StrandIntegrator {
 public:
   Real dt;
   std::vector<VertexFaceCollision> vertexFaceCollisions;
 
-  TimestepperStrand(std::shared_ptr<StrandMesh> strandMesh,
+  StrandIntegrator(std::shared_ptr<StrandMesh> strandMesh,
                     std::shared_ptr<DiscreteElasticRod> material,
                     Real dt = 1.0 / 3000.0)
       : strandMesh(std::move(strandMesh)), material(std::move(material)),

@@ -118,56 +118,9 @@ DiscreteElasticRods::DiscreteElasticRods(
     integrators.emplace_back(std::move(integrator));
   }
 
-  // Zoom out and set the center in a different spot
-
-  //  Radius 15.4999
-  //      Theta 0.0108005
-  //      Phi 1.5108
-  //      Eye 8.77399, -2.67725, 9.03442
-  //                    Look At -6.69713, -3.60663, 8.86732
-  //                    Up -0.0599567, 0.998201, -0.000647587
-  //                 FOV 65
-  //
-
-  camera->SetRadius(15.5);
-  camera->SetTheta(0.0108005);
-  camera->SetPhi(1.5108);
-
-  //  Radius 16.9
-  //  Theta 1.4508
-  //  Phi 1.7208
-  //  Eye 2.00036, -2.52556, 16.59
-  //  Look At 0, 0, 0
-  //  Up 0.0178895, 0.988771, 0.148367
-  //  FOV 65
-  camera->SetRadius(16.9);
-  camera->SetTheta(1.4508);
-  camera->SetPhi(1.7208);
-
-  camera->SetRadius(17.5);
-  camera->SetTheta(-0.0391999);
-  camera->SetPhi(1.7608);
-
-  //  Eye 11.3409, -1.68621, 10.2012
-  //  Look At -0.627491, -0.846851, 10.431
-  //  Up 0.0699339, 0.997551, -0.00134284
-  //  FOV 65
-
-  camera->SetRadius(15.7);
-  camera->SetTheta(1.5008);
-  camera->SetPhi(1.6008);
-  camera->SetDisplacement(Vec3<float>(0, 0, 0));
-
-  std::cout << "------------------" << std::endl;
-  std::cout << "SIM RUN" << std::endl;
-  std::cout << "STRANDS: " << meshes.size() << std::endl;
-  std::cout << "TOTAL PARTICLES: "
-            << meshes.size() * meshes.at(0)->der->vertices.rows() << std::endl;
-  std::cout << "TIMESTEP SIZE: " << integrators.at(0)->dt << std::endl;
-  std::cout << "COLLISION ENVLOPE SIZE: " << collisionEnvelopeSize << std::endl;
-  std::cout << "INTEGRATOR COLLISION EPSILON: "
-            << integrators.at(0)->collisionEpsilon << std::endl;
-  std::cout << "INTEGRATOR COLLISION STIFFNESS: "
-            << integrators.at(0)->collisionStiffness << std::endl;
-  std::cout << "------------------" << std::endl;
+  // Must set eye, lookat, and up and then displace
+  camera->SetEye(Vec3<float>(12.4994, 4.6141, 10.0808));
+  camera->SetLookAt(Vec3<float>(-0.367183, -0.0835798, 9.81318));
+  camera->SetUp(Vec3<float>(-0.342824, 0.939373, -0.00713152));
+  camera->SetDisplacement(Vec3<float>(-0.367183, -0.0835798, 9.81318));
 }
