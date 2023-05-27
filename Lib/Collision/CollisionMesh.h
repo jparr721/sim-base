@@ -8,12 +8,6 @@ struct VertexFaceCollision {
   std::vector<Vec3<Real>> faceVertices;
 };
 
-struct EdgeEdgeCollision {
-  // Vertex indices of the edge-edge collision
-  int e0;
-  int e1;
-};
-
 class CollisionMesh {
 public:
   Mat<Real> v;

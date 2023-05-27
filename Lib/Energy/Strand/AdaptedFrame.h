@@ -31,12 +31,3 @@ struct BishopFrame {
 void ParallelTransportModifiedBishopFrames(
     const std::vector<Vec3<Real>> &curvatureBinormals,
     const std::vector<Edge> &edges, std::vector<BishopFrame> &frames);
-
-struct AdaptedFrame {
-  BishopFrame frame;
-  Vec3<Real> m1;
-  Vec3<Real> m2;
-  Real theta;
-
-  AdaptedFrame(BishopFrame frame);
-};
