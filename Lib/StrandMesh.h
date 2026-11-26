@@ -5,8 +5,6 @@
 
 class StrandMesh {
 public:
-  bool drawMaterialFrame = false;
-
   // N x 1 boolean vector indicating whether a vertex is pinned. This matches
   // the dimension of der->vertices.
   Vec<int> pinned;
@@ -23,7 +21,6 @@ public:
       der->vertices(ii, 0) = der->restVertices(ii, 0) + dx;
     }
   }
-  void Draw();
 
   /**
    * Compute forces on the centerline

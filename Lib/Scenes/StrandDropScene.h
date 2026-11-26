@@ -1,6 +1,5 @@
 #pragma once
 
-#include <Camera.h>
 #include <Collision/CollisionMesh.h>
 #include <Integrator/ForwardEulerStrand.h>
 #include <Integrator/VolumeIntegrator.h>
@@ -24,10 +23,8 @@ struct StrandDropScene {
 
   void StepScriptedScene(const Vec3<Real> &gravity);
   void Step(const Vec3<Real> &gravity);
-  void Draw();
-  void DumpFrame();
 };
 
 struct DiscreteElasticRods : public StrandDropScene {
-  explicit DiscreteElasticRods(std::shared_ptr<Camera<float>> &camera);
+  DiscreteElasticRods();
 };

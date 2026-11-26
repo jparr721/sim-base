@@ -1,6 +1,6 @@
 #pragma once
 
-#include "LibMath.h"
+#include <LibMath.h>
 
 template <typename T> class Camera {
 public:

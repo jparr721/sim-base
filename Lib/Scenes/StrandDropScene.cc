@@ -1,9 +1,6 @@
 #include "StrandDropScene.h"
-#include <LibGui.h>
 #include <igl/parallel_for.h>
 #include <igl/readOBJ.h>
-#include <igl/writeOBJ.h>
-#include <format>
 
 Comb::Comb() {
   igl::readOBJ(Meshes / "comb_more_teeth.obj", v, f);
@@ -44,56 +41,7 @@ void StrandDropScene::Step(const Vec3<Real> &gravity) {
   });
 }
 
-void StrandDropScene::Draw() {
-  for (const auto &mesh : meshes) {
-    mesh->Draw();
-  }
-
-  // Combine vertexFaceCollisionsPerStrand into one vector
-  std::vector<VertexFaceCollision> vertexFaceCollisions;
-  for (const auto &collisions : vertexFaceCollisionsPerStrand) {
-    vertexFaceCollisions.insert(vertexFaceCollisions.end(), collisions.begin(),
-                                collisions.end());
-  }
-
-  comb->Draw(vertexFaceCollisions);
-}
-
-void StrandDropScene::DumpFrame() {
-  const auto filename =
-      std::format("/Users/jarredparr/Downloads/output/frame_{:04}.obj", frame);
-
-  std::ofstream file(filename);
-
-  for (const auto &mesh : meshes) {
-    const auto &vertices = mesh->der->vertices;
-    for (int jj = 0; jj < vertices.rows(); ++jj) {
-      // Write vertices.row(ii) to the file
-      file << "v " << vertices.row(jj) << std::endl;
-    }
-  }
-
-  for (int ii = 0; ii < std::ssize(meshes); ++ii) {
-    const auto &mesh = meshes.at(ii);
-    const auto &vertices = mesh->der->vertices;
-    file << "l ";
-    for (int jj = 0; jj < vertices.rows(); ++jj) {
-      int index = (jj + 1) + (ii * vertices.rows());
-      file << index << " ";
-    }
-
-    file << std::endl;
-  }
-  file.close();
-
-  const auto combFilename =
-      std::format("/Users/jarredparr/Downloads/output/comb_{:04}.obj", frame);
-
-  igl::writeOBJ(combFilename, comb->v, comb->f);
-}
-
-DiscreteElasticRods::DiscreteElasticRods(
-    std::shared_ptr<Camera<float>> &camera) {
+DiscreteElasticRods::DiscreteElasticRods() {
   comb = std::make_shared<Comb>();
   comb->Translate(Vec3<Real>(-1, -1, 10));
   combTranslation = Vec<Real>::LinSpaced(200, -8, -1).reverse();
@@ -117,10 +65,4 @@ DiscreteElasticRods::DiscreteElasticRods(
     meshes.emplace_back(mesh);
     integrators.emplace_back(std::move(integrator));
   }
-
-  // Must set eye, lookat, and up and then displace
-  camera->SetEye(Vec3<float>(12.4994, 4.6141, 10.0808));
-  camera->SetLookAt(Vec3<float>(-0.367183, -0.0835798, 9.81318));
-  camera->SetUp(Vec3<float>(-0.342824, 0.939373, -0.00713152));
-  camera->SetDisplacement(Vec3<float>(-0.367183, -0.0835798, 9.81318));
 }

@@ -7,8 +7,6 @@ void VolumeScene::Step(const Vec3<Real> &gravity) {
   integrator->Step();
 }
 
-void VolumeScene::Draw() { mesh->Draw(); }
-
 CoarseBunnyExplicit::CoarseBunnyExplicit() {
   mesh = std::make_shared<TetMesh>(Meshes / "bunny.obj");
   material = std::make_shared<SNH>(5.0, 0.45);

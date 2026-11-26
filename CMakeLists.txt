@@ -10,11 +10,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(SIM_WARNINGS -Wall -Wextra -Wpedantic)
 
-find_package(GLUT REQUIRED)
-find_package(OpenGL REQUIRED)
-
-set(GL_SILENCE_DEPRECATION ON)
-
 # libigl pulls deps (tetgen) whose cmake_minimum_required predates what CMake 4 accepts.
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 include(FetchContent)
@@ -37,7 +32,6 @@ if (BUILD_TESTING)
     add_subdirectory(Tests)
 endif ()
 
-find_package(OpenGL REQUIRED)
 add_subdirectory(Lib)
 add_subdirectory(SceneCatalog)
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})

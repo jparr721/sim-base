@@ -96,8 +96,7 @@ inline void RunStrandTwist(const Run &run, const Recorder &record) {
 // The GLUT driver advanced `frame` every 50 steps from its idle callback, and
 // StepScriptedScene keyed the comb sweep and damping off that counter.
 inline void RunStrandDrop(const Run &run, const Recorder &record) {
-  auto camera = std::make_shared<Camera<float>>();
-  DiscreteElasticRods scene(camera);
+  DiscreteElasticRods scene;
   const Vec3<Real> gravity(0, -0.981, 0);
   for (int step = 1; step <= run.steps; ++step) {
     scene.StepScriptedScene(gravity);

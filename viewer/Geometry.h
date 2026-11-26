@@ -3,8 +3,6 @@
 #include <array>
 #include <vector>
 
-// Kept as a declaration so GL translation units never see the core headers,
-// which still include GLUT until the old drivers are deleted.
 namespace sim {
 class World;
 }
