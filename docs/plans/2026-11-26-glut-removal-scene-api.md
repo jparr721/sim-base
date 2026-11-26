@@ -115,6 +115,11 @@ Each phase lands green before the next one starts.
 - [ ] Remove `main.cc`, `Scenes/*.cc`, every `Draw()` in `Lib/`, `LibGui.*`, `OpenGL.h`, and the GLUT/OpenGL link on the core.
 - [ ] Verify: `sim` builds and links with no GL/GLUT in `otool -L` or the link line. A tiny headless `examples/embed.cc` steps a scene with no window. All tests pass.
 
+### P4b. Embeddable names (added 2026-11-26)
+The voxel game hit this while embedding: the public headers declare global `PI` and `E`, the `Real`/`Vec`/`Mat` aliases and the `fs` alias, and they define global `ASSERT`, `VERSION`, `INLINE`, `GLOBAL` and `EXPORT` macros. Those collide with the game's own math header.
+- [ ] Put the core in `namespace sim`. Prefix the macros with `SIM_`, and drop the ones nothing uses (`VERSION`, `YEAR`, `AUTHORS`, `GLOBAL`, `EXPORT`/`IMPORT`). Rename target `base` to `sim`.
+- [ ] Verify: a TU that defines its own global `PI`, `E`, `ASSERT` and `Real`, then includes `<Sim/World.h>`, compiles under gnu++20. The full build has zero warnings and all tests pass.
+
 ### P5. Docs
 - [ ] Update `CLAUDE.md` and `README.md` for the new targets, the scene-authoring flow, and the viewer. Point the mitsuba scripts at the export dir.
 
