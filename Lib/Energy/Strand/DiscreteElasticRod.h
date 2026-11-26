@@ -7,6 +7,14 @@
 constexpr Real gBendingModulus = 0.1;
 constexpr Real gTwistingModulus = 1;
 
+// Gradient of a curvature binormal kb_i with respect to the three vertices it
+// depends on: x_i, x_{i+1} and x_{i+2}.
+struct KbGradient {
+  Mat3<Real> prev;
+  Mat3<Real> mid;
+  Mat3<Real> next;
+};
+
 class DiscreteElasticRod {
 public:
   int nRods;
@@ -26,14 +34,12 @@ public:
   std::vector<Vec3<Real>> m1s;
   std::vector<Vec3<Real>> m2s;
 
-  // Holonomy parameters
-  // \nabla_{i}\psi_i
+  // Per vertex j: sum over kb_i of grad_j psi_i, the holonomy gradient.
   std::vector<Vec3<Real>> holonomyGradients;
 
   std::vector<Vec3<Real>> kbs;
 
-  // \nabla_{i}(\kappa{b}_)i
-  std::vector<Mat3<Real>> kbGradients;
+  std::vector<KbGradient> kbGradients;
 
   std::vector<Vec2<Real>> curvature;
   std::vector<Vec2<Real>> restCurvature;
@@ -62,7 +68,6 @@ public:
   void UpdateBishopFrames();
   void UpdateMaterialFrames();
   void UpdateMaterialCurvatures();
-  void UpdateQuasistaticMaterialFrame();
   void UpdateKbGradients();
   void UpdateHolonomyGradient();
   void UpdateLengths();
@@ -71,18 +76,4 @@ public:
 
   auto ComputeOmega(const Vec3<Real> &kb, const Vec3<Real> &m1,
                     const Vec3<Real> &m2) -> Vec2<Real>;
-  auto ComputeGradOmega(const Mat3<Real> &gradkb, const Vec3<Real> &m1,
-                        const Vec3<Real> &m2, const Vec3<Real> &gradpsi,
-                        const Vec2<Real> &w) -> Mat2x3<Real>;
-
-  /**
-   * Partial of E wrt theta^j from equation 7.
-   * @return
-   */
-  auto ComputeTwistingForce() -> Vec<Real>;
-  void ComputeTwistingHessian(Vec<Real> &upper, Vec<Real> &center,
-                              Vec<Real> &lower);
-
-  auto ComputepEpxi(int j) -> Vec3<Real>;
-  auto ComputepEpTheta() -> Real;
 };
