@@ -43,8 +43,8 @@ Needs CMake 3.25+ and a C++26 compiler. Public headers also compile as C++20.
 #include <SceneCatalog/Catalog.h>
 
 sim::World world(sim::Catalog()[0].make());
-while (!world.Finished()) {
-  world.Step();
+for (int step = 0; step < 100 && !world.Finished(); ++step) {
+  world.Step();  // a scene without lastStep never finishes
 }
 for (const auto &body : world.Bodies()) { /* read positions */ }
 ```
