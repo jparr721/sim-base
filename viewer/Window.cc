@@ -6,7 +6,6 @@
 
 #include <optional>
 #include <stdexcept>
-#include <string>
 
 namespace viewer {
 namespace {
