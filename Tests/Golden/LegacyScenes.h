@@ -8,29 +8,9 @@
 #include <Scenes/StrandDropScene.h>
 #include <Scenes/VolumeScene.h>
 
-#include <format>
-#include <fstream>
-#include <functional>
-#include <string>
-#include <vector>
+#include "Golden.h"
 
 namespace golden {
-
-struct Run {
-  std::string name;
-  int steps;
-  int checkpointEvery;
-};
-
-inline const std::vector<Run> kRuns = {
-    {"bunny-drop", 600, 100},
-    {"strand-bend", 7000, 500},
-    {"strand-twist", 3000, 250},
-    {"strand-drop", 20500, 2500},
-};
-
-using Snapshot = std::vector<Mat<Real>>;
-using Recorder = std::function<void(int step, const Snapshot &)>;
 
 inline void RunBunnyDrop(const Run &run, const Recorder &record) {
   CoarseBunnyExplicit scene;
@@ -122,26 +102,6 @@ inline void RunLegacy(const Run &run, const Recorder &record) {
   if (run.name == "strand-bend") return RunStrandBend(run, record);
   if (run.name == "strand-twist") return RunStrandTwist(run, record);
   if (run.name == "strand-drop") return RunStrandDrop(run, record);
-}
-
-inline auto GoldenPath(const std::string &name) -> fs::path {
-  return fs::path(__FILE__).parent_path() / (name + ".txt");
-}
-
-// One line per checkpoint body: "<step> <body> <x0> <y0> <z0> <x1> ...".
-inline auto Serialize(int step, const Snapshot &snapshot) -> std::string {
-  std::string out;
-  for (int body = 0; body < std::ssize(snapshot); ++body) {
-    out += std::format("{} {}", step, body);
-    const auto &m = snapshot[body];
-    for (int r = 0; r < m.rows(); ++r) {
-      for (int c = 0; c < m.cols(); ++c) {
-        out += std::format(" {:.17g}", m(r, c));
-      }
-    }
-    out += '\n';
-  }
-  return out;
 }
 
 } // namespace golden

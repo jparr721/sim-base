@@ -1,4 +1,4 @@
-#include "Golden/LegacyScenes.h"
+#include "Golden/Golden.h"
 
 #include <gtest/gtest.h>
 #include <cmath>
@@ -38,7 +38,7 @@ TEST_P(SceneGolden, MatchesRecordedTrajectory) {
   ASSERT_FALSE(expected.empty()) << "missing golden file for " << run.name;
 
   std::vector<std::string> actual;
-  golden::RunLegacy(run, [&](int step, const golden::Snapshot &snapshot) {
+  golden::RunScene(run, [&](int step, const golden::Snapshot &snapshot) {
     std::istringstream lines(golden::Serialize(step, snapshot));
     for (std::string line; std::getline(lines, line);) {
       actual.push_back(line);
