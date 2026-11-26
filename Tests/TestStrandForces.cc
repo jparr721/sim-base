@@ -123,11 +123,12 @@ auto Forces(DiscreteElasticRod &der, Real k, Real thetaEnd) -> Vec<Real> {
   return der.ComputeCenterlineForcesStraight();
 }
 
-// sum_i beta |kb_i|^2 / |e~^0|: the library's bending stiffness, kept as is.
+// sum_i alpha |kb_i|^2 / lbar_i with lbar_i = |e~^{i-1}| + |e~^i|.
 auto BendEnergy(const Mat<Real> &x) -> Real {
   Real energy = 0;
   for (int i = 0; i + 2 < x.rows(); ++i) {
-    energy += gTwistingModulus * Kb(x, i).squaredNorm() / kSpacing[0];
+    energy += gBendingModulus * Kb(x, i).squaredNorm() /
+              (kSpacing[i] + kSpacing[i + 1]);
   }
   return energy;
 }

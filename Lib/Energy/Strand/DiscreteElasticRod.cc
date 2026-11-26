@@ -72,8 +72,12 @@ void DiscreteElasticRod::Initialize() {
 auto DiscreteElasticRod::ComputeCenterlineForcesStraight() -> Vec<Real> {
   Vec<Real> R = Vec<Real>::Zero(DOFs());
 
-  const Real outer = -2 * gTwistingModulus / restEdges.at(0).length;
+  // Bending E = sum_i alpha |kb_i|^2 / lbar_i, with lbar_i the rest lengths of
+  // the two edges meeting at kb_i (Bergou et al. 2008).
   for (int ii = 0; ii < nRods - 1; ++ii) {
+    const Real outer =
+        -2 * gBendingModulus /
+        (restEdges.at(ii).length + restEdges.at(ii + 1).length);
     const auto &kbGradient = kbGradients.at(ii);
     const auto &kb = kbs.at(ii);
     R.segment<3>(3 * ii) += outer * kbGradient.prev.transpose() * kb;
