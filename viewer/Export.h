@@ -1,0 +1,18 @@
+#pragma once
+
+#include <Sim/World.h>
+
+#include <expected>
+#include <string>
+
+namespace viewer {
+
+// Writes one frame into `directory`, creating it if needed:
+//   frame_NNNN.obj              every strand as an OBJ polyline ("v" / "l"),
+//                               the format StrandDropScene::DumpFrame wrote
+//   collider<body>_NNNN.obj     each collider's triangle mesh
+// Returns the number of files written.
+auto ExportFrame(const sim::World &world, const fs::path &directory, int frame)
+    -> std::expected<int, std::string>;
+
+} // namespace viewer

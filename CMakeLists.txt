@@ -41,6 +41,7 @@ find_package(OpenGL REQUIRED)
 add_subdirectory(Lib)
 add_subdirectory(SceneCatalog)
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+add_subdirectory(viewer)
 
 macro(package_add_scene FILENAME)
     add_executable(${FILENAME} Scenes/${FILENAME}.cc)
