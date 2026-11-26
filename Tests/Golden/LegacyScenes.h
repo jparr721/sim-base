@@ -63,13 +63,14 @@ inline void RunStrandBend(const Run &run, const Recorder &record) {
   for (int step = 1; step <= run.steps; ++step) {
     integrator.AddGravity(Vec3<Real>(0, -0.981, 0));
     integrator.Step();
+    // Recorded before the pin move so the snapshot is the integrated state.
+    if (step % run.checkpointEvery == 0) {
+      record(step, {mesh->der->vertices});
+    }
     if (step > 1000 && translationIndex < start.rows()) {
       mesh->TranslatePinnedX(start(translationIndex), 0);
       mesh->TranslatePinnedX(end(translationIndex), 4);
       ++translationIndex;
-    }
-    if (step % run.checkpointEvery == 0) {
-      record(step, {mesh->der->vertices});
     }
   }
 }

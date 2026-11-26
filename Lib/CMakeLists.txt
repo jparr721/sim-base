@@ -1,5 +1,5 @@
-file(GLOB HEADERS "*.h")
-file(GLOB SOURCES "*.cc")
+file(GLOB HEADERS "*.h" "Sim/*.h")
+file(GLOB SOURCES "*.cc" "Sim/*.cc")
 
 file(GLOB COLLISION_HEADERS "Collision/*.h")
 file(GLOB COLLISION_SOURCES "Collision/*.cc")
