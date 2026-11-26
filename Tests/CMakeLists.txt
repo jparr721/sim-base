@@ -22,7 +22,7 @@ macro(package_add_test TESTNAME)
     add_executable(${TESTNAME} ${ARGN})
     # link the Google test infrastructure, mocking library, and a default main function to
     # the test executable.  Remove g_test_main if writing your own main function.
-    target_link_libraries(${TESTNAME} base gmock gtest_main)
+    target_link_libraries(${TESTNAME} sim gmock gtest_main)
     target_compile_options(${TESTNAME} PRIVATE ${SIM_WARNINGS})
     # gtest_discover_tests replaces gtest_add_tests,
     # see https://cmake.org/cmake/help/v3.10/module/GoogleTest.html for more options to pass to it
@@ -39,12 +39,12 @@ package_add_test(TestTetMesh TestTetMesh.cc)
 package_add_test(TestLibMath TestLibMath.cc)
 package_add_test(TestStrandForces TestStrandForces.cc)
 package_add_test(TestElementEnergies TestElementEnergies.cc)
-# Only the energy module, so the test fails to link if the module needs base.
+# Only the energy module, so the test fails to link if the module needs sim.
 set_property(TARGET TestElementEnergies PROPERTY LINK_LIBRARIES sim_energy_mass_spring gmock gtest_main)
 package_add_test(TestSceneGolden TestSceneGolden.cc)
 set_property(TARGET TestSceneGolden PROPERTY LINK_LIBRARIES sim_scenes gmock gtest_main)
 package_add_test(TestWorld TestWorld.cc)
-# sim_scenes brings base; listing base a second time makes ld64 warn.
+# sim_scenes brings sim; listing sim a second time makes ld64 warn.
 set_property(TARGET TestWorld PROPERTY LINK_LIBRARIES sim_scenes gmock gtest_main)
 
 add_executable(GenerateGolden Golden/GenerateGolden.cc)
@@ -52,6 +52,7 @@ target_link_libraries(GenerateGolden sim_scenes)
 target_compile_options(GenerateGolden PRIVATE ${SIM_WARNINGS})
 
 add_library(PublicHeadersCxx20 OBJECT PublicHeadersCxx20.cc)
-target_link_libraries(PublicHeadersCxx20 PRIVATE base)
+target_link_libraries(PublicHeadersCxx20 PRIVATE sim)
 set_target_properties(PublicHeadersCxx20 PROPERTIES CXX_STANDARD 20 CXX_EXTENSIONS ON)
 target_compile_options(PublicHeadersCxx20 PRIVATE ${SIM_WARNINGS})
+

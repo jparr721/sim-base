@@ -3,7 +3,7 @@
 #message("Using Toolchain: ${CMAKE_TOOLCHAIN_FILE}")
 
 cmake_minimum_required(VERSION 3.25)
-project(base VERSION 0.1.0 LANGUAGES CXX)
+project(sim VERSION 0.1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 26)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -34,7 +34,6 @@ endif ()
 
 add_subdirectory(Lib)
 add_subdirectory(SceneCatalog)
-add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 add_subdirectory(viewer)
 
 
