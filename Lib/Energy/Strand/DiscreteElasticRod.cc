@@ -118,6 +118,15 @@ auto DiscreteElasticRod::ComputeCenterlineForcesStraight() -> Vec<Real> {
 }
 
 void DiscreteElasticRod::UpdateBishopFrames() {
+  // Time-parallel transport of the first frame onto the moved first edge.
+  auto &first = frames.at(0);
+  const Vec3<Real> &t = edges.at(0).t;
+  const Vec3<Real> u =
+      (RotationMatrixAroundNormal(2 * first.t.cross(t) / (1 + first.t.dot(t))) *
+       first.u)
+          .normalized();
+  first = BishopFrame(t, u, t.cross(u));
+
   ParallelTransportModifiedBishopFrames(kbs, edges, frames);
 }
 

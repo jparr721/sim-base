@@ -186,4 +186,13 @@ TEST(TestStrandForces, BishopFramesAreSpaceParallelTransported) {
   }
 }
 
+TEST(TestStrandForces, FirstBishopFrameFollowsTheFirstEdge) {
+  const Mat<Real> x = InextensibleRod();
+  auto der = MakeRod(x);
+  const Vec3<Real> want = Transport(Vec3<Real>::UnitX(), der.edges.at(0).t,
+                                    OrthogonalVectorUnsafe(Vec3<Real>::UnitX()));
+  EXPECT_LE((der.frames.at(0).u - want).norm(), 1e-12);
+  EXPECT_LE((der.frames.at(0).t - der.edges.at(0).t).norm(), 1e-12);
+}
+
 } // namespace
