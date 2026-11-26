@@ -71,7 +71,7 @@ auto StrandTwist() -> SceneDesc {
 }
 
 // The comb sweeps one sample per 50 steps once step 20000 has passed, and
-// damping drops to 0.45 one hold later, as the legacy frame counters did.
+// damping drops to 0.45 one hold later.
 auto StrandDrop() -> SceneDesc {
   SceneDesc desc{
       .name = "strand-drop",

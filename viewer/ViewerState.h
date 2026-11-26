@@ -12,8 +12,8 @@ namespace viewer {
 
 struct Playback {
   bool playing = false;
-  bool stepOnce = false;  // advance exactly one step on the next frame
-  int stepsPerFrame = 50; // the old drivers redrew every 50 steps
+  bool stepOnce = false; // advance exactly one step on the next frame
+  int stepsPerFrame = 50;
 };
 
 struct ExportSettings {

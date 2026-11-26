@@ -163,7 +163,6 @@ void Renderer::Draw(const FrameGeometry &geometry, const Eigen::Matrix4f &view,
                     const Eigen::Matrix4f &projection, int width,
                     int height) {
   glViewport(0, 0, width, height);
-  // The old drivers' background.
   glClearColor(0.15f, 0.15f, 0.15f, 1);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   glEnable(GL_DEPTH_TEST);

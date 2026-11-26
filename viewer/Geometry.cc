@@ -12,7 +12,6 @@ using sim::Vec3;
 
 using Color = std::array<float, 3>;
 
-// Colors from the old fixed-function Draw() code.
 constexpr Color kWhite{1, 1, 1};
 constexpr Color kBlack{0, 0, 0};
 constexpr Color kRed{1, 0, 0};
@@ -40,7 +39,7 @@ void Point(FrameGeometry &g, const Vec3<Real> &p, Color color, float size) {
   g.points.push_back({ToFloat(p), color, size});
 }
 
-// Lit flat-shaded surface plus a black wireframe, the old DrawSurfaceMesh.
+// Lit flat-shaded surface plus a black wireframe.
 void Surface(FrameGeometry &g, const Mat<Real> &v, const Mat<int> &f) {
   for (int ii = 0; ii < f.rows(); ++ii) {
     const Vec3<Real> a = v.row(f(ii, 0));

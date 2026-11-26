@@ -19,7 +19,7 @@ namespace {
 constexpr std::string_view kUsage =
     "usage: sim_viewer [--scene <name>] [--export <dir>]";
 
-constexpr sim::Real kPull = 9; // the old drivers' arrow-key acceleration
+constexpr sim::Real kPull = 9;
 
 enum class Drag { None, Rotate, Zoom, Pan };
 
@@ -95,7 +95,6 @@ void HandleEvent(ViewerState &state, Drag &drag, const Event &event) {
             }
           }
         } else if constexpr (std::is_same_v<T, MouseMoved>) {
-          // The old drivers fed (last - current) to the camera.
           const auto du = static_cast<float>(-e.dx);
           const auto dv = static_cast<float>(-e.dy);
           switch (drag) {

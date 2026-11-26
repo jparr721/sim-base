@@ -66,7 +66,7 @@ struct SetTwistRates {
   Real right;
 };
 
-// Velocity damping coefficient used by the strand integrator (default 0.75).
+// Velocity damping coefficient used by the strand integrator.
 struct SetDamping {
   BodyId strand;
   Real coefficient;
