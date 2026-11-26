@@ -38,6 +38,9 @@ package_add_test(TestSNH TestSNH.cc)
 package_add_test(TestTetMesh TestTetMesh.cc)
 package_add_test(TestLibMath TestLibMath.cc)
 package_add_test(TestStrandForces TestStrandForces.cc)
+package_add_test(TestElementEnergies TestElementEnergies.cc)
+# Only the energy module, so the test fails to link if the module needs base.
+set_property(TARGET TestElementEnergies PROPERTY LINK_LIBRARIES sim_energy_mass_spring gmock gtest_main)
 package_add_test(TestSceneGolden TestSceneGolden.cc)
 package_add_test(TestWorldMatchesLegacy TestWorldMatchesLegacy.cc)
 # sim_scenes brings base; listing base a second time makes ld64 warn.

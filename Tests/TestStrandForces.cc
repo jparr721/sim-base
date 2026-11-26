@@ -117,7 +117,7 @@ auto MakeRod(const Mat<Real> &x) -> DiscreteElasticRod {
 }
 
 auto Forces(DiscreteElasticRod &der, Real k, Real thetaEnd) -> Vec<Real> {
-  der.massSpring->k = k;
+  der.springStiffness = k;
   der.thetas.setZero();
   der.thetas(der.thetas.rows() - 1) = thetaEnd;
   return der.ComputeCenterlineForcesStraight();
@@ -163,7 +163,7 @@ TEST(TestStrandForces, TwistForceIsMinusEnergyGradient) {
 TEST(TestStrandForces, SpringForceIsMinusEnergyGradient) {
   const Mat<Real> x = StretchedRod();
   auto der = MakeRod(x);
-  const Real k = der.massSpring->k;
+  const Real k = der.springStiffness;
   const Vec<Real> spring = Forces(der, k, 0) - Forces(der, 0, 0);
   const auto energy = [&](const Mat<Real> &y) {
     Real e = 0;
