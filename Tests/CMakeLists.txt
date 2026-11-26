@@ -56,3 +56,9 @@ target_link_libraries(PublicHeadersCxx20 PRIVATE sim)
 set_target_properties(PublicHeadersCxx20 PROPERTIES CXX_STANDARD 20 CXX_EXTENSIONS ON)
 target_compile_options(PublicHeadersCxx20 PRIVATE ${SIM_WARNINGS})
 
+# A game with its own global PI, E, ASSERT, VERSION and Real includes the core.
+add_library(EmbedNoCollisions OBJECT EmbedNoCollisions.cc)
+target_link_libraries(EmbedNoCollisions PRIVATE sim)
+set_target_properties(EmbedNoCollisions PROPERTIES CXX_STANDARD 20 CXX_EXTENSIONS ON)
+# -Werror: a macro redefinition is only a warning, and it must fail here.
+target_compile_options(EmbedNoCollisions PRIVATE ${SIM_WARNINGS} -Werror)
