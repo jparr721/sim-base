@@ -16,6 +16,22 @@ HOBAK's `COPYING` is GPLv3, and every source header adds "permission is granted 
 
 **Rule for every PR below: no HOBAK code, comments or file layout is copied.** We adopt the architecture, meaning which functions exist and how responsibilities split, which isn't copyrightable. Each energy is derived fresh from the published math: the course notes, Smith et al. 2018 "Stable Neo-Hookean Flesh Simulation", Smith et al. 2019 "Analytic Eigensystems for Isotropic Distortion Energies", and Kim et al. 2019 "Anisotropic Elasticity for Inversion-Safety and Element Rehabilitation". Reviewers check each PR for copied code.
 
+## Modules (operator decision, 2026-11-26)
+
+Every energy and every integrator is its own module: a directory plus a CMake static library. The link graph enforces the decoupling, so a stray include fails the build.
+
+```
+sim_math            LibMath, Svd, Lame, concepts (Energy, DampingEnergy, System)
+sim_energy_<name>   one per energy: links sim_math only
+sim_damping_<name>  one per damping model: links sim_math only
+sim_integrator_<name>  one per integrator: links sim_math only, generic over the System concept, never sees an energy
+sim_solid           ElasticSystem (tet assembly): links sim_math and the energy modules it is built with
+sim_strand          DER energies and DerSystem: links sim_math
+sim                 World + SceneDesc: links everything above and turns a description into systems + integrators
+```
+
+A CMake check (`Tests/ModuleBoundaries.cmake`) reads each target's `LINK_LIBRARIES` and fails configuration if an energy links an integrator or another energy, or an integrator links anything but `sim_math`.
+
 ## Naming
 
 HOBAK's ALL_CAPS types become this repo's style: `PascalCase` types, `camelCase` functions, everything in `namespace sim` (after P4b of the GLUT-removal plan). Examples: `VOLUME::HYPERELASTIC` → `sim::Energy` concept, `BACKWARD_EULER_POSITION` → `sim::BackwardEuler`, `MATRIX9` → `Mat9`.
@@ -53,7 +69,18 @@ concept DampingEnergy = requires(const D &d, const Mat3 &f, const Mat3 &fdot) {
 struct GreenDamping { Real mu; ... };
 using Damping = std::variant<std::monostate, GreenDamping, Rayleigh>;
 
-// Global assembly over one TetMesh: the one place element quantities scatter to DOFs.
+// What an integrator needs from a body: nothing about energies or meshes.
+template <typename S>
+concept System = requires(const S &s, const Vec &x, const Vec &v) {
+  { s.Dofs() } -> std::same_as<int>;
+  { s.Mass() } -> std::same_as<const SparseMat &>;
+  { s.Forces(x, v) } -> std::same_as<Vec>;
+  { s.Stiffness(x, true) } -> std::same_as<SparseMat>;   // clamped = true gives an SPD matrix
+  { s.DampingMatrix(x) } -> std::same_as<SparseMat>;
+  { s.Constraints() } -> std::same_as<const Constraints &>;
+};
+
+// Global assembly over one TetMesh: the one place element quantities scatter to DOFs. Satisfies System.
 struct ElasticSystem {
   const TetMesh &mesh; const Material &material; const Damping &damping;
   auto Forces(const Vec &x, const Vec &v) const -> Vec;               // −∂E/∂x + damping
@@ -73,15 +100,16 @@ using Integrator = std::variant<ForwardEuler, BackwardEuler, Newmark, Bdf2, Quas
 }
 ```
 
-`SoftBody` in `SceneDesc` gains `Integrator integrator` and `Damping damping`. `World` builds the `ElasticSystem` once and calls one stepping function per integrator through `std::visit`. Strands keep their own DER integrator. Running strands on the implicit integrators needs a DER Hessian, which is out of scope here (see Open calls).
+`SoftBody` and `Strand` in `SceneDesc` gain required `Integrator integrator` and `Damping damping` fields, with no default member initializers. Scenes are declarative, so every body states how it is integrated, and leaving it out is a compile error. `World` builds a `System` per body (`ElasticSystem` for soft bodies, `DerSystem` for strands) and steps it with the integrator the body names, through `std::visit`. Integrators are templates over `System`, so strands and volumes share them.
 
 Implicit solves use Eigen `ConjugateGradient` on the clamped stiffness. Clamping makes it SPD, so CG is valid there, unlike in the deleted tridiagonal helper. They also run single-threaded in a fixed order, so lockstep peers on the same binary and ISA stay bit-identical (the voxel game's requirement).
 
 ## PR order and dependencies
 
 ```
-M0 (current branch: GLUT removal + DER fixes + P4b names) ──► H1 ──► H2 ──► H3 ──► H4
-                                                                       └────────► E1..E6 (independent of each other, each after H3)
+M0 (current branch: GLUT removal + DER fixes + paper stiffness + P4b names) ──► H1 ──► H2 ──► H3 ──┬─► H4
+                                                                                                    ├─► H5
+                                                                                                    └─► E1..E6 (independent, each after H3)
 ```
 
 Each PR branches from trunk after the one before it lands. E1 through E6 touch disjoint energy files plus one catalog line each, so they can land in parallel once H3 is in.
@@ -93,6 +121,7 @@ Baseline for every perf box: measure on trunk before the PR. The metric is ms pe
 ### M0. Land the current branch (prerequisite, plan `2026-11-26-glut-removal-scene-api.md`)
 - [ ] The DER math fixes are merged. Strand-drop runs past step 30 without exploding, which is the operator's report, and the goldens are regenerated and finite.
 - [ ] P4b (namespace `sim`, `SIM_` macros, target `sim`) and P5 docs are done.
+- [ ] DER bending stiffness switched to the paper's per-vertex 2α/l̄_i, with α = 0.1 and l̄_i = |ē^{i-1}| + |ē^i| (operator decision 2026-11-26, audit finding 11). Goldens regenerated once after this and the DER fixes.
 - [ ] Verify: everything in that plan's boxes, plus `strand-drop` in `sim_viewer` played for 20,000 steps with no NaN (Stats shows a finite step count, and the screenshot shows strands hanging under the comb).
 
 ### H1. Energy concept, SVD, and the test suite every energy must pass
@@ -145,6 +174,16 @@ Baseline for every perf box: measure on trunk before the PR. The metric is ms pe
   - Energy decays monotonically in a damped BackwardEuler run.
 - **Live:** `bunny-drop-implicit` with damping visibly settles faster. Report steps until max velocity < 1e-3, damped vs undamped.
 
+### H5. Strands on the shared integrators
+- **Depends on:** H3.
+- **Files:** `Lib/Strand/DerSystem.{h,cc}` (satisfies `System`), the DER Hessian (bending, twist, inextensibility springs) in `Lib/Energy/Strand/`, `Lib/Sim/World.cc`, `SceneCatalog/Catalog.cc` (strand scenes now name their integrator), and `Tests/TestDerSystem.cc`. Delete `ForwardEulerStrand.h` and `StrandIntegrator.h`. Strand `ForwardEuler` becomes the generic integrator plus the existing velocity filter, expressed as `Damping` on the strand.
+- **Unit:**
+  - DER Hessian matches FD of the forces to ≤1e-6 relative.
+  - The clamped Hessian is PSD, with bending and twist blocks each projected.
+  - Strand-twist under the generic ForwardEuler reproduces the post-M0 golden bit for bit.
+- **Live:** strand-drop under BackwardEuler at dt = 1/60 runs 600 steps finite in `sim_viewer`, with a screenshot.
+- **Perf:** ms per simulated second, explicit vs implicit strand-drop.
+
 ### E1 to E6. More solid-mechanics energies (one PR each, after H3)
 Each one adds a struct satisfying `sim::Energy`, a `Material` alternative, a line in the H1 typed suite (so it gets FD, PSD, rest-state and rotation tests automatically), and a catalog scene that swaps the bunny's material.
 - [ ] **E1 Linear elasticity** (small-strain, for reference and validation).
@@ -159,13 +198,12 @@ Each one adds a struct satisfying `sim::Energy`, a `Material` alternative, a lin
   - **Perf:** ms/step vs SNH on the same scene.
 
 ## Review gates
-- H3 changes how scenes are authored (`SoftBody` gains fields), so it waits for the operator's review before merge.
+- H3 and H5 change how scenes are authored (bodies gain required fields), so they wait for the operator's review before merge.
 - Every PR's description includes a "no HOBAK code" statement, and the reviewer checks it.
 
 ## Open calls (operator)
-1. **Strands on implicit integrators.** That needs a correct DER Hessian (the old one was deleted in the audit as wrong). It's a separate plan if you want it.
-2. **Volume collisions.** HOBAK's vertex-face and edge-edge collision energies (Kim's sqrt / hybrid) and self-collision are not in this plan. The voxel game wants a static ray query against voxel chunks first.
-3. **Default integrator for new soft-body scenes.** I'd default to `BackwardEuler`, since games need large stable steps (Experience First). `ForwardEuler` stays available for validation.
+1. **Volume collisions.** HOBAK's vertex-face and edge-edge collision energies (Kim's sqrt / hybrid) and self-collision are not in this plan. The voxel game wants a static ray query against voxel chunks first.
+Settled 2026-11-26: there is no default integrator, because every body declares one. Strands on the shared integrators are in scope (H5). Bending stiffness follows the paper (M0).
 
 ## Unproven until executed
 - **H3's ratios.** The order-of-accuracy and energy-drift thresholds (BDF2 ratio between 3 and 5, Newmark within 1%) are expected values, not yet measured on this mesh. If one fails, the PR has to explain why before anyone relaxes the threshold.
