@@ -361,18 +361,13 @@ INLINE auto CrossProductMatrix(const Vec3<Real> &v) -> Mat3<Real> {
   return CrossProductMatrix(v(0), v(1), v(2));
 }
 
-INLINE auto RotationMatrixAroundNormal(const Vec3<Real> &axisAngle)
+// Rotation about a curvature binormal kb by its turning angle phi, where
+// |kb| = 2 tan(phi / 2).
+INLINE auto RotationMatrixAroundNormal(const Vec3<Real> &curvatureBinormal)
     -> Mat3<Real> {
-  double angle = axisAngle.norm(); // Get the angle of rotation from the norm
-  // of the axis-angle vector
-  Vec3<Real> axis = axisAngle.normalized(); // Normalize the axis of rotation
-  Eigen::AngleAxisd rotation(
-      angle,
-      axis); // Create an angle-axis object with the rotation axis and angle
-  Mat3<Real> rotationMatrix =
-      rotation.toRotationMatrix(); // Convert the angle-axis object to a
-  // rotation matrix
-  return rotationMatrix;
+  const Real angle = 2 * std::atan(curvatureBinormal.norm() / 2);
+  return Eigen::AngleAxisd(angle, curvatureBinormal.normalized())
+      .toRotationMatrix();
 }
 
 INLINE auto OrthogonalVectorUnsafe(const Vec3<Real> &v) -> Vec3<Real> {

@@ -176,4 +176,14 @@ TEST(TestStrandForces, SpringForceIsMinusEnergyGradient) {
   EXPECT_LE(RelErr(spring, -FdGradient(energy, x)), 1e-6);
 }
 
+TEST(TestStrandForces, BishopFramesAreSpaceParallelTransported) {
+  const Mat<Real> x = InextensibleRod();
+  auto der = MakeRod(x);
+  for (int i = 1; i < der.nRods; ++i) {
+    const Vec3<Real> want = Transport(der.edges.at(i - 1).t, der.edges.at(i).t,
+                                      der.frames.at(i - 1).u);
+    EXPECT_LE((der.frames.at(i).u - want).norm(), 1e-12) << "edge " << i;
+  }
+}
+
 } // namespace
