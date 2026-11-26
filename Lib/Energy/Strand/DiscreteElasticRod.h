@@ -7,6 +7,14 @@
 constexpr Real gBendingModulus = 0.1;
 constexpr Real gTwistingModulus = 1;
 
+// Gradient of a curvature binormal kb_i with respect to the three vertices it
+// depends on: x_i, x_{i+1} and x_{i+2}.
+struct KbGradient {
+  Mat3<Real> prev;
+  Mat3<Real> mid;
+  Mat3<Real> next;
+};
+
 class DiscreteElasticRod {
 public:
   int nRods;
@@ -32,8 +40,7 @@ public:
 
   std::vector<Vec3<Real>> kbs;
 
-  // \nabla_{i}(\kappa{b}_)i
-  std::vector<Mat3<Real>> kbGradients;
+  std::vector<KbGradient> kbGradients;
 
   std::vector<Vec2<Real>> curvature;
   std::vector<Vec2<Real>> restCurvature;

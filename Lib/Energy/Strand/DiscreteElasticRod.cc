@@ -87,8 +87,10 @@ auto DiscreteElasticRod::ComputeCenterlineForcesStraight() -> Vec<Real> {
   for (int ii = 0; ii < nRods - 1; ++ii) {
     const auto &kbGradient = kbGradients.at(ii);
     const auto &kb = kbs.at(ii);
-    R.segment<3>(3 * ii) += outer * kbGradient.transpose() * kb +
+    R.segment<3>(3 * ii) += outer * kbGradient.prev.transpose() * kb +
                             twistContrib * holonomyGradients.at(ii);
+    R.segment<3>(3 * (ii + 1)) += outer * kbGradient.mid.transpose() * kb;
+    R.segment<3>(3 * (ii + 2)) += outer * kbGradient.next.transpose() * kb;
   }
 
 #ifndef NDEBUG
@@ -142,28 +144,20 @@ void DiscreteElasticRod::UpdateMaterialCurvatures() {
 }
 
 void DiscreteElasticRod::UpdateKbGradients() {
-  kbGradients.resize(nRods);
-
-  // Here [e] is a skew-symmetric 3 × 3 matrix acting on 3-vectors x by [e] · x
-  // = e × x.
+  kbGradients.resize(nRods - 1);
   for (int ii = 0; ii < nRods - 1; ++ii) {
-    // Lhs
-    //    const Vec3<Real> e0 = vertices.row(ii + 1) - vertices.row(ii);
-    const Vec3<Real> e0 = edges.at(ii).e;
-    const Mat3<Real> crossLhs = CrossProductMatrix(e0);
-
-    // Rhs
-    //    const Vec3<Real> e1 = vertices.row(ii + 2) - vertices.row(ii + 1);
-    const Vec3<Real> e1 = edges.at(ii).e;
-    const Mat3<Real> crossRhs = CrossProductMatrix(e1);
-
-    // Compute the lhs gradient
+    const Vec3<Real> &e0 = edges.at(ii).e;
+    const Vec3<Real> &e1 = edges.at(ii + 1).e;
+    const Vec3<Real> &kb = kbs.at(ii);
     const Real denominator =
         restEdges.at(ii).length * restEdges.at(ii + 1).length + e0.dot(e1);
 
-    const auto lhs = 2 * crossRhs + kbs.at(ii) * e1.transpose() / denominator;
-    const auto rhs = 2 * crossLhs + kbs.at(ii) * e0.transpose() / denominator;
-    kbGradients.at(ii) = -(lhs + rhs);
+    auto &gradient = kbGradients.at(ii);
+    gradient.prev =
+        (2 * CrossProductMatrix(e1) + kb * e1.transpose()) / denominator;
+    gradient.next =
+        (2 * CrossProductMatrix(e0) - kb * e0.transpose()) / denominator;
+    gradient.mid = -(gradient.prev + gradient.next);
   }
 }
 
