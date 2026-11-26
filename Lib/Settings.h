@@ -17,10 +17,6 @@
          regenerate a new version of the build system that uses a 64 bit version of the compiler
 #endif
 
-#if defined(_MSC_VER) // warning C4127: conditional expression is constant
-#pragma warning(disable : 4127)
-#endif
-
 namespace sim {
 
 namespace fs = std::filesystem;

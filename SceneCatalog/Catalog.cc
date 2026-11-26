@@ -80,8 +80,7 @@ auto StrandDrop() -> SceneDesc {
       .view = {.eye = Vec3<float>(12.4994, 4.6141, 10.0808),
                .lookAt = Vec3<float>(-0.367183, -0.0835798, 9.81318),
                .up = Vec3<float>(-0.342824, 0.939373, -0.00713152),
-               .displacement = Vec3<float>(-0.367183, -0.0835798, 9.81318),
-               .zoom = kZoom},
+               .displacement = Vec3<float>(-0.367183, -0.0835798, 9.81318)},
   };
   for (Real ss = 8; ss < 12; ss += 0.05) {
     std::vector<Vec3<Real>> points;

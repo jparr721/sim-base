@@ -50,7 +50,9 @@ static void FrameCamera(ViewerState &state) {
   if (hints.displacement) {
     camera.SetDisplacement(*hints.displacement);
   }
-  camera.Zoom(hints.zoom.value_or(10));
+  if (hints.zoom) {
+    camera.Zoom(*hints.zoom);
+  }
 }
 
 void LoadScene(ViewerState &state, std::size_t index) {
