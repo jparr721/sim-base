@@ -83,13 +83,9 @@ auto StrandDrop() -> SceneDesc {
                .displacement = Vec3<float>(-0.367183, -0.0835798, 9.81318)},
   };
   for (Real ss = 8; ss < 12; ss += 0.05) {
-    std::vector<Vec3<Real>> points;
-    for (Real ii = 0; ii < 8; ii += 0.25) {
-      points.emplace_back(ii, 0, ss);
-    }
-    Mat<Real> v(points.size(), 3);
-    for (int ii = 0; ii < std::ssize(points); ++ii) {
-      v.row(ii) = points.at(ii);
+    Mat<Real> v(32, 3);
+    for (int ii = 0; ii < 32; ++ii) {
+      v.row(ii) = Vec3<Real>(0.25 * ii, 0, ss);
     }
     const BodyId strand{static_cast<int>(desc.bodies.size())};
     desc.bodies.emplace_back(Strand{.points = v,
