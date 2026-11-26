@@ -113,4 +113,22 @@ TEST(TestStrandForces, BendingForceOnFreeRodHasNoNetForce) {
   EXPECT_LE(bend.reshaped(3, bend.size() / 3).rowwise().sum().norm(), 1e-9);
 }
 
+// The cubic spring -|e| grad Psi integrates to k (l^3/3 - lbar l^2/2), with
+// lbar each edge's own rest length.
+TEST(TestStrandForces, SpringForceIsMinusEnergyGradient) {
+  const Mat<Real> x = StretchedRod();
+  auto der = MakeRod(x);
+  const Real k = der.massSpring->k;
+  const Vec<Real> spring = Forces(der, k, 0) - Forces(der, 0, 0);
+  const auto energy = [&](const Mat<Real> &y) {
+    Real e = 0;
+    for (int i = 0; i + 1 < y.rows(); ++i) {
+      const Real l = Edge(y, i).norm();
+      e += k * (l * l * l / 3 - kSpacing[i] * l * l / 2);
+    }
+    return e;
+  };
+  EXPECT_LE(RelErr(spring, -FdGradient(energy, x)), 1e-6);
+}
+
 } // namespace

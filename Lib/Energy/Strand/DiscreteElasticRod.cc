@@ -4,7 +4,7 @@
 
 DiscreteElasticRod::DiscreteElasticRod(Mat<Real> vertices)
     : nRods(vertices.rows() - 1),
-      massSpring(std::make_unique<MassSpring>(100000, 1)),
+      massSpring(std::make_unique<MassSpring>(100000)),
       vertices(std::move(vertices)) {
   // At least 3 nodes is required
   ASSERT(this->vertices.rows() >= 3, "At least 3 nodes are required");
@@ -103,7 +103,8 @@ auto DiscreteElasticRod::ComputeCenterlineForcesStraight() -> Vec<Real> {
     x.segment<3>(0) = vertices.row(ii);
     x.segment<3>(3) = vertices.row(ii + 1);
 
-    const Vec6<Real> force = -edges.at(ii).length * massSpring->Gradient(x);
+    const Vec6<Real> force = -edges.at(ii).length *
+                             massSpring->Gradient(x, restEdges.at(ii).length);
 
     // Scatter the forces into the global vector
     R.segment<3>(3 * ii) += force.segment<3>(0);
