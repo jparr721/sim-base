@@ -13,25 +13,8 @@
 #include <vector>
 
 using Real = double;
-using Float = float;
 
 constexpr Real PI = Real(3.14159265);
-constexpr Real THREE_QUARTER_PI = Real(2.0944);
-constexpr Real HALF_PI = Real(1.57079633);
-constexpr Real QUARTER_PI = Real(0.7853981625);
-constexpr Real E = Real(2.71828182845904523536);
-
-constexpr Real DEGREE_180 = Real(180);
-constexpr Real DegToRadConv = Real(PI) / DEGREE_180;
-constexpr Real RadToDegConv = DEGREE_180 / Real(PI);
-
-template <typename T> INLINE auto DegreesToRadians(T degrees) -> T {
-  return degrees * T(DegToRadConv);
-}
-
-template <typename T> INLINE auto RadiansToDegrees(T radians) -> T {
-  return radians * T(RadToDegConv);
-}
 
 template <typename T> using Vec2 = Eigen::Matrix<T, 2, 1>;
 template <typename T> using Vec3 = Eigen::Matrix<T, 3, 1>;
@@ -304,7 +287,7 @@ INLINE auto GetOrthogonalVectorOrDie(const Vec3<Real> &u) -> Vec<Real> {
   v[max] = -u[idx];
   v.normalize();
 
-  ASSERT2(std::abs(u.dot(v)) < 1e-10);
+  ASSERT(std::abs(u.dot(v)) < 1e-10, "");
 
   return v;
 }

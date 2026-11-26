@@ -27,7 +27,7 @@ void TetMesh::ComputeTetRestVolumes() {
     restVolumes.at(ii) = TetVolume(v.row(t(ii, 0)), v.row(t(ii, 1)),
                                    v.row(t(ii, 2)), v.row(t(ii, 3)));
     // Prevent negative volumes
-    ASSERT2(restVolumes.at(ii) >= 0.0);
+    ASSERT(restVolumes.at(ii) >= 0.0, "");
   }
 }
 void TetMesh::ComputeVertexAreas() {
@@ -105,8 +105,8 @@ void TetMesh::Tetrahedralize() {
   f.rowwise().reverseInPlace();
 }
 void TetMesh::ComputeDeformationGradients() {
-  ASSERT2(!dmInvs.empty());
-  ASSERT2(!partialFPartialxs.empty());
+  ASSERT(!dmInvs.empty(), "");
+  ASSERT(!partialFPartialxs.empty(), "");
 
   // Compute Ds values for each tet
   for (int ii = 0; ii < t.rows(); ++ii) {
@@ -126,7 +126,7 @@ void TetMesh::ComputeDeformationGradients() {
 }
 auto TetMesh::ComputeMaterialForces(
     const std::shared_ptr<HyperelasticMaterial> &material) -> Vec<Real> {
-  ASSERT2(!needsNewDeformationGradients);
+  ASSERT(!needsNewDeformationGradients, "");
   std::vector<Vec12<Real>> perElementForces(t.rows());
   for (int tt = 0; tt < t.rows(); ++tt) {
     const Mat3<Real> &F = fs[tt];
@@ -197,7 +197,7 @@ auto TetMesh::EvalPartialFPartialx(int index, const Mat3<Real> &dmInv)
     ret(2, 2) = 1;
     break;
   default:
-    ASSERT(ASSERT_ALWAYS_FALSE_V, "Unreachable");
+    ASSERT(false, "Unreachable");
   }
   return ret * dmInv;
 }
