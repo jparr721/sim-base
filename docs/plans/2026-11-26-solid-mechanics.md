@@ -54,6 +54,16 @@ concept Energy = requires(const E &e, const Mat3 &f, const Svd &svd) {
   { e.ClampedHessian(f, svd) } -> std::same_as<Mat9>;  // analytic eigensystem, eigenvalues clamped ≥ 0
 };
 
+// The same four evaluations for energies over N stacked vertex DOFs instead of F: springs today,
+// collision energies later.
+template <typename E, int N>
+concept ElementEnergy = requires(const E &e, const VecN<N> &x) {
+  { e.Psi(x) } -> std::same_as<Real>;
+  { e.Gradient(x) } -> std::same_as<VecN<N>>;
+  { e.Hessian(x) } -> std::same_as<MatN<N>>;
+  { e.ClampedHessian(x) } -> std::same_as<MatN<N>>;
+};
+
 struct Lame { Real mu, lambda; static auto FromYoungs(Real e, Real nu) -> Lame; };
 struct StableNeoHookean { Lame lame; /* Psi, Pk1, Hessian, ClampedHessian */ };
 struct StVK { Lame lame; ... };
@@ -121,6 +131,8 @@ Baseline for every perf box: measure on trunk before the PR. The metric is ms pe
 ### M0. Land the current branch (prerequisite, plan `2026-11-26-glut-removal-scene-api.md`)
 - [ ] The DER math fixes are merged. Strand-drop runs past step 30 without exploding, which is the operator's report, and the goldens are regenerated and finite.
 - [ ] P4b (namespace `sim`, `SIM_` macros, target `sim`) and P5 docs are done.
+- [ ] Mass-spring Hessian (operator request, 2026-11-26). `MassSpring` becomes its own module, `sim_energy_mass_spring`, satisfying an `ElementEnergy<6>` concept over one edge's endpoints: `Psi(x)`, `Gradient(x)`, `Hessian(x)` and `ClampedHessian(x)`. The clamped Hessian uses the closed-form eigensystem. The axial eigenvalue is the stiffness along the edge. The two transverse eigenvalues are tension divided by length and go negative under compression, so they clamp to 0. The energy and force stay exactly as today, including the audit's per-edge rest lengths.
+  - Verify: the gradient matches FD of Psi and the Hessian matches FD of the gradient, both ≤1e-6 relative. The clamped Hessian is PSD on random stretched and compressed edges. The unclamped Hessian has a negative eigenvalue under compression; that's the control. Strand goldens are unchanged bit for bit, because forces don't change.
 - [ ] DER bending stiffness switched to the paper's per-vertex 2α/l̄_i, with α = 0.1 and l̄_i = |ē^{i-1}| + |ē^i| (operator decision 2026-11-26, audit finding 11). Goldens regenerated once after this and the DER fixes.
 - [ ] Verify: everything in that plan's boxes, plus `strand-drop` in `sim_viewer` played for 20,000 steps with no NaN (Stats shows a finite step count, and the screenshot shows strands hanging under the comb).
 
@@ -176,7 +188,7 @@ Baseline for every perf box: measure on trunk before the PR. The metric is ms pe
 
 ### H5. Strands on the shared integrators
 - **Depends on:** H3.
-- **Files:** `Lib/Strand/DerSystem.{h,cc}` (satisfies `System`), the DER Hessian (bending, twist, inextensibility springs) in `Lib/Energy/Strand/`, `Lib/Sim/World.cc`, `SceneCatalog/Catalog.cc` (strand scenes now name their integrator), and `Tests/TestDerSystem.cc`. Delete `ForwardEulerStrand.h` and `StrandIntegrator.h`. Strand `ForwardEuler` becomes the generic integrator plus the existing velocity filter, expressed as `Damping` on the strand.
+- **Files:** `Lib/Strand/DerSystem.{h,cc}` (satisfies `System`), the DER Hessian (bending and twist; the inextensibility springs reuse M0's `ClampedHessian`) in `Lib/Energy/Strand/`, `Lib/Sim/World.cc`, `SceneCatalog/Catalog.cc` (strand scenes now name their integrator), and `Tests/TestDerSystem.cc`. Delete `ForwardEulerStrand.h` and `StrandIntegrator.h`. Strand `ForwardEuler` becomes the generic integrator plus the existing velocity filter, expressed as `Damping` on the strand.
 - **Unit:**
   - DER Hessian matches FD of the forces to ≤1e-6 relative.
   - The clamped Hessian is PSD, with bending and twist blocks each projected.
