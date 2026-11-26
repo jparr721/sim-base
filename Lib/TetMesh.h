@@ -8,6 +8,8 @@
 #include <igl/per_vertex_normals.h>
 #include <igl/read_triangle_mesh.h>
 
+namespace sim {
+
 class TetMesh {
 public:
   // Simulated vertices
@@ -63,28 +65,28 @@ public:
       -> Vec<Real>;
 
   // Trivial Getters/Setters
-  [[nodiscard]] INLINE auto Positions() const -> Vec<Real> {
+  [[nodiscard]] SIM_INLINE auto Positions() const -> Vec<Real> {
     return RowwiseFlatten(v);
   }
-  INLINE auto Displacements() -> Vec<Real> {
+  SIM_INLINE auto Displacements() -> Vec<Real> {
     return RowwiseFlatten<Real>(v - rv);
   }
-  INLINE void SetPositions(const Vec<Real> &x) {
+  SIM_INLINE void SetPositions(const Vec<Real> &x) {
     v = RowwiseUnFlatten(x, v.rows(), v.cols());
     needsNewDeformationGradients = true;
   }
-  INLINE void SetDisplacement(const Vec<Real> &u) {
+  SIM_INLINE void SetDisplacement(const Vec<Real> &u) {
     v = rv + RowwiseUnFlatten(u, v.rows(), v.cols());
     needsNewDeformationGradients = true;
   }
-  INLINE void AddDisplacement(const Vec<Real> &u) {
+  SIM_INLINE void AddDisplacement(const Vec<Real> &u) {
     v += RowwiseUnFlatten(u, v.rows(), v.cols());
     needsNewDeformationGradients = true;
   }
-  INLINE void PinVertex(int index) { pinned(index) = 1; }
-  INLINE void UnPinVertex(int index) { pinned(index) = 0; }
-  [[nodiscard]] INLINE auto DOFs() const -> int { return v.rows() * 3; }
-  INLINE auto OneRingArea(int ii) -> Real { return oneRingAreas.at(ii); }
+  SIM_INLINE void PinVertex(int index) { pinned(index) = 1; }
+  SIM_INLINE void UnPinVertex(int index) { pinned(index) = 0; }
+  [[nodiscard]] SIM_INLINE auto DOFs() const -> int { return v.rows() * 3; }
+  SIM_INLINE auto OneRingArea(int ii) -> Real { return oneRingAreas.at(ii); }
 
   // Sim initializers
   auto EvalPartialFPartialx(int index, const Mat3<Real> &dmInv) -> Mat3<Real>;
@@ -142,3 +144,5 @@ private:
    */
   void ComputePartialFPartialxs();
 };
+
+} // namespace sim

@@ -1,5 +1,7 @@
 #include "VertexFaceSqrtCollision.h"
 
+namespace sim {
+
 VertexFaceSqrtCollision::VertexFaceSqrtCollision(Real collisionStiffness,
                                                  Real collisionEpsilon)
     : collisionStiffness(collisionStiffness),
@@ -88,3 +90,5 @@ auto VertexFaceSqrtCollision::tDiffPartial(const Vec3<Real> &bary) const
 
   return tPartial;
 }
+
+} // namespace sim

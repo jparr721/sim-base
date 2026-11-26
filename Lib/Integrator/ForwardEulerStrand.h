@@ -6,6 +6,8 @@
 #include <Integrator/StrandIntegrator.h>
 #include <StrandMesh.h>
 
+namespace sim {
+
 class ForwardEulerStrand : public StrandIntegrator {
 public:
   Real collisionStiffness = 10;
@@ -24,7 +26,7 @@ public:
         collisionStiffness, collisionEpsilon);
   }
 
-  INLINE void Step() override {
+  SIM_INLINE void Step() override {
     Vec<Real> R = this->strandMesh->ComputeMaterialForces();
 
     std::vector<Vec12<Real>> perElementForces;
@@ -94,3 +96,5 @@ public:
     this->strandMesh->der->UpdateHolonomyGradient();
   }
 };
+
+} // namespace sim

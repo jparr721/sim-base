@@ -4,6 +4,8 @@
 #include <Energy/Spring/MassSpring.h>
 #include <LibMath.h>
 
+namespace sim {
+
 constexpr Real gBendingModulus = 0.1;
 constexpr Real gTwistingModulus = 1;
 
@@ -51,11 +53,11 @@ public:
 
   explicit DiscreteElasticRod(Mat<Real> vertices);
 
-  [[nodiscard]] INLINE auto DOFs() const -> int { return 3 * vertices.rows(); }
-  INLINE void SetPositions(const Vec<Real> &x) {
+  [[nodiscard]] SIM_INLINE auto DOFs() const -> int { return 3 * vertices.rows(); }
+  SIM_INLINE void SetPositions(const Vec<Real> &x) {
     vertices = RowwiseUnFlatten(x, vertices.rows(), vertices.cols());
   }
-  INLINE auto Positions() const -> Vec<Real> {
+  SIM_INLINE auto Positions() const -> Vec<Real> {
     return RowwiseFlatten(vertices);
   }
 
@@ -77,3 +79,5 @@ public:
   auto ComputeOmega(const Vec3<Real> &kb, const Vec3<Real> &m1,
                     const Vec3<Real> &m2) -> Vec2<Real>;
 };
+
+} // namespace sim

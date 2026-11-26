@@ -2,6 +2,12 @@
 
 #include <LibMath.h>
 
+namespace viewer {
+
+using sim::Mat4;
+using sim::Real;
+using sim::Vec3;
+
 template <typename T> class Camera {
 public:
   Camera();
@@ -259,7 +265,7 @@ void Camera<T>::SetPerspective(T fov, std::size_t width, std::size_t height,
   this->farPlane = farPlane;
 
   T aspectRatio = static_cast<T>(width) / static_cast<T>(height);
-  T ymax = nearPlane * std::tan(fov * T(PI) / T(360));
+  T ymax = nearPlane * std::tan(fov * T(sim::PI) / T(360));
   T xmax = ymax * aspectRatio;
   this->SetFrustum(-xmax, xmax, ymax, -ymax, nearPlane, farPlane);
 }
@@ -590,7 +596,7 @@ auto Camera<T>::PerspectiveMatrix(T fov, std::size_t width, std::size_t height,
   proj.setZero();
 
   T aspectRatio = static_cast<T>(width) / static_cast<T>(height);
-  T ymax = nearPlane * std::tan(fov * T(PI) / T(360));
+  T ymax = nearPlane * std::tan(fov * T(sim::PI) / T(360));
   T xmax = ymax * aspectRatio;
   T left = -xmax;
   T right = xmax;
@@ -743,3 +749,5 @@ template <typename T> inline void Camera<T>::Compile() noexcept {
 
   this->viewMatrix = Camera<T>::LookAt(this->eye, this->lookAt, this->up);
 }
+
+} // namespace viewer

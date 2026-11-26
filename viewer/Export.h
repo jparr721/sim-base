@@ -12,7 +12,7 @@ namespace viewer {
 //                               the format StrandDropScene::DumpFrame wrote
 //   collider<body>_NNNN.obj     each collider's triangle mesh
 // Returns the number of files written.
-auto ExportFrame(const sim::World &world, const fs::path &directory, int frame)
+auto ExportFrame(const sim::World &world, const sim::fs::path &directory, int frame)
     -> std::expected<int, std::string>;
 
 } // namespace viewer

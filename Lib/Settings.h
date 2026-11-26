@@ -6,9 +6,9 @@
 #include <string>
 
 #if defined(_MSC_VER)
-#define INLINE __forceinline
+#define SIM_INLINE __forceinline
 #else
-#define INLINE __attribute__((always_inline)) inline
+#define SIM_INLINE __attribute__((always_inline)) inline
 #endif
 
 // Processor architecture
@@ -21,14 +21,15 @@
 #pragma warning(disable : 4127)
 #endif
 
-// Namespace declarations to make life easier
+namespace sim {
+
 namespace fs = std::filesystem;
 
 inline const fs::path Meshes = fs::path(__FILE__).parent_path().parent_path() / "Meshes";
 
 namespace detail {
-INLINE void Assert(bool condition, const char *file, int line,
-                   const std::string &message) {
+SIM_INLINE void Assert(bool condition, const char *file, int line,
+                       const std::string &message) {
   if (!condition) {
     fprintf(stderr, "Assertion Failed in [%s:%d] %s", file, line,
             message.c_str());
@@ -37,8 +38,10 @@ INLINE void Assert(bool condition, const char *file, int line,
 }
 } // namespace detail
 
-#define ASSERT(cond, explanation)                                              \
+} // namespace sim
+
+#define SIM_ASSERT(cond, explanation)                                          \
   do {                                                                         \
     if (!(cond))                                                               \
-      ::detail::Assert(cond, __FILE__, __LINE__, explanation);                 \
+      ::sim::detail::Assert(cond, __FILE__, __LINE__, explanation);            \
   } while (0)

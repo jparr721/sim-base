@@ -4,6 +4,12 @@
 namespace viewer {
 namespace {
 
+using sim::Mat;
+using sim::Real;
+using sim::StrandMesh;
+using sim::TetMesh;
+using sim::Vec3;
+
 using Color = std::array<float, 3>;
 
 // Colors from the old fixed-function Draw() code.

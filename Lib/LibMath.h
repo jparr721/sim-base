@@ -12,6 +12,8 @@
 #include <string>
 #include <vector>
 
+namespace sim {
+
 using Real = double;
 
 constexpr Real PI = Real(3.14159265);
@@ -37,17 +39,17 @@ template <typename T> using Mat = Eigen::Matrix<T, -1, -1>;
 template <typename T> using SparseMat = Eigen::SparseMatrix<T>;
 
 template <typename T>
-INLINE auto Normalize(const T &value, const T &min, const T &max) -> T {
+SIM_INLINE auto Normalize(const T &value, const T &min, const T &max) -> T {
   return (value - min) / (max - min);
 }
 
 template <typename T>
-INLINE auto Denormalize(const T &value, const T &min, const T &max) -> T {
+SIM_INLINE auto Denormalize(const T &value, const T &min, const T &max) -> T {
   return value * (max - min) + min;
 }
 
 template <typename T>
-INLINE auto ComputeAverage(const std::vector<T> &values) -> T {
+SIM_INLINE auto ComputeAverage(const std::vector<T> &values) -> T {
   T sum = T(0);
   std::size_t n = values.size();
   for (std::size_t i = 0; i < n; i++)
@@ -86,7 +88,7 @@ auto Equivalent(const Vec3<Real> &a, const Vec3<Real> &b,
 }
 
 template <typename T>
-INLINE auto AngleBetweenVectors(const Vec3<T> &a, const Vec3<T> &b) -> T {
+SIM_INLINE auto AngleBetweenVectors(const Vec3<T> &a, const Vec3<T> &b) -> T {
   return std::acos(a.dot(b) / (a.norm() * b.norm()));
 }
 
@@ -125,7 +127,7 @@ template <typename T> auto Distance(const Vec3<T> &a, const Vec3<T> &b) -> T {
  * value = 0.5
  */
 template <typename T>
-INLINE auto Scale(T &v, T sourceMin, T sourceMax, T targetMin, T targetMax)
+SIM_INLINE auto Scale(T &v, T sourceMin, T sourceMax, T targetMin, T targetMax)
     -> bool {
   T l = (targetMax - targetMin);
   T m = l / T(sourceMax - sourceMin);
@@ -164,7 +166,7 @@ INLINE auto Scale(T &v, T sourceMin, T sourceMax, T targetMin, T targetMax)
  * values = 0.0, 0.25, 0.5, 0.75, 1.0
  */
 template <typename T>
-INLINE auto ScaleArray(T *&array, unsigned int n, T sourceMin, T sourceMax,
+SIM_INLINE auto ScaleArray(T *&array, unsigned int n, T sourceMin, T sourceMax,
                        T targetMin, T targetMax) -> bool {
   if (array == nullptr)
     return false;
@@ -180,7 +182,7 @@ INLINE auto ScaleArray(T *&array, unsigned int n, T sourceMin, T sourceMax,
   return true;
 }
 
-template <typename T> INLINE auto ColwiseFlatten(const Mat<T> &mat) -> Vec<T> {
+template <typename T> SIM_INLINE auto ColwiseFlatten(const Mat<T> &mat) -> Vec<T> {
   Vec<T> flattened(mat.size());
   unsigned int index = 0;
   for (int jj = 0; jj < mat.cols(); ++jj) {
@@ -192,8 +194,8 @@ template <typename T> INLINE auto ColwiseFlatten(const Mat<T> &mat) -> Vec<T> {
 }
 
 template <typename T>
-INLINE auto ColwiseUnFlatten(const Vec<T> &x, int rows, int cols) -> Mat<T> {
-  ASSERT(x.size() == rows * cols, "x.size(): " + std::to_string(x.size()) +
+SIM_INLINE auto ColwiseUnFlatten(const Vec<T> &x, int rows, int cols) -> Mat<T> {
+  SIM_ASSERT(x.size() == rows * cols, "x.size(): " + std::to_string(x.size()) +
                                       " rows, cols " + std::to_string(rows) +
                                       " " + std::to_string(cols));
   Mat<T> ret(rows, cols);
@@ -207,7 +209,7 @@ INLINE auto ColwiseUnFlatten(const Vec<T> &x, int rows, int cols) -> Mat<T> {
 }
 
 template <typename T>
-INLINE auto ConstructDiagonalSparseMatrix(const Vec<T> &v) -> SparseMat<T> {
+SIM_INLINE auto ConstructDiagonalSparseMatrix(const Vec<T> &v) -> SparseMat<T> {
   int n = v.size();
   SparseMat<T> matrix(n, n);
   for (int i = 0; i < n; ++i) {
@@ -217,7 +219,7 @@ INLINE auto ConstructDiagonalSparseMatrix(const Vec<T> &v) -> SparseMat<T> {
   return matrix;
 }
 
-template <typename T> INLINE auto RowwiseFlatten(const Mat<T> &mat) -> Vec<T> {
+template <typename T> SIM_INLINE auto RowwiseFlatten(const Mat<T> &mat) -> Vec<T> {
   Vec<T> flattened(mat.size());
   unsigned int index = 0;
   for (int ii = 0; ii < mat.rows(); ++ii) {
@@ -229,8 +231,8 @@ template <typename T> INLINE auto RowwiseFlatten(const Mat<T> &mat) -> Vec<T> {
 }
 
 template <typename T>
-INLINE auto RowwiseUnFlatten(const Vec<T> &x, int rows, int cols) -> Mat<T> {
-  ASSERT(x.size() == rows * cols, "x.size(): " + std::to_string(x.size()) +
+SIM_INLINE auto RowwiseUnFlatten(const Vec<T> &x, int rows, int cols) -> Mat<T> {
+  SIM_ASSERT(x.size() == rows * cols, "x.size(): " + std::to_string(x.size()) +
                                       " rows, cols " + std::to_string(rows) +
                                       " " + std::to_string(cols));
   Mat<T> ret(rows, cols);
@@ -244,19 +246,19 @@ INLINE auto RowwiseUnFlatten(const Vec<T> &x, int rows, int cols) -> Mat<T> {
 }
 
 template <typename T>
-INLINE auto IsApprox(const T &lhs, const T &rhs, const Real epsilon) -> bool {
+SIM_INLINE auto IsApprox(const T &lhs, const T &rhs, const Real epsilon) -> bool {
   return std::abs(lhs - rhs) < epsilon;
 }
 
 template <typename T>
-INLINE auto CloserTo(const T &lhs, const T &rhs, const T &value) -> T {
+SIM_INLINE auto CloserTo(const T &lhs, const T &rhs, const T &value) -> T {
   const auto labsdiff = std::abs(lhs - value);
   const auto rabsdiff = std::abs(rhs - value);
 
   return labsdiff > rabsdiff ? rhs : lhs;
 }
 
-INLINE auto GetOrthogonalVectors(const Vec3<Real> &v)
+SIM_INLINE auto GetOrthogonalVectors(const Vec3<Real> &v)
     -> std::pair<Vec3<Real>, Vec3<Real>> {
   Vec3<Real> u = v.normalized();
   Vec3<Real> r = Vec3<Real>::Random();
@@ -267,8 +269,8 @@ INLINE auto GetOrthogonalVectors(const Vec3<Real> &v)
   return {w, t};
 }
 
-INLINE auto GetOrthogonalVectorOrDie(const Vec3<Real> &u) -> Vec<Real> {
-  ASSERT(u.norm() != 0, "Degenerate normal found");
+SIM_INLINE auto GetOrthogonalVectorOrDie(const Vec3<Real> &u) -> Vec<Real> {
+  SIM_ASSERT(u.norm() != 0, "Degenerate normal found");
 
   Vec3<Real> v = Vec3<Real>::Zero();
   int max = 0;
@@ -287,12 +289,12 @@ INLINE auto GetOrthogonalVectorOrDie(const Vec3<Real> &u) -> Vec<Real> {
   v[max] = -u[idx];
   v.normalize();
 
-  ASSERT(std::abs(u.dot(v)) < 1e-10, "");
+  SIM_ASSERT(std::abs(u.dot(v)) < 1e-10, "");
 
   return v;
 }
 
-INLINE auto ParallelTransport(const Vec3<Real> &t, const Vec3<Real> &u,
+SIM_INLINE auto ParallelTransport(const Vec3<Real> &t, const Vec3<Real> &u,
                               const Vec3<Real> &v) -> Vec3<Real> {
   // Compute the bitangent of u and v
   Vec3<Real> bitangent = u.cross(v);
@@ -318,7 +320,7 @@ INLINE auto ParallelTransport(const Vec3<Real> &t, const Vec3<Real> &u,
   return t.dot(u) * v + t.dot(n1) * n2 + t.dot(bitangent) * bitangent;
 }
 
-INLINE auto GenerateRandomNumber01() -> Real {
+SIM_INLINE auto GenerateRandomNumber01() -> Real {
   // Create a random number generator engine
   static std::default_random_engine generator;
 
@@ -329,7 +331,7 @@ INLINE auto GenerateRandomNumber01() -> Real {
   return distribution(generator);
 }
 
-INLINE auto CrossProductMatrix(Real a, Real b, Real c) -> Mat3<Real> {
+SIM_INLINE auto CrossProductMatrix(Real a, Real b, Real c) -> Mat3<Real> {
   Mat3<Real> cross = Mat3<Real>::Zero();
   cross(0, 1) = -c;
   cross(0, 2) = b;
@@ -340,20 +342,20 @@ INLINE auto CrossProductMatrix(Real a, Real b, Real c) -> Mat3<Real> {
   return cross;
 }
 
-INLINE auto CrossProductMatrix(const Vec3<Real> &v) -> Mat3<Real> {
+SIM_INLINE auto CrossProductMatrix(const Vec3<Real> &v) -> Mat3<Real> {
   return CrossProductMatrix(v(0), v(1), v(2));
 }
 
 // Rotation about a curvature binormal kb by its turning angle phi, where
 // |kb| = 2 tan(phi / 2).
-INLINE auto RotationMatrixAroundNormal(const Vec3<Real> &curvatureBinormal)
+SIM_INLINE auto RotationMatrixAroundNormal(const Vec3<Real> &curvatureBinormal)
     -> Mat3<Real> {
   const Real angle = 2 * std::atan(curvatureBinormal.norm() / 2);
   return Eigen::AngleAxisd(angle, curvatureBinormal.normalized())
       .toRotationMatrix();
 }
 
-INLINE auto OrthogonalVectorUnsafe(const Vec3<Real> &v) -> Vec3<Real> {
+SIM_INLINE auto OrthogonalVectorUnsafe(const Vec3<Real> &v) -> Vec3<Real> {
   // Find an arbitrary vector
   Vec3<Real> arbitrary = Vec3<Real>::UnitX();
   if (v.isApprox(Vec3<Real>::UnitX())) {
@@ -366,7 +368,7 @@ INLINE auto OrthogonalVectorUnsafe(const Vec3<Real> &v) -> Vec3<Real> {
   return result;
 }
 
-INLINE auto PointTriangleDistance(const Vec3<Real> &v0, const Vec3<Real> &v1,
+SIM_INLINE auto PointTriangleDistance(const Vec3<Real> &v0, const Vec3<Real> &v1,
                                   const Vec3<Real> &v2, const Vec3<Real> &v)
     -> Real {
   // get the barycentric coordinates
@@ -430,7 +432,7 @@ INLINE auto PointTriangleDistance(const Vec3<Real> &v0, const Vec3<Real> &v1,
   return (vertexMin < edgeMin) ? vertexMin : edgeMin;
 }
 
-INLINE auto GetBarycentricCoordinates(const std::vector<Vec3<Real>> &vertices)
+SIM_INLINE auto GetBarycentricCoordinates(const std::vector<Vec3<Real>> &vertices)
     -> Vec3<Real> {
   const Vec3<Real> &v0 = vertices[1];
   const Vec3<Real> &v1 = vertices[2];
@@ -453,7 +455,7 @@ INLINE auto GetBarycentricCoordinates(const std::vector<Vec3<Real>> &vertices)
   return barycentric;
 }
 
-INLINE auto PointLineDistance(const Vec3<Real> &v0, const Vec3<Real> &v1,
+SIM_INLINE auto PointLineDistance(const Vec3<Real> &v0, const Vec3<Real> &v1,
                               const Vec3<Real> &v2) -> Real {
   const Vec3<Real> e0 = v0 - v1;
   const Vec3<Real> e1 = v2 - v1;
@@ -473,7 +475,7 @@ INLINE auto PointLineDistance(const Vec3<Real> &v0, const Vec3<Real> &v1,
   return (diff01 < diff02) ? diff01 : diff02;
 }
 
-INLINE auto GetLerp(const Vec3<Real> &v0, const Vec3<Real> &v1,
+SIM_INLINE auto GetLerp(const Vec3<Real> &v0, const Vec3<Real> &v1,
                     const Vec3<Real> &v2) -> Vec2<Real> {
   const Vec3<Real> e0 = v0 - v1;
   const Vec3<Real> e1 = v2 - v1;
@@ -492,10 +494,12 @@ INLINE auto GetLerp(const Vec3<Real> &v0, const Vec3<Real> &v1,
   return {1.0 - ratio, ratio};
 }
 
-INLINE auto TriangleArea(const Vec3<Real> &v0, const Vec3<Real> &v1,
+SIM_INLINE auto TriangleArea(const Vec3<Real> &v0, const Vec3<Real> &v1,
                          const Vec3<Real> &v2) -> Real {
   const Vec3<Real> e0 = v1 - v0;
   const Vec3<Real> e1 = v2 - v0;
   const Vec3<Real> cross = e0.cross(e1);
   return cross.norm() * 0.5;
 }
+
+} // namespace sim

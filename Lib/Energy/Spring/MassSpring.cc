@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+namespace sim {
+
 namespace {
 
 auto EdgeVector(const VecN<6> &x) -> Vec3<Real> {
@@ -55,3 +57,5 @@ auto MassSpring::ClampedHessian(const VecN<6> &x) const -> MatN<6> {
   return Stack(axialEigenvalue * axial +
                transverseEigenvalue * (Mat3<Real>::Identity() - axial));
 }
+
+} // namespace sim

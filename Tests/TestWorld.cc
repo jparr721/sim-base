@@ -3,6 +3,8 @@
 #include <gtest/gtest.h>
 #include <igl/readOBJ.h>
 
+using namespace sim;
+
 namespace {
 
 using golden::MakeScene;

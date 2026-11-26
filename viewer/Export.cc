@@ -7,23 +7,23 @@
 
 namespace viewer {
 
-auto ExportFrame(const sim::World &world, const fs::path &directory, int frame)
+auto ExportFrame(const sim::World &world, const sim::fs::path &directory, int frame)
     -> std::expected<int, std::string> {
   std::error_code ec;
-  fs::create_directories(directory, ec);
+  sim::fs::create_directories(directory, ec);
   if (ec) {
     return std::unexpected(
         std::format("cannot create {}: {}", directory.string(), ec.message()));
   }
 
-  std::vector<const StrandMesh *> strands;
+  std::vector<const sim::StrandMesh *> strands;
   int written = 0;
   for (int body = 0; body < std::ssize(world.Bodies()); ++body) {
     const auto &state = world.Bodies()[body];
-    if (const auto *strand = std::get_if<const StrandMesh *>(&state)) {
+    if (const auto *strand = std::get_if<const sim::StrandMesh *>(&state)) {
       strands.push_back(*strand);
     } else if (const auto *collider =
-                   std::get_if<const CollisionMesh *>(&state)) {
+                   std::get_if<const sim::CollisionMesh *>(&state)) {
       const auto path =
           directory / std::format("collider{}_{:04}.obj", body, frame);
       if (!igl::writeOBJ(path.string(), (*collider)->v, (*collider)->f)) {

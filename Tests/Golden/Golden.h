@@ -15,6 +15,10 @@
 
 namespace golden {
 
+using sim::fs::path;
+using sim::Mat;
+using sim::Real;
+
 struct Run {
   std::string name;
   int steps;
@@ -47,7 +51,7 @@ inline auto TakeSnapshot(const sim::World &world) -> Snapshot {
     std::visit(
         [&](const auto *mesh) {
           using Mesh = std::remove_cvref_t<decltype(*mesh)>;
-          if constexpr (std::is_same_v<Mesh, StrandMesh>) {
+          if constexpr (std::is_same_v<Mesh, sim::StrandMesh>) {
             snapshot.push_back(mesh->der->vertices);
           } else {
             snapshot.push_back(mesh->v);
@@ -68,8 +72,8 @@ inline void RunScene(const Run &run, const Recorder &record) {
   }
 }
 
-inline auto GoldenPath(const std::string &name) -> fs::path {
-  return fs::path(__FILE__).parent_path() / (name + ".txt");
+inline auto GoldenPath(const std::string &name) -> path {
+  return path(__FILE__).parent_path() / (name + ".txt");
 }
 
 // One line per checkpoint body: "<step> <body> <x0> <y0> <z0> <x1> ...".

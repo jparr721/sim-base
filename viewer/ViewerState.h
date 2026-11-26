@@ -34,7 +34,7 @@ struct ViewerState {
   int framebufferHeight = 1;
   Playback playback;
   ExportSettings exporter;
-  Vec3<Real> pull = Vec3<Real>::Zero(); // extra acceleration for one step
+  sim::Vec3<sim::Real> pull = sim::Vec3<sim::Real>::Zero(); // extra acceleration for one step
   bool showGrid = true;
 };
 

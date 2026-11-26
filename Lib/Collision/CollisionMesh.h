@@ -2,6 +2,8 @@
 
 #include <LibMath.h>
 
+namespace sim {
+
 struct VertexFaceCollision {
   int vertexIndex;
   int faceIndex;
@@ -19,3 +21,5 @@ public:
   virtual auto DetectFaceCollisions(Real eps, const Mat<Real> &vertices)
       -> std::vector<VertexFaceCollision>;
 };
+
+} // namespace sim

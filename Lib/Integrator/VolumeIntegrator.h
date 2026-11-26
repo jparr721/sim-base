@@ -5,6 +5,8 @@
 #include <memory>
 #include <utility>
 
+namespace sim {
+
 class VolumeIntegrator {
 public:
   virtual ~VolumeIntegrator() = default;
@@ -18,7 +20,7 @@ public:
         velocity(Vec<Real>::Zero(this->tetMesh->DOFs())) {}
 
   virtual void Step() = 0;
-  INLINE void AddGravity(const Vec3<Real> &gravity) {
+  SIM_INLINE void AddGravity(const Vec3<Real> &gravity) {
     for (int ii = 0; ii < tetMesh->v.rows(); ++ii) {
       const Real area = tetMesh->OneRingArea(ii);
       this->externalForce.template segment<3>(3 * ii) = area * gravity;
@@ -39,3 +41,5 @@ protected:
   // Current velocity
   Vec<Real> velocity;
 };
+
+} // namespace sim

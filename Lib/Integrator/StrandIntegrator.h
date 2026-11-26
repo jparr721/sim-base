@@ -4,6 +4,8 @@
 #include <LibMath.h>
 #include <StrandMesh.h>
 
+namespace sim {
+
 class StrandIntegrator {
 public:
   virtual ~StrandIntegrator() = default;
@@ -20,7 +22,7 @@ public:
         velocity(Vec<Real>::Zero(this->strandMesh->DOFs())) {}
 
   virtual void Step() = 0;
-  INLINE void AddGravity(const Vec3<Real> &gravity) {
+  SIM_INLINE void AddGravity(const Vec3<Real> &gravity) {
     for (int ii = 0; ii < strandMesh->der->vertices.rows(); ++ii) {
       this->externalForce.template segment<3>(3 * ii) = gravity;
     }
@@ -36,3 +38,5 @@ protected:
   // Current velocity
   Vec<Real> velocity;
 };
+
+} // namespace sim

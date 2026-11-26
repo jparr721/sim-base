@@ -7,7 +7,7 @@
 
 namespace {
 
-auto ReadLines(const fs::path &path) -> std::vector<std::string> {
+auto ReadLines(const sim::fs::path &path) -> std::vector<std::string> {
   std::ifstream in(path);
   std::vector<std::string> lines;
   for (std::string line; std::getline(in, line);) {

@@ -1,5 +1,7 @@
 #include "CollisionMesh.h"
 
+namespace sim {
+
 void CollisionMesh::Translate(const Vec3<Real> &translation) {
   for (int ii = 0; ii < v.rows(); ++ii) {
     const Vec3<Real> restRow = rv.row(ii);
@@ -48,3 +50,5 @@ auto CollisionMesh::DetectFaceCollisions(Real eps, const Mat<Real> &vertices)
   }
   return vertexFaceCollisions;
 }
+
+} // namespace sim

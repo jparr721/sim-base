@@ -2,6 +2,8 @@
 
 #include <LibMath.h>
 
+namespace sim {
+
 struct Edge {
   Vec3<Real> v1 = Vec3<Real>::Zero();
   Vec3<Real> v2 = Vec3<Real>::Zero();
@@ -31,3 +33,5 @@ struct BishopFrame {
 void ParallelTransportModifiedBishopFrames(
     const std::vector<Vec3<Real>> &curvatureBinormals,
     const std::vector<Edge> &edges, std::vector<BishopFrame> &frames);
+
+} // namespace sim

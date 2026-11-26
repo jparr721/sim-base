@@ -6,6 +6,8 @@
 #include <gtest/gtest.h>
 #include <random>
 
+using namespace sim;
+
 namespace {
 
 // How a typed test draws one random element and its DOFs.

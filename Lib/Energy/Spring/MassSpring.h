@@ -2,6 +2,8 @@
 
 #include <Energy/ElementEnergy.h>
 
+namespace sim {
+
 // A cubic spring on one edge x = (x0, x1): Psi = k (l^3/3 - d l^2/2) with
 // l = |x1 - x0| and d the rest length. Its gradient is |e| times the gradient
 // of the quadratic spring k/2 (l - d)^2.
@@ -16,3 +18,5 @@ struct MassSpring {
 };
 
 static_assert(ElementEnergy<MassSpring, 6>);
+
+} // namespace sim

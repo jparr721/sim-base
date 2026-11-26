@@ -1,4 +1,7 @@
 #include <Energy/Volume/STVK.h>
+
+namespace sim {
+
 auto STVK::Psi(const Mat3<Real> &F) const -> Real {
   Mat3<Real> E = 0.5 * (F.transpose() * F - Mat3<Real>::Identity());
   auto trE = E.trace();
@@ -17,3 +20,5 @@ auto STVK::Pk1(const Mat3<Real> &F) const -> Mat<Real> {
 auto STVK::Hessian(const Mat3<Real> & /*F*/) const -> Mat<Real> {
   return Mat<Real>();
 }
+
+} // namespace sim

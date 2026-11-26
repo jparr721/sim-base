@@ -10,6 +10,8 @@
 #include <functional>
 #include <vector>
 
+using namespace sim;
+
 namespace {
 
 const std::vector<Real> kSpacing = {0.7, 1.3, 0.9, 1.1, 0.8};

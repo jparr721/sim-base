@@ -1,6 +1,8 @@
 #include <LibMath.h>
 #include <gtest/gtest.h>
 
+using namespace sim;
+
 TEST(TestLibMath, ColwiseFlatten) {
   Mat2<Real> mat;
   mat << 1, 3, 2, 4;

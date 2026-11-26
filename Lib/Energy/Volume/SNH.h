@@ -2,10 +2,12 @@
 
 #include <Energy/Volume/HyperelasticMaterial.h>
 
+namespace sim {
+
 class SNH : public HyperelasticMaterial {
 public:
   SNH(Real E, Real nu) : HyperelasticMaterial(E, nu) { lambda = lambda + mu; }
-  [[nodiscard]] INLINE auto Name() -> std::string override { return "SNH"; }
+  [[nodiscard]] SIM_INLINE auto Name() -> std::string override { return "SNH"; }
   [[nodiscard]] auto Psi(const Mat3<Real> &F) const -> Real override;
   [[nodiscard]] auto Pk1(const Mat3<Real> &F) const -> Mat<Real> override;
   [[nodiscard]] auto Hessian(const Mat3<Real> &F) const -> Mat<Real> override;
@@ -26,3 +28,5 @@ public:
   // The third tensor invariant
   static auto Invariant3(const Mat3<Real> &F) -> Real;
 };
+
+} // namespace sim

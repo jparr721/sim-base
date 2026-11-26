@@ -1,5 +1,7 @@
 #include <TetMesh.h>
 
+namespace sim {
+
 void TetMesh::BuildMassMatrix() {
   m.resize(DOFs(), DOFs());
   mInv.resize(DOFs(), DOFs());
@@ -27,7 +29,7 @@ void TetMesh::ComputeTetRestVolumes() {
     restVolumes.at(ii) = TetVolume(v.row(t(ii, 0)), v.row(t(ii, 1)),
                                    v.row(t(ii, 2)), v.row(t(ii, 3)));
     // Prevent negative volumes
-    ASSERT(restVolumes.at(ii) >= 0.0, "");
+    SIM_ASSERT(restVolumes.at(ii) >= 0.0, "");
   }
 }
 void TetMesh::ComputeVertexAreas() {
@@ -105,8 +107,8 @@ void TetMesh::Tetrahedralize() {
   f.rowwise().reverseInPlace();
 }
 void TetMesh::ComputeDeformationGradients() {
-  ASSERT(!dmInvs.empty(), "");
-  ASSERT(!partialFPartialxs.empty(), "");
+  SIM_ASSERT(!dmInvs.empty(), "");
+  SIM_ASSERT(!partialFPartialxs.empty(), "");
 
   // Compute Ds values for each tet
   for (int ii = 0; ii < t.rows(); ++ii) {
@@ -126,7 +128,7 @@ void TetMesh::ComputeDeformationGradients() {
 }
 auto TetMesh::ComputeMaterialForces(
     const std::shared_ptr<HyperelasticMaterial> &material) -> Vec<Real> {
-  ASSERT(!needsNewDeformationGradients, "");
+  SIM_ASSERT(!needsNewDeformationGradients, "");
   std::vector<Vec12<Real>> perElementForces(t.rows());
   for (int tt = 0; tt < t.rows(); ++tt) {
     const Mat3<Real> &F = fs[tt];
@@ -155,7 +157,7 @@ auto TetMesh::ComputeMaterialForces(
 }
 auto TetMesh::EvalPartialFPartialx(int index, const Mat3<Real> &dmInv)
     -> Mat3<Real> {
-  ASSERT(index >= 0 && index <= 11, "Index: " + std::to_string(index) +
+  SIM_ASSERT(index >= 0 && index <= 11, "Index: " + std::to_string(index) +
                                         " invalid. Must be in range[0, 11].");
 
   Mat3<Real> ret = Mat3<Real>::Zero();
@@ -197,7 +199,7 @@ auto TetMesh::EvalPartialFPartialx(int index, const Mat3<Real> &dmInv)
     ret(2, 2) = 1;
     break;
   default:
-    ASSERT(false, "Unreachable");
+    SIM_ASSERT(false, "Unreachable");
   }
   return ret * dmInv;
 }
@@ -215,3 +217,5 @@ auto TetMesh::TetVolume(const Vec3<Real> &a, const Vec3<Real> &b,
   const auto d3 = d - a;
   return d3.dot(d1.cross(d2)) / 6.0;
 }
+
+} // namespace sim

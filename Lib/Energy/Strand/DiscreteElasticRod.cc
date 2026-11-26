@@ -1,9 +1,11 @@
 #include <Energy/Strand/DiscreteElasticRod.h>
 
+namespace sim {
+
 DiscreteElasticRod::DiscreteElasticRod(Mat<Real> vertices)
     : nRods(vertices.rows() - 1), vertices(std::move(vertices)) {
   // At least 3 nodes is required
-  ASSERT(this->vertices.rows() >= 3, "At least 3 nodes are required");
+  SIM_ASSERT(this->vertices.rows() >= 3, "At least 3 nodes are required");
 
   // initial position of centerline in rest state
   restVertices = this->vertices;
@@ -202,3 +204,5 @@ auto DiscreteElasticRod::ComputeOmega(const Vec3<Real> &kb,
 }
 
 void DiscreteElasticRod::UpdateLengths() { edges = ComputeEdges(vertices); }
+
+} // namespace sim

@@ -19,7 +19,7 @@ namespace {
 constexpr std::string_view kUsage =
     "usage: sim_viewer [--scene <name>] [--export <dir>]";
 
-constexpr Real kPull = 9; // the old drivers' arrow-key acceleration
+constexpr sim::Real kPull = 9; // the old drivers' arrow-key acceleration
 
 enum class Drag { None, Rotate, Zoom, Pan };
 
