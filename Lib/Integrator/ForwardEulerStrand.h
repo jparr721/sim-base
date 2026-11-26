@@ -24,7 +24,7 @@ public:
         collisionStiffness, collisionEpsilon);
   }
 
-  INLINE void Step(bool bump = false) override {
+  INLINE void Step() override {
     Vec<Real> R = this->strandMesh->ComputeMaterialForces();
 
     std::vector<Vec12<Real>> perElementForces;
@@ -70,11 +70,10 @@ public:
     this->velocity = u / this->dt;
 
     // Sparse identity matrix
-    Real coeff = bump ? 0.45 : 0.75;
     SparseMat<Real> filter =
         ConstructDiagonalSparseMatrix(
             Vec<Real>::Ones(this->strandMesh->DOFs()).eval()) -
-        this->dt * coeff * this->strandMesh->der->mInv;
+        this->dt * this->damping * this->strandMesh->der->mInv;
     this->velocity = filter * this->velocity;
 
     Vec<Real> positions = this->strandMesh->Positions();

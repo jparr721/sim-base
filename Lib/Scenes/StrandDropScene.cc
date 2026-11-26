@@ -39,7 +39,8 @@ void StrandDropScene::Step(const Vec3<Real> &gravity) {
     auto &integrator = integrators.at(ii);
     integrator->vertexFaceCollisions = vertexFaceCollisionsPerStrand.at(ii);
     integrator->AddGravity(gravity);
-    integrator->Step(sceneFrames > 0);
+    integrator->damping = sceneFrames > 0 ? 0.45 : 0.75;
+    integrator->Step();
   });
 }
 
