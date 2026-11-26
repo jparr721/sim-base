@@ -29,7 +29,9 @@ void ResetWorld(ViewerState &state) {
   }
 }
 
-static void FrameCamera(ViewerState &state) {
+namespace {
+
+void FrameCamera(ViewerState &state) {
   auto &camera = state.camera;
   camera = Camera<float>();
   camera.Resize(state.framebufferWidth, state.framebufferHeight);
@@ -54,6 +56,8 @@ static void FrameCamera(ViewerState &state) {
     camera.Zoom(*hints.zoom);
   }
 }
+
+} // namespace
 
 void LoadScene(ViewerState &state, std::size_t index) {
   state.sceneIndex = index;
