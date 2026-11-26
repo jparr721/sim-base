@@ -37,3 +37,4 @@ add_subdirectory(SceneCatalog)
 add_subdirectory(viewer)
 
 
+add_subdirectory(examples)

@@ -4,37 +4,49 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A C++17 physics simulation sandbox: nonlinear hyperelastic volumes (StVK, Stable Neo-Hookean) on tet meshes, and Discrete Elastic Rods with a mass-spring inextensibility constraint and vertex-face collisions against a comb mesh. Rendering is legacy OpenGL + GLUT. Offline renders go through Mitsuba via Python scripts.
+An embeddable C++26 physics library. It covers Discrete Elastic Rods (Bergou et al. 2008) with a mass-spring inextensibility constraint and vertex-face collisions, plus hyperelastic tet-mesh volumes (Stable Neo-Hookean). Scenes are described as data and run by `sim::World`. A separate GLFW + OpenGL 4.1 + Dear ImGui viewer renders any scene. The core links no GL or windowing library, because a game embeds it.
 
 ## Build and test
 
-Dependencies: GLUT and OpenGL must be installed on the system. libigl (with Eigen and the copyleft tetgen module) is fetched by CMake `FetchContent` at a pinned commit. googletest is a git submodule at `ext/googletest`; run `git submodule update --init` first or the test build fails.
+googletest is a submodule (`git submodule update --init`). libigl v2.6.4 (with Eigen 3.4 and tetgen), GLFW, glad and ImGui come from CMake `FetchContent`.
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
-ctest --test-dir build                          # all tests
-ctest --test-dir build -R TestSNH               # one test binary
-./build/Tests/TestSNH --gtest_filter='TestSNH.TestHessianConverges'   # one test case
+ctest --test-dir build -j4                                   # all tests (strand-drop golden takes ~1 min)
+ctest --test-dir build -R TestStrandForces                   # one test binary
+./build/Tests/TestSceneGolden --gtest_filter='*strandbend*'  # one test case
+./build/viewer/sim_viewer --scene strand-drop [--export <dir>]
 ```
 
-Pass `-DBUILD_TESTING=OFF` to skip tests. There is no lint or format config in the repo.
-
-Executables: `viewer` (from `main.cc`) plus one per file in `Scenes/`, registered with the `package_add_scene` macro in the root `CMakeLists.txt`. New tests are registered with `package_add_test` in `Tests/CMakeLists.txt`.
+`Lib/CMakeLists.txt` uses `file(GLOB)`, so re-run the configure step after adding or deleting a source file. Project targets build with `-Wall -Wextra -Wpedantic`, and the build stays at zero warnings. Third-party sources compile with `-w`.
 
 ## Architecture
 
-All simulation code lives in `Lib/` and builds into one static library `base`. `Lib/CMakeLists.txt` globs each subdirectory explicitly, so a new subdirectory under `Lib/` must be added there. Include paths are relative to `Lib/` (e.g. `#include <Energy/Volume/SNH.h>`).
+Targets, by dependency direction: `sim_energy_mass_spring` ← `sim` ← `sim_scenes` ← `sim_viewer`.
 
-The layering runs mesh → energy → integrator → scene → GLUT driver:
+- **`sim` (Lib/).** Everything is in `namespace sim`. Macros are `SIM_`-prefixed (`SIM_ASSERT`, `SIM_INLINE`). Public headers must stay C++20-clean and must not leak global names. `Tests/PublicHeadersCxx20.cc` and `Tests/EmbedNoCollisions.cc` enforce both by compiling the headers after a game's own `PI`, `E`, `ASSERT` and `Real`. Use `Real` (double) and the Eigen aliases in `LibMath.h` (`Vec<T>`, `Vec3<T>`, `Mat<T>`, `SparseMat<T>`, ...).
+- **Scene description (`Lib/Sim/Scene.h`).** A `SceneDesc` holds value types: bodies (`std::variant<Strand, SoftBody, Collider>`) and a script of `Action`s (`MovePinned`, `MoveCollider`, `SetTwistRates`, `SetDamping`). Each action is active over `[firstStep, lastStep]` and runs *before* the step it names integrates. Steps count from 1. Path actions sample `Eigen::LinSpaced` once per `holdSteps`. `ViewHints` is viewer-only data.
+- **`World` (`Lib/Sim/World.{h,cc}`).** The only place a `SceneDesc` turns into meshes and integrators. A malformed description throws `std::invalid_argument`. `Step()` runs active actions, detects strand-vs-collider contacts, sets gravity, then integrates strands in parallel (`igl::parallel_for`, one strand per index, no reductions, so results are deterministic). Renderers read state only through `Bodies()` (a variant of const mesh pointers) and `Contacts()`.
+- **Energies (`Lib/Energy/`).** Strand energies live in `DiscreteElasticRod` and `AdaptedFrame`. `MassSpring` is its own module that satisfies `ElementEnergy<E, N>` (`Lib/Energy/ElementEnergy.h`), with `Psi`, `Gradient`, `Hessian` and an analytically `ClampedHessian` over stacked vertex DOFs. Volume energies are under `Lib/Energy/Volume`.
+- **Integrators (`Lib/Integrator/`).** `ForwardEulerStrand` and `ForwardEulerVolume`.
+- **`sim_scenes` (`SceneCatalog/`).** `sim::Catalog()` returns `SceneEntry{name, make}` for bunny-drop, strand-bend, strand-twist, strand-drop and frame-debug. Adding a scene means writing one function that returns a `SceneDesc` and adding one registry line.
+- **`sim_viewer` (`viewer/`).**
+  - Window: GLFW, a 4.1 core context, glad.
+  - Renderer: unlit lines/points and lit triangles, VBOs refilled from `World::Bodies()` each frame.
+  - Camera: `Camera.h`.
+  - App: the frame loop.
+  - ui/: each ImGui panel is a free function over `ViewerState&`, registered in `ui::Panels()`.
+  - Export: writes `frame_NNNN.obj` strand polylines and `collider<body>_NNNN.obj` meshes, which `Scripts/mitsuba.py` renders.
 
-- **Math types** (`LibMath.h`, `Settings.h`). `Real` is `double`. Use the Eigen aliases `Vec<T>`, `Vec3<T>`, `Mat<T>`, `Mat3<T>`, etc. instead of raw Eigen types. `Settings.h` defines `INLINE`, `ASSERT`, and the `Meshes` path (resolved from `__FILE__`, so mesh loading works from any working directory).
-- **Meshes** (`TetMesh`, `StrandMesh`, `Collision/CollisionMesh`). `StrandMesh` wraps a `DiscreteElasticRod` (`der`) that owns the vertex positions; DOFs are `3 * nVertices`, flattened.
-- **Energies** (`Energy/`). Volume materials derive from `HyperelasticMaterial` and implement `Psi`, `Pk1`, and `Hessian` of the deformation gradient `F`. The base class provides `FiniteDifferenceTestPk1/Hessian`, which is what the tests call. Strand energies (`DiscreteElasticRod`, `DerBending`, `AdaptedFrame`) handle bending and twist via material frames and holonomy. `MassSpring` enforces inextensibility. Collision energies are in `Energy/Collision`.
-- **Integrators** (`Integrator/`, header-only). `VolumeIntegrator` and `StrandIntegrator` are abstract bases with a `Step()`; forward and backward Euler subclasses implement them. Strand integrators default to `dt = 1/3000`.
-- **Scenes** (`Lib/Scenes/`). A scene struct owns meshes and integrators and exposes `Step`/`StepScriptedScene(gravity)`, `Draw()`, and `DumpFrame()`. Concrete scenes are subclasses whose constructors build the setup (e.g. `DiscreteElasticRods : StrandDropScene`).
-- **Drivers** (`main.cc`, `Scenes/*.cc`). Each is a self-contained GLUT program with global camera and input state that instantiates one scene and calls it from the idle and display callbacks. The driver files duplicate most of their GLUT boilerplate. Swapping the scene in a driver means editing the `gScene` line.
+## Tests that pin behavior
 
-## Rendering pipeline
+- **`TestSceneGolden`** replays each catalog scene through `World` and compares checkpoint positions with `Tests/Golden/*.txt` to 1e-12 relative. Any non-finite value is a failure. After a deliberate physics change, regenerate with `./build/Tests/GenerateGolden` and say why in the commit.
+- **`TestStrandForces`** checks bending, twist and spring forces against finite differences of independently written energies.
+- **`TestElementEnergies`** checks every `ElementEnergy`: gradient and Hessian against finite differences, and the clamped Hessian is PSD.
+- **`TestWorld`** covers description validation and action timing.
+- **`EmbedHeadless`** (`examples/embed.cc`) steps a scene with no window and links no GL.
 
-Running a driver with `--save` calls `DumpFrame()` every 50 steps, writing strand OBJs to a hardcoded absolute path in `Lib/Scenes/StrandDropScene.cc`. `Scripts/mitsuba*.py` are Typer CLIs that turn those OBJ frames into Mitsuba scenes (`pip install -r Scripts/requirements.txt`). `Prototyping/` holds standalone Python experiments.
+## Plans and records
+
+`docs/plans/` holds the modernization plan, the DER math audit (what was wrong and the evidence), and the solid-mechanics plan for HOBAK-style energies and integrators. HOBAK is GPLv3 with a non-commercial clause, so take its structure only and never its code.
