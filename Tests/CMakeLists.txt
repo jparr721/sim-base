@@ -43,9 +43,9 @@ package_add_test(TestElementEnergies TestElementEnergies.cc)
 set_property(TARGET TestElementEnergies PROPERTY LINK_LIBRARIES sim_energy_mass_spring gmock gtest_main)
 package_add_test(TestSceneGolden TestSceneGolden.cc)
 set_property(TARGET TestSceneGolden PROPERTY LINK_LIBRARIES sim_scenes gmock gtest_main)
-package_add_test(TestWorldMatchesLegacy TestWorldMatchesLegacy.cc)
+package_add_test(TestWorld TestWorld.cc)
 # sim_scenes brings base; listing base a second time makes ld64 warn.
-set_property(TARGET TestWorldMatchesLegacy PROPERTY LINK_LIBRARIES sim_scenes gmock gtest_main)
+set_property(TARGET TestWorld PROPERTY LINK_LIBRARIES sim_scenes gmock gtest_main)
 
 add_executable(GenerateGolden Golden/GenerateGolden.cc)
 target_link_libraries(GenerateGolden sim_scenes)

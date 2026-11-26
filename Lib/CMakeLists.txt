@@ -7,9 +7,6 @@ file(GLOB COLLISION_SOURCES "Collision/*.cc")
 file(GLOB INTEGRATOR_HEADERS "Integrator/*.h")
 file(GLOB INTEGRATOR_SOURCES "Integrator/*.cc")
 
-file(GLOB SCENES_HEADERS "Scenes/*.h")
-file(GLOB SCENES_SOURCES "Scenes/*.cc")
-
 file(GLOB ENERGY_STRAND_HEADERS "Energy/Strand/*.h")
 file(GLOB ENERGY_STRAND_SOURCES "Energy/Strand/*.cc")
 
@@ -33,7 +30,6 @@ target_link_libraries(sim_energy_mass_spring PUBLIC Eigen3::Eigen)
 
 add_library(base STATIC
         ${HEADERS} ${SOURCES}
-        ${SCENES_HEADERS} ${SCENES_SOURCES}
         ${COLLISION_HEADERS} ${COLLISION_SOURCES}
         ${INTEGRATOR_HEADERS} ${INTEGRATOR_SOURCES}
         ${ENERGY_STRAND_HEADERS} ${ENERGY_STRAND_SOURCES}
