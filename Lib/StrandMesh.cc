@@ -3,8 +3,8 @@
 #include <StrandMesh.h>
 
 StrandMesh::StrandMesh(const Mat<Real> &points)
-    : der(new DiscreteElasticRod(points)),
-      pinned(Vec<int>::Zero(points.rows())) {}
+    : pinned(Vec<int>::Zero(points.rows())),
+      der(new DiscreteElasticRod(points)) {}
 
 void StrandMesh::Draw() {
   if (drawMaterialFrame) {

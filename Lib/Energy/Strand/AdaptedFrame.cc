@@ -16,7 +16,7 @@ void ParallelTransportModifiedBishopFrames(
   ASSERT(!edges.empty(), "No edges provided");
   ASSERT(!frames.empty(), "At least the initial frame is required");
 
-  for (int ii = 1; ii < edges.size(); ++ii) {
+  for (int ii = 1; ii < std::ssize(edges); ++ii) {
     // Get the normalized tangent vector
     Vec3<Real> ti = edges.at(ii).t;
 

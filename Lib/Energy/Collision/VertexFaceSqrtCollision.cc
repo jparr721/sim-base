@@ -12,7 +12,7 @@ auto VertexFaceSqrtCollision::Gradient(const Vec12<Real> &x) const
   std::vector<Vec3<Real>> e;
   GetVerticesAndEdges(x, v, e);
   const Vec3<Real> bary = GetInsideBarycentricCoordinates(v);
-  const auto reversal = ShouldReverse(v, e);
+  const auto reversal = ShouldReverse(e);
 
   // remember we had to reorder vertices in a wonky way
   const Vec3<Real> xs = bary[0] * v[1] + bary[1] * v[2] + bary[2] * v[3];

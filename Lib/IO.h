@@ -50,7 +50,7 @@ INLINE auto ReadTobjFile(const std::string &filename, Mat<T> &verts,
   }
 
   tets.resize(tetsVec.size(), 4);
-  for (int i = 0; i < tetsVec.size(); i++) {
+  for (int i = 0; i < std::ssize(tetsVec); i++) {
     tets.row(i) = tetsVec[i];
   }
 

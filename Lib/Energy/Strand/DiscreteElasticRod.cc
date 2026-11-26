@@ -1,8 +1,9 @@
 #include <Energy/Strand/DiscreteElasticRod.h>
 
 DiscreteElasticRod::DiscreteElasticRod(Mat<Real> vertices)
-    : vertices(std::move(vertices)), nRods(vertices.rows() - 1),
-      massSpring(new MassSpring(100000, 1)) {
+    : nRods(vertices.rows() - 1),
+      massSpring(std::make_unique<MassSpring>(100000, 1)),
+      vertices(std::move(vertices)) {
   // At least 3 nodes is required
   ASSERT(this->vertices.rows() >= 3, "At least 3 nodes are required");
 

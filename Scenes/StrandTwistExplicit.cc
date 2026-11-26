@@ -3,6 +3,7 @@
 #include <LibGui.h>
 #include <Scenes/StrandDropScene.h>
 #include <igl/writeOBJ.h>
+#include <format>
 #include <memory>
 
 Eigen::Vector2i gMouseDiff;
@@ -102,7 +103,7 @@ static void KeyboardControls() {
   std::cout << "  space: Single step of animation" << std::endl;
 }
 
-void GlutKeyboardFunc(unsigned char key, int x, int y) {
+void GlutKeyboardFunc(unsigned char key, int /*x*/, int /*y*/) {
   if (key == ' ') {
     // Pause the animation too
     if (gAnimating) {
@@ -144,7 +145,7 @@ void GlutKeyboardFunc(unsigned char key, int x, int y) {
   glutPostRedisplay();
 }
 
-void GlutSpecialInputFunc(int key, int x, int y) { glutPostRedisplay(); }
+void GlutSpecialInputFunc(int /*key*/, int /*x*/, int /*y*/) { glutPostRedisplay(); }
 
 void Display() {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -213,9 +214,8 @@ static void GlutIdle() {
 
   if (gSteps % 10 == 0 && gAnimating) {
     if (gSaveFrame) {
-      char filename[512];
-      sprintf(filename, "/Users/jarredparr/Downloads/output/frame_%05i.obj",
-              gFramesSaved);
+      const auto filename = std::format(
+          "/Users/jarredparr/Downloads/output/frame_{:05}.obj", gFramesSaved);
       ++gFramesSaved;
 
       std::ofstream file(filename);

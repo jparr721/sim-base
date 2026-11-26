@@ -6,14 +6,15 @@
 
 class StrandIntegrator {
 public:
+  virtual ~StrandIntegrator() = default;
   Real dt;
   std::vector<VertexFaceCollision> vertexFaceCollisions;
 
   StrandIntegrator(std::shared_ptr<StrandMesh> strandMesh,
                     std::shared_ptr<DiscreteElasticRod> material,
                     Real dt = 1.0 / 3000.0)
-      : strandMesh(std::move(strandMesh)), material(std::move(material)),
-        dt(dt), externalForce(Vec<Real>::Zero(this->strandMesh->DOFs())),
+      : dt(dt), strandMesh(std::move(strandMesh)),
+        material(std::move(material)), externalForce(Vec<Real>::Zero(this->strandMesh->DOFs())),
         velocity(Vec<Real>::Zero(this->strandMesh->DOFs())) {}
 
   virtual void Step(bool bump = false) = 0;

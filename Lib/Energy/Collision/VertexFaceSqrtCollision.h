@@ -32,8 +32,7 @@ public:
   }
 
   [[nodiscard]] INLINE auto
-  ShouldReverse(const std::vector<Vec3<Real>> &v,
-                const std::vector<Vec3<Real>> &e) const -> bool {
+  ShouldReverse(const std::vector<Vec3<Real>> &e) const -> bool {
     // get the normal
     Vec3<Real> n = e[2].cross(e[0]);
     n = n / n.norm();

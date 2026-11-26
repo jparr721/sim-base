@@ -14,6 +14,6 @@ auto STVK::Pk1(const Mat3<Real> &F) const -> Mat<Real> {
   //        auto trE = E.trace();
   //        return mu * F * E + lambda * trE * F;
 }
-auto STVK::Hessian(const Mat3<Real> &F) const -> Mat<Real> {
+auto STVK::Hessian(const Mat3<Real> & /*F*/) const -> Mat<Real> {
   return Mat<Real>();
 }

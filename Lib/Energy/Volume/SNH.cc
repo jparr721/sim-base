@@ -13,8 +13,6 @@ auto SNH::Psi(const Mat3<Real> &F) const -> Real {
 
 auto SNH::Pk1(const Mat3<Real> &F) const -> Mat<Real> {
   Real J = F.determinant();
-  const Real alpha = 1.0 + mu / lambda;
-  Real Jminus1 = F.determinant() - alpha;
   const Mat3<Real> pJpF = PJPF(F);
 
   return mu * F - mu * pJpF + lambda * (J - 1) * pJpF;

@@ -3,6 +3,7 @@
 #include <igl/parallel_for.h>
 #include <igl/readOBJ.h>
 #include <igl/writeOBJ.h>
+#include <format>
 
 Comb::Comb() {
   igl::readOBJ(Meshes / "comb_more_teeth.obj", v, f);
@@ -58,11 +59,10 @@ void StrandDropScene::Draw() {
 }
 
 void StrandDropScene::DumpFrame() {
-  char filename[512];
-  sprintf(filename, "/Users/jarredparr/Downloads/output/frame_%04i.obj", frame);
+  const auto filename =
+      std::format("/Users/jarredparr/Downloads/output/frame_{:04}.obj", frame);
 
-  std::ofstream file;
-  file.open(filename);
+  std::ofstream file(filename);
 
   for (const auto &mesh : meshes) {
     const auto &vertices = mesh->der->vertices;
@@ -72,7 +72,7 @@ void StrandDropScene::DumpFrame() {
     }
   }
 
-  for (int ii = 0; ii < meshes.size(); ++ii) {
+  for (int ii = 0; ii < std::ssize(meshes); ++ii) {
     const auto &mesh = meshes.at(ii);
     const auto &vertices = mesh->der->vertices;
     file << "l ";
@@ -85,9 +85,8 @@ void StrandDropScene::DumpFrame() {
   }
   file.close();
 
-  char combFilename[512];
-  sprintf(combFilename, "/Users/jarredparr/Downloads/output/comb_%04i.obj",
-          frame);
+  const auto combFilename =
+      std::format("/Users/jarredparr/Downloads/output/comb_{:04}.obj", frame);
 
   igl::writeOBJ(combFilename, comb->v, comb->f);
 }
@@ -106,7 +105,7 @@ DiscreteElasticRods::DiscreteElasticRods(
     }
 
     Mat<Real> v(points.size(), 3);
-    for (int ii = 0; ii < points.size(); ++ii) {
+    for (int ii = 0; ii < std::ssize(points); ++ii) {
       v.row(ii) = points.at(ii);
     }
 

@@ -8,6 +8,7 @@ mark_as_advanced(
         gtest_disable_pthreads gtest_force_shared_crt gtest_hide_internal_symbols
 )
 
+set_target_properties(gtest gmock gtest_main gmock_main PROPERTIES SYSTEM TRUE)
 set_target_properties(gtest PROPERTIES FOLDER third_party)
 set_target_properties(gtest_main PROPERTIES FOLDER third_party)
 set_target_properties(gmock PROPERTIES FOLDER third_party)
@@ -18,7 +19,8 @@ macro(package_add_test TESTNAME)
     add_executable(${TESTNAME} ${ARGN})
     # link the Google test infrastructure, mocking library, and a default main function to
     # the test executable.  Remove g_test_main if writing your own main function.
-    target_link_libraries(${TESTNAME} base gtest gmock gtest_main)
+    target_link_libraries(${TESTNAME} base gmock gtest_main)
+    target_compile_options(${TESTNAME} PRIVATE ${SIM_WARNINGS})
     # gtest_discover_tests replaces gtest_add_tests,
     # see https://cmake.org/cmake/help/v3.10/module/GoogleTest.html for more options to pass to it
     gtest_discover_tests(${TESTNAME}

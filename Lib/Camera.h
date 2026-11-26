@@ -8,8 +8,6 @@ public:
   virtual ~Camera();
 
   auto Resize(std::size_t width, std::size_t height) noexcept -> bool;
-  auto Resize(std::size_t width, std::size_t height, T nearPlane,
-              T farPlane) noexcept -> bool;
 
   auto Rotate(T du, T dv) -> bool;
   auto Pan(T du, T dv) -> bool;
@@ -201,15 +199,6 @@ template <typename T> Camera<T>::~Camera() = default;
 
 template <typename T>
 auto Camera<T>::Resize(std::size_t width, std::size_t height) noexcept -> bool {
-  this->SetPerspective(this->fov, width, height, this->nearPlane,
-                       this->farPlane);
-  this->Compile();
-  return true;
-}
-
-template <typename T>
-auto Camera<T>::Resize(std::size_t width, std::size_t height, T nearPlane,
-                       T farPlane) noexcept -> bool {
   this->SetPerspective(this->fov, width, height, this->nearPlane,
                        this->farPlane);
   this->Compile();

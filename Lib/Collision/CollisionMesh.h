@@ -10,6 +10,7 @@ struct VertexFaceCollision {
 
 class CollisionMesh {
 public:
+  virtual ~CollisionMesh() = default;
   Mat<Real> v;
   Mat<Real> rv;
   Mat<int> f;

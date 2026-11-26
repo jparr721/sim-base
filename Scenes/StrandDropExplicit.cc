@@ -99,7 +99,7 @@ static void KeyboardControls() {
   std::cout << "  space: Single step of animation" << std::endl;
 }
 
-void GlutKeyboardFunc(unsigned char key, int x, int y) {
+void GlutKeyboardFunc(unsigned char key, int /*x*/, int /*y*/) {
   if (key == ' ') {
     // Pause the animation too
     if (gAnimating) {
@@ -141,7 +141,7 @@ void GlutKeyboardFunc(unsigned char key, int x, int y) {
   glutPostRedisplay();
 }
 
-void GlutSpecialInputFunc(int key, int x, int y) { glutPostRedisplay(); }
+void GlutSpecialInputFunc(int /*key*/, int /*x*/, int /*y*/) { glutPostRedisplay(); }
 
 void Display() {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
