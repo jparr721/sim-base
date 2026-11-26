@@ -59,7 +59,6 @@ public:
   }
 
   void Initialize();
-  auto ComputeCenterlineForcesGeneral() -> Vec<Real>;
   auto ComputeCenterlineForcesStraight() -> Vec<Real>;
 
   /**

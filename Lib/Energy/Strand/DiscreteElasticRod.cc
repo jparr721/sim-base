@@ -1,7 +1,5 @@
 #include <Energy/Strand/DiscreteElasticRod.h>
 
-#include <stdexcept>
-
 DiscreteElasticRod::DiscreteElasticRod(Mat<Real> vertices)
     : nRods(vertices.rows() - 1),
       massSpring(std::make_unique<MassSpring>(100000)),
@@ -71,11 +69,6 @@ void DiscreteElasticRod::Initialize() {
 
   // Update material holonomy
   UpdateHolonomyGradient();
-}
-
-auto DiscreteElasticRod::ComputeCenterlineForcesGeneral() -> Vec<Real> {
-  throw std::logic_error("the general centerline path was removed; use "
-                         "ComputeCenterlineForcesStraight");
 }
 
 auto DiscreteElasticRod::ComputeCenterlineForcesStraight() -> Vec<Real> {
