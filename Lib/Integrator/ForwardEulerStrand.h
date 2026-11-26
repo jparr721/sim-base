@@ -88,7 +88,6 @@ public:
     this->strandMesh->der->UpdateLengths();
     this->strandMesh->der->Computekbs();
     this->strandMesh->der->UpdateBishopFrames();
-    //    this->strandMesh->der->UpdateQuasistaticMaterialFrame();
     this->strandMesh->der->UpdateMaterialFrames();
     this->strandMesh->der->UpdateMaterialCurvatures();
     this->strandMesh->der->UpdateKbGradients();

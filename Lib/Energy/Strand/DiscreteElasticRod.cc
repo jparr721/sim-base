@@ -1,11 +1,7 @@
 #include <Energy/Strand/DiscreteElasticRod.h>
 
-#include <stdexcept>
-
 DiscreteElasticRod::DiscreteElasticRod(Mat<Real> vertices)
-    : nRods(vertices.rows() - 1),
-      massSpring(std::make_unique<MassSpring>(100000)),
-      vertices(std::move(vertices)) {
+    : nRods(vertices.rows() - 1), vertices(std::move(vertices)) {
   // At least 3 nodes is required
   ASSERT(this->vertices.rows() >= 3, "At least 3 nodes are required");
 
@@ -73,16 +69,15 @@ void DiscreteElasticRod::Initialize() {
   UpdateHolonomyGradient();
 }
 
-auto DiscreteElasticRod::ComputeCenterlineForcesGeneral() -> Vec<Real> {
-  throw std::logic_error("the general centerline path was removed; use "
-                         "ComputeCenterlineForcesStraight");
-}
-
 auto DiscreteElasticRod::ComputeCenterlineForcesStraight() -> Vec<Real> {
   Vec<Real> R = Vec<Real>::Zero(DOFs());
 
-  const Real outer = -2 * gTwistingModulus / restEdges.at(0).length;
+  // Bending E = sum_i alpha |kb_i|^2 / lbar_i, with lbar_i the rest lengths of
+  // the two edges meeting at kb_i (Bergou et al. 2008).
   for (int ii = 0; ii < nRods - 1; ++ii) {
+    const Real outer =
+        -2 * gBendingModulus /
+        (restEdges.at(ii).length + restEdges.at(ii + 1).length);
     const auto &kbGradient = kbGradients.at(ii);
     const auto &kb = kbs.at(ii);
     R.segment<3>(3 * ii) += outer * kbGradient.prev.transpose() * kb;
@@ -106,8 +101,9 @@ auto DiscreteElasticRod::ComputeCenterlineForcesStraight() -> Vec<Real> {
     x.segment<3>(0) = vertices.row(ii);
     x.segment<3>(3) = vertices.row(ii + 1);
 
-    const Vec6<Real> force = -edges.at(ii).length *
-                             massSpring->Gradient(x, restEdges.at(ii).length);
+    const MassSpring spring{.k = springStiffness,
+                            .restLength = restEdges.at(ii).length};
+    const Vec6<Real> force = -spring.Gradient(x);
 
     // Scatter the forces into the global vector
     R.segment<3>(3 * ii) += force.segment<3>(0);

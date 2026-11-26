@@ -26,5 +26,5 @@ public:
    * Compute forces on the centerline
    * @return n*3 x 1 vector of forces where n is the number of points
    */
-  auto ComputeMaterialForces(bool straight = true) -> Vec<Real>;
+  auto ComputeMaterialForces() -> Vec<Real>;
 };

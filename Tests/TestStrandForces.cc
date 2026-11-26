@@ -117,17 +117,18 @@ auto MakeRod(const Mat<Real> &x) -> DiscreteElasticRod {
 }
 
 auto Forces(DiscreteElasticRod &der, Real k, Real thetaEnd) -> Vec<Real> {
-  der.massSpring->k = k;
+  der.springStiffness = k;
   der.thetas.setZero();
   der.thetas(der.thetas.rows() - 1) = thetaEnd;
   return der.ComputeCenterlineForcesStraight();
 }
 
-// sum_i beta |kb_i|^2 / |e~^0|: the library's bending stiffness, kept as is.
+// sum_i alpha |kb_i|^2 / lbar_i with lbar_i = |e~^{i-1}| + |e~^i|.
 auto BendEnergy(const Mat<Real> &x) -> Real {
   Real energy = 0;
   for (int i = 0; i + 2 < x.rows(); ++i) {
-    energy += gTwistingModulus * Kb(x, i).squaredNorm() / kSpacing[0];
+    energy += gBendingModulus * Kb(x, i).squaredNorm() /
+              (kSpacing[i] + kSpacing[i + 1]);
   }
   return energy;
 }
@@ -163,7 +164,7 @@ TEST(TestStrandForces, TwistForceIsMinusEnergyGradient) {
 TEST(TestStrandForces, SpringForceIsMinusEnergyGradient) {
   const Mat<Real> x = StretchedRod();
   auto der = MakeRod(x);
-  const Real k = der.massSpring->k;
+  const Real k = der.springStiffness;
   const Vec<Real> spring = Forces(der, k, 0) - Forces(der, 0, 0);
   const auto energy = [&](const Mat<Real> &y) {
     Real e = 0;

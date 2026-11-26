@@ -22,7 +22,8 @@ public:
   Real rightAngularVelocity = 0.0;
   Real leftAngularVelocity = 0.0;
 
-  std::unique_ptr<MassSpring> massSpring;
+  // Every edge is a MassSpring with this stiffness and its own rest length.
+  Real springStiffness = 100000;
 
   Mat<Real> vertices;
   Mat<Real> restVertices;
@@ -59,7 +60,6 @@ public:
   }
 
   void Initialize();
-  auto ComputeCenterlineForcesGeneral() -> Vec<Real>;
   auto ComputeCenterlineForcesStraight() -> Vec<Real>;
 
   /**
