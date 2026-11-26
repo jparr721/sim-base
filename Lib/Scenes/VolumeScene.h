@@ -10,7 +10,6 @@ struct VolumeScene {
   std::shared_ptr<VolumeIntegrator> integrator;
 
   void Step(const Vec3<Real> &gravity);
-  void Draw();
 };
 
 // Coarse Bunny Scene

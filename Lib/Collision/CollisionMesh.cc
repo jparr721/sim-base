@@ -1,28 +1,4 @@
 #include "CollisionMesh.h"
-#include <LibGui.h>
-
-void CollisionMesh::Draw(
-    const std::vector<VertexFaceCollision> &vertexFaceCollisions) {
-  DrawSurfaceMesh(v, f);
-
-  if (!vertexFaceCollisions.empty()) {
-    // Draw colored faces for each face in vertexFaceCollisions
-    glBegin(GL_POINTS);
-    for (const auto &collision : vertexFaceCollisions) {
-      const Vec3<int> triangle = f.row(collision.faceIndex);
-      const Vec3<Real> a = v.row(triangle(0));
-      const Vec3<Real> b = v.row(triangle(1));
-      const Vec3<Real> c = v.row(triangle(2));
-
-      const Vec3<Real> color = Vec3<Real>(1, 0, 0);
-      glColor3dv(color.data());
-      glVertex3dv(a.data());
-      glVertex3dv(b.data());
-      glVertex3dv(c.data());
-    }
-    glEnd();
-  }
-}
 
 void CollisionMesh::Translate(const Vec3<Real> &translation) {
   for (int ii = 0; ii < v.rows(); ++ii) {
