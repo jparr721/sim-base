@@ -361,37 +361,6 @@ INLINE auto CrossProductMatrix(const Vec3<Real> &v) -> Mat3<Real> {
   return CrossProductMatrix(v(0), v(1), v(2));
 }
 
-INLINE auto MakeTriDiagonalMatrix(const Vec<Real> &upper,
-                                  const Vec<Real> &center,
-                                  const Vec<Real> &lower) -> SparseMat<Real> {
-  const int n = center.size();
-  SparseMat<Real> A(n, n);
-
-  for (int i = 0; i < n; ++i) {
-    if (i > 0) {
-      A.insert(i, i - 1) = lower(i - 1);
-    }
-
-    A.insert(i, i) = center(i);
-
-    if (i < n - 1) {
-      A.insert(i, i + 1) = upper(i);
-    }
-  }
-
-  A.makeCompressed();
-  return A;
-}
-
-INLINE auto FactorTriDiagonalMatrix(const Vec<Real> &upper,
-                                    const Vec<Real> &center,
-                                    const Vec<Real> &lower, const Vec<Real> &b)
-    -> Vec<Real> {
-  SparseMat<Real> tri = MakeTriDiagonalMatrix(upper, center, lower);
-  Eigen::ConjugateGradient<SparseMat<Real>> luSolver(tri);
-  return luSolver.solve(b);
-}
-
 INLINE auto RotationMatrixAroundNormal(const Vec3<Real> &axisAngle)
     -> Mat3<Real> {
   double angle = axisAngle.norm(); // Get the angle of rotation from the norm

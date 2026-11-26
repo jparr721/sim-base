@@ -62,7 +62,6 @@ public:
   void UpdateBishopFrames();
   void UpdateMaterialFrames();
   void UpdateMaterialCurvatures();
-  void UpdateQuasistaticMaterialFrame();
   void UpdateKbGradients();
   void UpdateHolonomyGradient();
   void UpdateLengths();
@@ -71,18 +70,4 @@ public:
 
   auto ComputeOmega(const Vec3<Real> &kb, const Vec3<Real> &m1,
                     const Vec3<Real> &m2) -> Vec2<Real>;
-  auto ComputeGradOmega(const Mat3<Real> &gradkb, const Vec3<Real> &m1,
-                        const Vec3<Real> &m2, const Vec3<Real> &gradpsi,
-                        const Vec2<Real> &w) -> Mat2x3<Real>;
-
-  /**
-   * Partial of E wrt theta^j from equation 7.
-   * @return
-   */
-  auto ComputeTwistingForce() -> Vec<Real>;
-  void ComputeTwistingHessian(Vec<Real> &upper, Vec<Real> &center,
-                              Vec<Real> &lower);
-
-  auto ComputepEpxi(int j) -> Vec3<Real>;
-  auto ComputepEpTheta() -> Real;
 };
