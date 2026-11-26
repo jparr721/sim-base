@@ -82,15 +82,18 @@ auto DiscreteElasticRod::ComputeCenterlineForcesStraight() -> Vec<Real> {
   Vec<Real> R = Vec<Real>::Zero(DOFs());
 
   const Real outer = -2 * gTwistingModulus / restEdges.at(0).length;
-  const Real thetaDiff = thetas(thetas.rows() - 1) - thetas(0);
-  const Real twistContrib = gTwistingModulus * thetaDiff / totalRestLength;
   for (int ii = 0; ii < nRods - 1; ++ii) {
     const auto &kbGradient = kbGradients.at(ii);
     const auto &kb = kbs.at(ii);
-    R.segment<3>(3 * ii) += outer * kbGradient.prev.transpose() * kb +
-                            twistContrib * holonomyGradients.at(ii);
+    R.segment<3>(3 * ii) += outer * kbGradient.prev.transpose() * kb;
     R.segment<3>(3 * (ii + 1)) += outer * kbGradient.mid.transpose() * kb;
     R.segment<3>(3 * (ii + 2)) += outer * kbGradient.next.transpose() * kb;
+  }
+
+  const Real thetaDiff = thetas(thetas.rows() - 1) - thetas(0);
+  const Real twistContrib = 2 * gTwistingModulus * thetaDiff / totalRestLength;
+  for (int ii = 0; ii < nRods + 1; ++ii) {
+    R.segment<3>(3 * ii) += twistContrib * holonomyGradients.at(ii);
   }
 
 #ifndef NDEBUG
@@ -163,11 +166,13 @@ void DiscreteElasticRod::UpdateKbGradients() {
 }
 
 void DiscreteElasticRod::UpdateHolonomyGradient() {
-  holonomyGradients.resize(nRods - 1);
-  for (int ii = 1; ii < nRods - 1; ++ii) {
-    const Vec3<Real> lhs = kbs.at(ii - 1) / 2 * (restEdges.at(ii - 1).length);
-    const Vec3<Real> rhs = -kbs.at(ii) / 2 * (restEdges.at(ii).length);
-    holonomyGradients.at(ii) = -1 * (lhs + rhs);
+  holonomyGradients.assign(nRods + 1, Vec3<Real>::Zero());
+  for (int ii = 0; ii < nRods - 1; ++ii) {
+    const Vec3<Real> prev = kbs.at(ii) / (2 * restEdges.at(ii).length);
+    const Vec3<Real> next = -kbs.at(ii) / (2 * restEdges.at(ii + 1).length);
+    holonomyGradients.at(ii) += prev;
+    holonomyGradients.at(ii + 1) -= prev + next;
+    holonomyGradients.at(ii + 2) += next;
   }
 }
 

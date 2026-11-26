@@ -34,8 +34,7 @@ public:
   std::vector<Vec3<Real>> m1s;
   std::vector<Vec3<Real>> m2s;
 
-  // Holonomy parameters
-  // \nabla_{i}\psi_i
+  // Per vertex j: sum over kb_i of grad_j psi_i, the holonomy gradient.
   std::vector<Vec3<Real>> holonomyGradients;
 
   std::vector<Vec3<Real>> kbs;

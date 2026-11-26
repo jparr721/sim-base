@@ -71,6 +71,37 @@ auto RelErr(const Vec<Real> &got, const Vec<Real> &want) -> Real {
   return (got - want).norm() / std::max(got.norm(), want.norm());
 }
 
+// Rotates u by the turning angle about a x b, taking unit tangent a to b.
+auto Transport(const Vec3<Real> &a, const Vec3<Real> &b, const Vec3<Real> &u)
+    -> Vec3<Real> {
+  const Vec3<Real> axis = a.cross(b);
+  const Real s = axis.norm();
+  if (s < 1e-15) {
+    return u;
+  }
+  return Eigen::AngleAxisd(std::atan2(s, a.dot(b)), axis / s) * u;
+}
+
+// Change of the last edge's Bishop angle when the centerline moves from x to
+// y, with u0 carried in time on edge 0 and in space along each centerline.
+auto Holonomy(const Mat<Real> &x, const Mat<Real> &y, const Vec3<Real> &u0)
+    -> Real {
+  const auto toEnd = [](const Mat<Real> &z, Vec3<Real> u) {
+    for (int i = 1; i + 1 < z.rows(); ++i) {
+      u = Transport(Edge(z, i - 1).normalized(), Edge(z, i).normalized(), u);
+    }
+    return u;
+  };
+  const int last = x.rows() - 2;
+  const Vec3<Real> tEnd = Edge(y, last).normalized();
+  const Vec3<Real> carried =
+      Transport(Edge(x, last).normalized(), tEnd, toEnd(x, u0));
+  const Vec3<Real> transported = toEnd(
+      y, Transport(Edge(x, 0).normalized(), Edge(y, 0).normalized(), u0));
+  return std::atan2(tEnd.dot(carried.cross(transported)),
+                    carried.dot(transported));
+}
+
 // The per-step update sequence of ForwardEulerStrand::Step.
 auto MakeRod(const Mat<Real> &x) -> DiscreteElasticRod {
   DiscreteElasticRod der(RestRod());
@@ -111,6 +142,20 @@ TEST(TestStrandForces, BendingForceOnFreeRodHasNoNetForce) {
   auto der = MakeRod(StretchedRod());
   const Vec<Real> bend = Forces(der, 0, 0);
   EXPECT_LE(bend.reshaped(3, bend.size() / 3).rowwise().sum().norm(), 1e-9);
+}
+
+// beta m^2 / L with m = theta^n - theta^0 minus the holonomy of the move.
+TEST(TestStrandForces, TwistForceIsMinusEnergyGradient) {
+  const Mat<Real> x = InextensibleRod();
+  auto der = MakeRod(x);
+  constexpr Real thetaEnd = 1;
+  const Vec<Real> twist = Forces(der, 0, thetaEnd) - Forces(der, 0, 0);
+  const Vec3<Real> u0 = OrthogonalVectorUnsafe(Edge(x, 0).normalized());
+  const auto energy = [&](const Mat<Real> &y) {
+    const Real m = thetaEnd - Holonomy(x, y, u0);
+    return gTwistingModulus * m * m / der.totalRestLength;
+  };
+  EXPECT_LE(RelErr(twist, -FdGradient(energy, x)), 1e-6);
 }
 
 // The cubic spring -|e| grad Psi integrates to k (l^3/3 - lbar l^2/2), with
