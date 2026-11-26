@@ -34,3 +34,8 @@ endmacro()
 package_add_test(TestSNH TestSNH.cc)
 package_add_test(TestTetMesh TestTetMesh.cc)
 package_add_test(TestLibMath TestLibMath.cc)
+package_add_test(TestSceneGolden TestSceneGolden.cc)
+
+add_executable(GenerateGolden Golden/GenerateGolden.cc)
+target_link_libraries(GenerateGolden base)
+target_compile_options(GenerateGolden PRIVATE ${SIM_WARNINGS})
