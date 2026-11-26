@@ -9,6 +9,9 @@ mark_as_advanced(
 )
 
 set_target_properties(gtest gmock gtest_main gmock_main PROPERTIES SYSTEM TRUE)
+foreach (target gtest gmock gtest_main gmock_main)
+    target_compile_options(${target} PRIVATE -w)
+endforeach ()
 set_target_properties(gtest PROPERTIES FOLDER third_party)
 set_target_properties(gtest_main PROPERTIES FOLDER third_party)
 set_target_properties(gmock PROPERTIES FOLDER third_party)

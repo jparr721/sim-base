@@ -1,6 +1,6 @@
 #include "Golden/LegacyScenes.h"
 
-#include <Catalog.h>
+#include <SceneCatalog/Catalog.h>
 #include <Sim/World.h>
 
 #include <gtest/gtest.h>
