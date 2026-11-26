@@ -35,6 +35,7 @@ include(GNUInstallDirs)
 target_include_directories(base PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_compile_options(base PRIVATE ${SIM_WARNINGS})
 install(TARGETS base EXPORT base)
 target_link_libraries(
         base
@@ -43,4 +44,5 @@ target_link_libraries(
         igl_copyleft::tetgen
         Eigen3::Eigen
         GLUT::GLUT
+        OpenGL::GL
 )

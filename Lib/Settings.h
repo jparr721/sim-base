@@ -1,7 +1,9 @@
 #pragma once
 
+#include <cassert>
 #include <cstdio>
 #include <filesystem>
+#include <string>
 
 #if defined(_MSC_VER)
 #define EXPORT __declspec(dllexport)
