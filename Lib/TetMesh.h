@@ -2,7 +2,7 @@
 
 #include "LibMath.h"
 #include "Settings.h"
-#include <Sim/Scene.h>
+#include <Energy/Volume/Material.h>
 #include <igl/boundary_facets.h>
 #include <igl/copyleft/tetgen/tetrahedralize.h>
 #include <igl/per_vertex_normals.h>
@@ -99,11 +99,23 @@ public:
   auto TetVolume(const Vec3<Real> &a, const Vec3<Real> &b, const Vec3<Real> &c,
                  const Vec3<Real> &d) -> Real;
 
+  // Per-tet rest geometry, indexed like the rows of t.
+  [[nodiscard]] auto DmInverses() const -> const std::vector<Mat3<Real>> & {
+    return dmInvs;
+  }
+  [[nodiscard]] auto PartialFPartialxs() const
+      -> const std::vector<Mat9x12<Real>> & {
+    return partialFPartialxs;
+  }
+  [[nodiscard]] auto RestVolumes() const -> const std::vector<Real> & {
+    return restVolumes;
+  }
+
 private:
   bool needsNewDeformationGradients = false;
 
   // Per-element dm-inverses (for computing the deformation gradients)
-  std::vector<Mat<Real>> dmInvs;
+  std::vector<Mat3<Real>> dmInvs;
   std::vector<Mat9x12<Real>> partialFPartialxs;
 
   std::vector<Real> restVolumes;
