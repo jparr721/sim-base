@@ -1,5 +1,7 @@
 #include <Solid/ElasticSystem.h>
 
+#include <utility>
+
 namespace sim {
 
 namespace {
@@ -41,11 +43,31 @@ void AddBlock(std::vector<Eigen::Triplet<Real>> &triplets, int vertex,
   }
 }
 
+// Adds a tet's 12x12 block over its corners' DOFs.
+void AddTetBlock(std::vector<Eigen::Triplet<Real>> &triplets,
+                 const Mat<int> &t, int tet, const Mat12<Real> &block) {
+  for (int row = 0; row < 12; ++row) {
+    for (int col = 0; col < 12; ++col) {
+      triplets.emplace_back(Dof(t, tet, row / 3, row % 3),
+                            Dof(t, tet, col / 3, col % 3), block(row, col));
+    }
+  }
+}
+
+auto TetValues(const Mat<int> &t, int tet, const Vec<Real> &y) -> Vec12<Real> {
+  Vec12<Real> out;
+  for (int corner = 0; corner < 4; ++corner) {
+    out.segment<3>(3 * corner) = y.segment<3>(3 * t(tet, corner));
+  }
+  return out;
+}
+
 } // namespace
 
 ElasticSystem::ElasticSystem(const TetMesh &mesh, const Material &material,
-                             ContactModel contact, Real drag)
-    : mesh(mesh), material(material), contact(contact), drag(drag),
+                             Damping damping, ContactModel contact, Real drag)
+    : mesh(mesh), material(material), damping(std::move(damping)),
+      contact(contact), drag(drag),
       constraints{.dofs = mesh.DOFs()} {
   for (int ii = 0; ii < mesh.pinned.size(); ++ii) {
     if (mesh.pinned(ii) == 1) {
@@ -96,7 +118,7 @@ auto ElasticSystem::Energy(const Vec<Real> &x) const -> Real {
 // The force on a tet's corners is -V vec(dF/dx)^T vec(P(F))
 // (Dynamic Deformables, "Force Computation"). A contact pushes its vertex by
 // minus the vertex block of the collision gradient and damps its velocity
-// along the triangle normal.
+// along the triangle normal. Material damping follows, and is zero when v is.
 auto ElasticSystem::Forces(const Vec<Real> &x, const Vec<Real> &v) const
     -> Vec<Real> {
   Vec<Real> forces = Vec<Real>::Zero(Dofs());
@@ -125,14 +147,35 @@ auto ElasticSystem::Forces(const Vec<Real> &x, const Vec<Real> &v) const
   if (drag != 0) {
     forces -= drag * (mesh.m * v);
   }
+  if (v.isZero(0)) {
+    return forces;
+  }
+  // A DampingEnergy's stress is P(F, Fdot), with vec(Fdot) = (dF/dx) v, and
+  // its force on the tet's corners is -V (dF/dx)^T vec(P).
+  if (const auto *green = std::get_if<GreenDamping>(&damping)) {
+    for (int tt = 0; tt < mesh.t.rows(); ++tt) {
+      const Mat9x12<Real> &dfdx = mesh.PartialFPartialxs()[tt];
+      const Vec9<Real> fdot = dfdx * TetValues(mesh.t, tt, v);
+      const Mat3<Real> p = green->Pk1(
+          DeformationGradient(x, tt), Eigen::Map<const Mat3<Real>>(fdot.data()));
+      const Vec12<Real> force =
+          -mesh.RestVolumes()[tt] * (dfdx.transpose() * Vectorize(p));
+      for (int corner = 0; corner < 4; ++corner) {
+        forces.segment<3>(3 * mesh.t(tt, corner)) += force.segment<3>(3 * corner);
+      }
+    }
+  }
+  if (const auto *rayleigh = std::get_if<Rayleigh>(&damping)) {
+    forces -= RayleighMatrix(*rayleigh, x) * v;
+  }
   return forces;
 }
 
 // Each tet adds V (dF/dx)^T H (dF/dx), a 12x12 block, where H is the energy's
 // Hessian over vec(F) (Dynamic Deformables, "Hessian Computation"). Clamping H
 // per element keeps every block, and so their sum, PSD.
-auto ElasticSystem::Stiffness(const Vec<Real> &x, bool clamped) const
-    -> SparseMat<Real> {
+auto ElasticSystem::ElasticStiffness(const Vec<Real> &x, bool clamped) const
+    -> std::vector<Eigen::Triplet<Real>> {
   std::vector<Eigen::Triplet<Real>> triplets;
   triplets.reserve(144 * mesh.t.rows());
   std::visit(
@@ -143,18 +186,17 @@ auto ElasticSystem::Stiffness(const Vec<Real> &x, bool clamped) const
                                    ? energy.ClampedHessian(f, RotationVariantSvd(f))
                                    : energy.Hessian(f);
           const Mat9x12<Real> &dfdx = mesh.PartialFPartialxs()[tt];
-          const Mat12<Real> block =
-              mesh.RestVolumes()[tt] * (dfdx.transpose() * h * dfdx);
-          for (int row = 0; row < 12; ++row) {
-            for (int col = 0; col < 12; ++col) {
-              triplets.emplace_back(Dof(mesh.t, tt, row / 3, row % 3),
-                                    Dof(mesh.t, tt, col / 3, col % 3),
-                                    block(row, col));
-            }
-          }
+          AddTetBlock(triplets, mesh.t, tt,
+                      mesh.RestVolumes()[tt] * (dfdx.transpose() * h * dfdx));
         }
       },
       material);
+  return triplets;
+}
+
+auto ElasticSystem::Stiffness(const Vec<Real> &x, bool clamped) const
+    -> SparseMat<Real> {
+  std::vector<Eigen::Triplet<Real>> triplets = ElasticStiffness(x, clamped);
   for (const SoftContact &c : contacts) {
     const Mat3<Real> block = ContactEnergy(c.vertex)
                                  .Hessian(ContactDofs(x, c))
@@ -166,7 +208,19 @@ auto ElasticSystem::Stiffness(const Vec<Real> &x, bool clamped) const
   return k;
 }
 
-auto ElasticSystem::DampingMatrix(const Vec<Real> & /*x*/) const
+// mass M + stiffness K(x), with K the clamped elastic stiffness.
+auto ElasticSystem::RayleighMatrix(const Rayleigh &rayleigh,
+                                   const Vec<Real> &x) const -> SparseMat<Real> {
+  const std::vector<Eigen::Triplet<Real>> triplets = ElasticStiffness(x, true);
+  SparseMat<Real> k(Dofs(), Dofs());
+  k.setFromTriplets(triplets.begin(), triplets.end());
+  return rayleigh.mass * mesh.m + rayleigh.stiffness * k;
+}
+
+// -dForces/dv: each contact's normal damping, the drag, and the material
+// damping. A DampingEnergy's tet block is V (dF/dx)^T H (dF/dx), with H its
+// Hessian over vec(Fdot).
+auto ElasticSystem::DampingMatrix(const Vec<Real> &x) const
     -> SparseMat<Real> {
   std::vector<Eigen::Triplet<Real>> triplets;
   for (const SoftContact &c : contacts) {
@@ -174,10 +228,23 @@ auto ElasticSystem::DampingMatrix(const Vec<Real> & /*x*/) const
     AddBlock(triplets, c.vertex,
              VertexMass(c.vertex) * contact.damping * n * n.transpose());
   }
+  if (const auto *green = std::get_if<GreenDamping>(&damping)) {
+    triplets.reserve(triplets.size() + 144 * mesh.t.rows());
+    for (int tt = 0; tt < mesh.t.rows(); ++tt) {
+      const Mat3<Real> f = DeformationGradient(x, tt);
+      const Mat9x12<Real> &dfdx = mesh.PartialFPartialxs()[tt];
+      AddTetBlock(triplets, mesh.t, tt,
+                  mesh.RestVolumes()[tt] *
+                      (dfdx.transpose() * green->Hessian(f, Mat3<Real>::Zero()) * dfdx));
+    }
+  }
   SparseMat<Real> d(Dofs(), Dofs());
   d.setFromTriplets(triplets.begin(), triplets.end());
   if (drag != 0) {
     d += drag * mesh.m;
+  }
+  if (const auto *rayleigh = std::get_if<Rayleigh>(&damping)) {
+    d += RayleighMatrix(*rayleigh, x);
   }
   return d;
 }

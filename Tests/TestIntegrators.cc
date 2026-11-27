@@ -72,7 +72,7 @@ struct Body {
        const Material &bodyMaterial, const Vec3<Real> &gravity)
       : name(std::move(bodyName)), mesh(std::move(tetMesh)),
         material(std::make_unique<Material>(bodyMaterial)),
-        system(std::make_unique<ElasticSystem>(*mesh, *material)),
+        system(std::make_unique<ElasticSystem>(*mesh, *material, NoDamping{})),
         state{.x = mesh->Positions(),
               .v = Vec<Real>::Zero(mesh->DOFs())},
         external(system->Mass() * gravity.replicate(mesh->v.rows(), 1)) {}

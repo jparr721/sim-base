@@ -1,8 +1,12 @@
 #include <Solid/ElasticSystem.h>
 #include <gtest/gtest.h>
 
+#include <array>
+#include <iostream>
 #include <numbers>
 #include <random>
+#include <string>
+#include <tuple>
 
 using namespace sim;
 
@@ -138,7 +142,7 @@ auto LargestMagnitudeEigenvalue(const SparseMat<Real> &k) -> Real {
 TEST(TestElasticSystem, ForcesAreMinusEnergyGradient) {
   for (const Material &material : Materials()) {
     const TetMesh mesh = OneTet();
-    const ElasticSystem system(mesh, material);
+    const ElasticSystem system(mesh, material, NoDamping{});
     const Vec<Real> rest = mesh.Positions();
     const Vec<Real> v = Vec<Real>::Zero(system.Dofs());
     EXPECT_LE(system.Forces(rest, v).norm(), 1e-14) << material.index();
@@ -171,7 +175,7 @@ TEST(TestElasticSystem, ForcesAreMinusEnergyGradient) {
 TEST(TestElasticSystem, ForcesAreMinusEnergyGradientWithContacts) {
   for (const Material &material : Materials()) {
     const TetMesh mesh = OneTet();
-    ElasticSystem system(mesh, material, kContact);
+    ElasticSystem system(mesh, material, NoDamping{}, kContact);
     const Vec<Real> x = Perturbed(mesh.Positions(), 0.05);
     EXPECT_NEAR(system.Energy(x), ElasticEnergy(mesh, material, x),
                 1e-14 * std::abs(system.Energy(x)));
@@ -210,7 +214,7 @@ Vec<Real> BunnyStiffness::x;
 
 TEST_P(BunnyStiffness, IsMinusForceJacobian) {
   const Material material = MaterialUnderTest();
-  const ElasticSystem system(*mesh, material);
+  const ElasticSystem system(*mesh, material, NoDamping{});
   const Mat<Real> k(system.Stiffness(x, false));
   EXPECT_LE((k - FdStiffness(system, x)).norm(), 1e-6 * k.norm());
 }
@@ -219,8 +223,8 @@ TEST_P(BunnyStiffness, IsMinusForceJacobian) {
 // then the whole matrix.
 TEST_P(BunnyStiffness, WithContactsIsMinusForceJacobian) {
   const Material material = MaterialUnderTest();
-  const ElasticSystem bare(*mesh, material);
-  ElasticSystem system(*mesh, material, kContact, 0.5);
+  const ElasticSystem bare(*mesh, material, NoDamping{});
+  ElasticSystem system(*mesh, material, NoDamping{}, kContact, 0.5);
   system.SetContacts(ContactsNear(x, 60));
   const Mat<Real> k(system.Stiffness(x, false));
   const Mat<Real> fd = FdStiffness(system, x);
@@ -233,7 +237,7 @@ TEST_P(BunnyStiffness, WithContactsIsMinusForceJacobian) {
 
 TEST_P(BunnyStiffness, ClampedWithContactsIsPsd) {
   const Material material = MaterialUnderTest();
-  ElasticSystem system(*mesh, material, kContact);
+  ElasticSystem system(*mesh, material, NoDamping{}, kContact);
   system.SetContacts(ContactsNear(x, 60));
   const SparseMat<Real> clamped = system.Stiffness(x, true);
   EXPECT_GE(SmallestEigenvalue(clamped),
@@ -242,7 +246,7 @@ TEST_P(BunnyStiffness, ClampedWithContactsIsPsd) {
 
 TEST_P(BunnyStiffness, IsSymmetric) {
   const Material material = MaterialUnderTest();
-  const ElasticSystem system(*mesh, material);
+  const ElasticSystem system(*mesh, material, NoDamping{});
   for (const bool clamped : {false, true}) {
     const Mat<Real> k(system.Stiffness(x, clamped));
     EXPECT_LE((k - k.transpose()).norm(), 1e-12 * k.norm()) << clamped;
@@ -251,7 +255,7 @@ TEST_P(BunnyStiffness, IsSymmetric) {
 
 TEST_P(BunnyStiffness, ClampedIsPsdAndUnclampedIsNot) {
   const Material material = MaterialUnderTest();
-  const ElasticSystem system(*mesh, material);
+  const ElasticSystem system(*mesh, material, NoDamping{});
   const SparseMat<Real> clamped = system.Stiffness(x, true);
   const SparseMat<Real> unclamped = system.Stiffness(x, false);
   const Real tolerance = 1e-10 * LargestMagnitudeEigenvalue(clamped);
@@ -270,33 +274,107 @@ INSTANTIATE_TEST_SUITE_P(EveryMaterial, BunnyStiffness, testing::Values(0, 1),
 TEST(TestElasticSystem, DampingMatrixIsZeroUntilDampingExists) {
   const TetMesh mesh = OneTet();
   const Material material = Materials()[0];
-  const ElasticSystem system(mesh, material);
+  const ElasticSystem system(mesh, material, NoDamping{});
   const SparseMat<Real> d = system.DampingMatrix(mesh.Positions());
   EXPECT_EQ(d.rows(), system.Dofs());
   EXPECT_EQ(d.cols(), system.Dofs());
   EXPECT_EQ(d.nonZeros(), 0);
 }
 
-TEST(TestElasticSystem, DampingMatrixIsMinusVelocityJacobian) {
-  const TetMesh mesh = OneTet();
-  const Material material = Materials()[0];
-  ElasticSystem system(mesh, material, kContact, 0.5);
-  const Vec<Real> x = Perturbed(mesh.Positions(), 0.05);
-  system.SetContacts(ContactsNear(x, 4));
-  const Vec<Real> v = Vec<Real>::LinSpaced(12, -1, 1);
-  const Mat<Real> d(system.DampingMatrix(x));
-
+// -dForces/dv at (x, v) by central differences.
+auto FdDamping(const ElasticSystem &system, const Vec<Real> &x,
+               const Vec<Real> &v) -> Mat<Real> {
   const Real h = 1e-6;
-  Mat<Real> fd(12, 12);
-  for (int j = 0; j < 12; ++j) {
+  Mat<Real> fd(system.Dofs(), system.Dofs());
+  for (int j = 0; j < system.Dofs(); ++j) {
     Vec<Real> plus = v;
     Vec<Real> minus = v;
     plus(j) += h;
     minus(j) -= h;
     fd.col(j) = -(system.Forces(x, plus) - system.Forces(x, minus)) / (2 * h);
   }
+  return fd;
+}
+
+auto DampingModels() -> std::vector<Damping> {
+  return {NoDamping{}, GreenDamping{.mu = 0.7},
+          Rayleigh{.mass = 0.3, .stiffness = 0.05}};
+}
+
+// Each damping model on the tet and on the bunny, deformed, with contacts and
+// drag on. The material damping's own terms are checked apart from the
+// contact and drag terms, which would otherwise swamp them.
+class DampingMatrix
+    : public testing::TestWithParam<std::tuple<int, std::string>> {};
+
+TEST_P(DampingMatrix, IsMinusVelocityJacobianAndPsd) {
+  const auto &[model, body] = GetParam();
+  const Damping damping = DampingModels()[model];
+  const TetMesh mesh = body == "tet" ? OneTet() : Bunny();
+  const Material material = Materials()[0];
+  const Vec<Real> x = Perturbed(
+      mesh.Positions(), body == "tet" ? 0.05 : 0.3 * MeanEdgeLength(mesh));
+  const std::vector<SoftContact> contacts =
+      ContactsNear(x, body == "tet" ? 4 : 60);
+  ElasticSystem bare(mesh, material, NoDamping{}, kContact, 0.5);
+  ElasticSystem system(mesh, material, damping, kContact, 0.5);
+  bare.SetContacts(contacts);
+  system.SetContacts(contacts);
+  const Vec<Real> v = Vec<Real>::LinSpaced(system.Dofs(), -1, 1);
+
+  const Mat<Real> d(system.DampingMatrix(x));
+  const Mat<Real> fd = FdDamping(system, x, v);
   EXPECT_GT(d.norm(), 0);
   EXPECT_LE((d - fd).norm(), 1e-6 * d.norm());
+  const Mat<Real> own = d - Mat<Real>(bare.DampingMatrix(x));
+  const Mat<Real> ownFd = fd - FdDamping(bare, x, v);
+  if (std::holds_alternative<NoDamping>(damping)) {
+    EXPECT_EQ(own.norm(), 0);
+  } else {
+    EXPECT_GT(own.norm(), 1e-3 * d.norm());
+    EXPECT_LE((own - ownFd).norm(), 1e-6 * own.norm());
+  }
+  EXPECT_LE((d - d.transpose()).norm(), 1e-12 * d.norm());
+  const SparseMat<Real> sparse = system.DampingMatrix(x);
+  EXPECT_GE(SmallestEigenvalue(sparse),
+            -1e-10 * LargestMagnitudeEigenvalue(sparse));
+}
+
+auto DampingMatrixName(
+    const testing::TestParamInfo<std::tuple<int, std::string>> &info)
+    -> std::string {
+  const std::array<std::string, 3> names = {"NoDamping", "GreenDamping",
+                                            "Rayleigh"};
+  return names[std::get<0>(info.param)] + "_" + std::get<1>(info.param);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    EveryModel, DampingMatrix,
+    testing::Combine(testing::Values(0, 1, 2), testing::Values("tet", "bunny")),
+    DampingMatrixName);
+
+// Green damping resists stretching and leaves a rigid rotation alone:
+// v = w x x gives no damping force, on the deformed bunny.
+TEST(TestElasticSystem, GreenDampingIgnoresRigidRotation) {
+  const TetMesh mesh = Bunny();
+  const Material material = Materials()[0];
+  const ElasticSystem bare(mesh, material, NoDamping{});
+  const ElasticSystem system(mesh, material, GreenDamping{.mu = 0.7});
+  const Vec<Real> x = Perturbed(mesh.Positions(), 0.3 * MeanEdgeLength(mesh));
+  const Vec3<Real> w(0.3, -1.1, 0.7);
+  Vec<Real> spin(system.Dofs());
+  Vec<Real> stretch(system.Dofs());
+  for (int ii = 0; ii < mesh.v.rows(); ++ii) {
+    spin.segment<3>(3 * ii) = w.cross(x.segment<3>(3 * ii));
+    stretch.segment<3>(3 * ii) = w.cwiseProduct(x.segment<3>(3 * ii));
+  }
+  const Vec<Real> elastic = bare.Forces(x, spin);
+  const Real rotating = (system.Forces(x, spin) - elastic).norm();
+  const Real stretching = (system.Forces(x, stretch) - elastic).norm();
+  std::cout << "[ measured ] Green damping force " << rotating
+            << " under rotation, " << stretching << " under stretch\n";
+  EXPECT_GT(stretching, 1e-2);
+  EXPECT_LE(rotating, 1e-12 * stretching);
 }
 
 TEST(TestConstraints, FilterZeroesPinnedDofsAndIsAProjection) {
@@ -304,7 +382,7 @@ TEST(TestConstraints, FilterZeroesPinnedDofsAndIsAProjection) {
   mesh.PinVertex(1);
   mesh.PinVertex(3);
   const Material material = Materials()[0];
-  const ElasticSystem system(mesh, material);
+  const ElasticSystem system(mesh, material, NoDamping{});
   EXPECT_EQ(system.Constraints().pinned, (std::vector<int>{1, 3}));
 
   const SparseMat<Real> s = system.Constraints().Filter();

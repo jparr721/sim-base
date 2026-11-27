@@ -14,22 +14,34 @@ namespace {
 using golden::MakeScene;
 using golden::TakeSnapshot;
 
-// A SoftBody that leaves out its integrator does not compile. The same body
-// naming one does, so the check fails if the expression is broken some other
-// way.
+// A SoftBody that leaves out its integrator or its damping does not compile.
+// The same body naming both does, so the checks fail if the expression is
+// broken some other way.
 template <class Body>
 concept BuildsWithoutIntegrator = requires {
-  Body{.mesh = {}, .place = {}, .material = sim::Material{}};
+  Body{.mesh = {},
+       .place = {},
+       .material = sim::Material{},
+       .damping = sim::NoDamping{}};
 };
 template <class Body>
-concept BuildsWithIntegrator = requires {
+concept BuildsWithoutDamping = requires {
   Body{.mesh = {},
        .place = {},
        .material = sim::Material{},
        .integrator = sim::ForwardEuler{}};
 };
+template <class Body>
+concept BuildsWithIntegratorAndDamping = requires {
+  Body{.mesh = {},
+       .place = {},
+       .material = sim::Material{},
+       .integrator = sim::ForwardEuler{},
+       .damping = sim::NoDamping{}};
+};
 static_assert(!BuildsWithoutIntegrator<sim::SoftBody>);
-static_assert(BuildsWithIntegrator<sim::SoftBody>);
+static_assert(!BuildsWithoutDamping<sim::SoftBody>);
+static_assert(BuildsWithIntegratorAndDamping<sim::SoftBody>);
 
 TEST(World, CatalogScenesConstruct) {
   for (const auto &entry : sim::Catalog()) {
@@ -114,6 +126,7 @@ auto Bunny(const sim::Placement &place) -> sim::SoftBody {
       .place = place,
       .material = sim::StableNeoHookean{.lame = sim::Lame::FromYoungs(5, 0.45)},
       .integrator = sim::ForwardEuler{},
+      .damping = sim::NoDamping{},
       .pinRegion = Eigen::AlignedBox<Real, 3>(Vec3<Real>(-1, 0.3, -1),
                                               Vec3<Real>(1, 1, 1)),
   };
@@ -243,6 +256,20 @@ TEST(World, NonPositiveContactEpsilonIsRejected) {
   EXPECT_THROW(Placed(bunny), std::invalid_argument);
 }
 
+// Negative damping would pump energy in. Zero is allowed, and is the control.
+TEST(World, NegativeDampingIsRejected) {
+  auto bunny = Bunny({});
+  for (const sim::Damping &damping :
+       {sim::Damping(sim::GreenDamping{.mu = -1}),
+        sim::Damping(sim::Rayleigh{.mass = -1, .stiffness = 0}),
+        sim::Damping(sim::Rayleigh{.mass = 0, .stiffness = -1})}) {
+    bunny.damping = damping;
+    EXPECT_THROW(Placed(bunny), std::invalid_argument);
+  }
+  bunny.damping = sim::GreenDamping{.mu = 0};
+  EXPECT_NO_THROW(Placed(bunny));
+}
+
 TEST(World, PathActionWithoutLastStepIsRejected) {
   auto desc = MakeScene("strand-bend");
   desc.script.front().lastStep.reset();
@@ -263,7 +290,8 @@ auto Tet(const sim::Placement &place) -> sim::SoftBody {
   return {.mesh = {RegularTetFile()},
           .place = place,
           .material = sim::StableNeoHookean{.lame = sim::Lame::FromYoungs(50, 0.3)},
-          .integrator = sim::ForwardEuler{}};
+          .integrator = sim::ForwardEuler{},
+          .damping = sim::NoDamping{}};
 }
 
 // A Box whose top face is the plane through `top` with unit normal `normal`

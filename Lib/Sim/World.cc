@@ -130,7 +130,7 @@ struct SoftBodySim {
   SoftBodySim(std::unique_ptr<TetMesh> tetMesh, const SoftBody &desc,
               std::vector<int> surfaceVertices, int bodyIndex)
       : mesh(std::move(tetMesh)), material(desc.material),
-        system(*mesh, material,
+        system(*mesh, material, desc.damping,
                ContactModel{.stiffness = desc.collisionStiffness,
                             .epsilon = desc.collisionEpsilon,
                             .damping = desc.collisionDamping},
@@ -220,6 +220,20 @@ struct World::Impl {
       Malformed("a SoftBody needs a positive collisionEpsilon and "
                 "non-negative collision stiffness, damping and drag");
     }
+    std::visit(Overloaded{[](const NoDamping &) {},
+                          [](const GreenDamping &green) {
+                            if (!(green.mu >= 0)) {
+                              Malformed("GreenDamping needs a non-negative mu");
+                            }
+                          },
+                          [](const Rayleigh &rayleigh) {
+                            if (!(rayleigh.mass >= 0 &&
+                                  rayleigh.stiffness >= 0)) {
+                              Malformed("Rayleigh damping needs non-negative "
+                                        "mass and stiffness coefficients");
+                            }
+                          }},
+               static_cast<const DampingModel &>(softBody.damping));
     std::vector<int> surface(mesh->f.data(), mesh->f.data() + mesh->f.size());
     std::ranges::sort(surface);
     const auto [last, end] = std::ranges::unique(surface);

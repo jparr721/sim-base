@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Energy/Collision/VertexFaceSqrtCollision.h>
+#include <Energy/Damping/Damping.h>
 #include <Energy/Volume/Material.h>
 #include <Solid/Constraints.h>
 #include <Solid/Contact.h>
@@ -13,14 +14,16 @@ namespace sim {
 
 // Global assembly over one TetMesh: the one place per-tet and per-contact
 // quantities scatter into DOF-sized vectors and matrices. Both references must
-// outlive it, and the mesh's pins are read once, here. `drag` (1/s) is
-// mass-proportional damping, -drag M v.
+// outlive it, and the mesh's pins are read once, here. `damping` is the
+// material's, and `drag` (1/s) is mass-proportional damping, -drag M v. Every
+// damping force is linear in v, so Forces(x, v) = Forces(x, 0) -
+// DampingMatrix(x) v.
 class ElasticSystem {
 public:
-  ElasticSystem(const TetMesh &mesh, const Material &material,
+  ElasticSystem(const TetMesh &mesh, const Material &material, Damping damping,
                 ContactModel contact = {}, Real drag = 0);
-  ElasticSystem(TetMesh &&, const Material &) = delete;
-  ElasticSystem(const TetMesh &, Material &&) = delete;
+  ElasticSystem(TetMesh &&, const Material &, Damping) = delete;
+  ElasticSystem(const TetMesh &, Material &&, Damping) = delete;
 
   // The contacts every later evaluation includes, until the next call.
   void SetContacts(std::vector<SoftContact> found) {
@@ -42,6 +45,7 @@ public:
 private:
   const TetMesh &mesh;
   const Material &material;
+  Damping damping;
   ContactModel contact;
   Real drag;
   sim::Constraints constraints;
@@ -53,6 +57,11 @@ private:
 
   [[nodiscard]] auto DeformationGradient(const Vec<Real> &x, int tet) const
       -> Mat3<Real>;
+  [[nodiscard]] auto RayleighMatrix(const Rayleigh &rayleigh,
+                                    const Vec<Real> &x) const -> SparseMat<Real>;
+  // The elastic terms of Stiffness, without the contacts.
+  [[nodiscard]] auto ElasticStiffness(const Vec<Real> &x, bool clamped) const
+      -> std::vector<Eigen::Triplet<Real>>;
 };
 
 static_assert(System<ElasticSystem>);

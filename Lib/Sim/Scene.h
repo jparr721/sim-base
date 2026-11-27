@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Energy/Damping/Damping.h>
 #include <Energy/Volume/Material.h>
 #include <LibMath.h>
 #include <Solid/Integrators.h>
@@ -52,6 +53,9 @@ struct SoftBody {
   Material material;
   // Required: Integrator has no default, so leaving this out does not compile.
   Integrator integrator;
+  // Required, the same way: NoDamping{}, GreenDamping{.mu = ...} or
+  // Rayleigh{.mass = ..., .stiffness = ...}.
+  Damping damping;
   // Vertices strictly inside this body-local box (recentered, before scale
   // and rotation) are pinned.
   std::optional<Eigen::AlignedBox<Real, 3>> pinRegion;
