@@ -78,6 +78,16 @@ auto BunnyDropImplicit() -> SceneDesc {
                    BackwardEuler{.maxNewtonIterations = 25}, NoDamping{}, 0.02);
 }
 
+// bunny-drop-implicit with Green-strain damping. The undamped bunny keeps
+// jiggling as it slides, and its max vertex speed stays above 1e-3 until
+// step 370 (18.5 s). This one stays below it from step 275 (13.75 s), and
+// Newton's worst step takes 7 iterations instead of 14.
+auto BunnyDropImplicitDamped() -> SceneDesc {
+  return BunnyRamp("bunny-drop-implicit-damped", 1.0 / 20,
+                   BackwardEuler{.maxNewtonIterations = 25},
+                   GreenDamping{.mu = 2}, 0.02);
+}
+
 auto StrandBend() -> SceneDesc {
   return {
       .name = "strand-bend",
@@ -170,6 +180,7 @@ auto FrameDebug() -> SceneDesc {
 constexpr std::array kCatalog = {
     SceneEntry{"bunny-drop", BunnyDrop},
     SceneEntry{"bunny-drop-implicit", BunnyDropImplicit},
+    SceneEntry{"bunny-drop-implicit-damped", BunnyDropImplicitDamped},
     SceneEntry{"strand-bend", StrandBend},
     SceneEntry{"strand-twist", StrandTwist},
     SceneEntry{"strand-drop", StrandDrop},
