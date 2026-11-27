@@ -60,7 +60,7 @@ target_compile_options(GenerateGolden PRIVATE ${SIM_WARNINGS})
 add_library(PublicHeadersCxx20 OBJECT PublicHeadersCxx20.cc)
 target_link_libraries(PublicHeadersCxx20 PRIVATE sim)
 set_target_properties(PublicHeadersCxx20 PROPERTIES CXX_STANDARD 20 CXX_EXTENSIONS ON)
-target_compile_options(PublicHeadersCxx20 PRIVATE ${SIM_WARNINGS})
+target_compile_options(PublicHeadersCxx20 PRIVATE ${SIM_WARNINGS} -Werror)
 
 # A game with its own global PI, E, ASSERT, VERSION and Real includes the core.
 add_library(EmbedNoCollisions OBJECT EmbedNoCollisions.cc)
