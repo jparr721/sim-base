@@ -213,8 +213,40 @@ Each one adds a struct satisfying `sim::Energy`, a `Material` alternative, a lin
 - H3 and H5 change how scenes are authored (bodies gain required fields), so they wait for the operator's review before merge.
 - Every PR's description includes a "no HOBAK code" statement, and the reviewer checks it.
 
+### S1. Place bodies by centroid (operator request, 2026-11-26)
+- **Depends on:** M0. Independent of H1 to H3, so it can land first.
+- **Why:** bodies are authored in raw world coordinates today. `Strand::points` is a world-space matrix, `SoftBody::pinRegion` is a world-space box, and `Collider` only takes a translation offset. Moving a body means rewriting all of its geometry.
+- **Change:** every body is a shape plus a placement.
+  ```cpp
+  struct Placement { Vec3<Real> centroid = Vec3<Real>::Zero(); Eigen::Quaternion<Real> rotation = Eigen::Quaternion<Real>::Identity(); Real scale = 1; };
+  struct MeshFile { fs::path path; };
+  struct Box { Vec3<Real> halfExtents; };            // colliders: floor, ramp, walls
+  struct SoftBody { MeshFile mesh; Placement place; Material material; std::optional<Eigen::AlignedBox<Real,3>> pinRegion; /* body-local */ };
+  struct Collider { std::variant<MeshFile, Box> shape; Placement place; };
+  struct Strand { Mat<Real> points; Placement place; ... };   // points are body-local
+  ```
+  - `World` recenters each rest shape on its centroid (volume-weighted for tet meshes, area-weighted for collider surfaces, vertex mean for strands), then applies scale, rotation and translation.
+  - Pin regions and `MoveCollider` paths are body-local, so moving a body doesn't break them.
+  - `MoveCollider` moves `place.centroid`.
+- **Unit:** a placed body's rest centroid equals `place.centroid` to 1e-12, rotation keeps edge lengths and tet volumes to 1e-12, and identity placement reproduces every current golden bit for bit.
+
+### C1. Soft bodies collide with static colliders (operator request, 2026-11-26)
+- **Depends on:** H2, because contact forces and stiffness are assembled in `ElasticSystem` so explicit and implicit integrators both get them.
+- **Today:** only strand vertices collide, through `VertexFaceSqrtCollision`. That type has `Gradient` only. It has no `Psi` or Hessian, it isn't an `ElementEnergy`, and nothing tests it.
+- **Change:**
+  - Port `VertexFaceSqrtCollision` to `ElementEnergy<12>` with Psi, Gradient, Hessian and ClampedHessian, derived from the published math.
+  - Detect soft-body surface vertices against collider triangles each step, the same way strands do.
+  - Add the contact terms to `ElasticSystem::Forces` and `Stiffness`.
+  - Contact is frictionless, so the bunny slides. Friction is a later, separate energy.
+- **Scene:** `bunny-drop` becomes unpinned. The bunny starts above a tilted `Box` ramp, slides down it and settles on a `Box` floor. The golden is regenerated with that reason.
+- **Unit:**
+  - The collision energy passes the `ElementEnergy` FD suite (gradient vs FD of Psi, Hessian vs FD of gradient, ≤1e-6 relative) and the PSD clamp test.
+  - A single tet dropped on a floor comes to rest with no vertex below the floor minus the envelope.
+  - On a frictionless ramp, the tet's centroid acceleration along the slope matches g·sin θ within 2%.
+- **Live:** `just demo` shows the bunny falling, sliding down the ramp and resting on the floor. Stats stay finite, and the bunny never passes through either collider.
+
 ## Open calls (operator)
-1. **Volume collisions.** HOBAK's vertex-face and edge-edge collision energies (Kim's sqrt / hybrid) and self-collision are not in this plan. The voxel game wants a static ray query against voxel chunks first.
+1. **Volume collisions.** Static-collider contact for soft bodies is now C1 (operator, 2026-11-26). Edge-edge contact, self-collision and friction remain out of scope. The voxel game wants a static ray query against voxel chunks first.
 Settled 2026-11-26: there is no default integrator, because every body declares one. Strands on the shared integrators are in scope (H5). Bending stiffness follows the paper (M0).
 
 ## Unproven until executed
