@@ -6,9 +6,11 @@
 #include <cmath>
 #include <iostream>
 #include <limits>
-#include <numbers>
 #include <memory>
+#include <numbers>
+#include <random>
 #include <string>
+#include <vector>
 
 using namespace sim;
 
@@ -390,6 +392,106 @@ TEST_P(Integrators, QuasistaticIgnoresDamping) {
   ASSERT_TRUE(damped.Step(Quasistatic{}, 0).converged);
   EXPECT_LE((damped.state.x - undamped.state.x).lpNorm<Eigen::Infinity>(),
             1e-12);
+}
+
+// A Green-damped body mid-step: stretched 5% and moving, with random offsets
+// of `scale` per DOF from it as the step's xA, xV and a point y far from both.
+struct MidStep {
+  Body body;
+  Vec<Real> xA;
+  Vec<Real> xV;
+  Vec<Real> y;
+};
+
+auto GreenMidStep(const std::string &name) -> MidStep {
+  Body body = Stretched(name, GreenDamping{.mu = 2});
+  std::mt19937 rng(5);
+  std::uniform_real_distribution<Real> offset(-0.02, 0.02);
+  const auto near = [&](const Vec<Real> &x) {
+    Vec<Real> out = x;
+    for (Real &value : out) {
+      value += offset(rng);
+    }
+    return out;
+  };
+  const Vec<Real> x = body.state.x;
+  return {.body = std::move(body), .xA = near(x), .xV = near(x), .y = near(x)};
+}
+
+// Each implicit method's (alphaA, alphaV) at a 20 Hz tick, with Newmark's
+// trapezoidal beta = 1/4 and gamma = 1/2.
+struct MethodScale {
+  std::string method;
+  Real alphaA;
+  Real alphaV;
+};
+
+auto MethodScales() -> std::vector<MethodScale> {
+  constexpr Real dt = 1.0 / 20;
+  return {{"BackwardEuler", 1 / (dt * dt), 1 / dt},
+          {"Newmark", 1 / (0.25 * dt * dt), 0.5 / (0.25 * dt)},
+          {"Bdf2", 9 / (4 * dt * dt), 3 / (2 * dt)}};
+}
+
+// Newton line-searches Phi and drives its Gradient to zero, so Gradient must
+// be grad Phi everywhere, not only at the iterate: a central difference of
+// Phi along random directions matches it. Green damping's D depends on x,
+// which is where an objective built from D at one iterate parts from the
+// residual.
+TEST_P(Integrators, PotentialGradientIsTheNewtonResidual) {
+  const MidStep mid = GreenMidStep(GetParam());
+  std::mt19937 rng(7);
+  std::normal_distribution<Real> normal;
+  for (const MethodScale &scale : MethodScales()) {
+    const detail::AffineStep map{.alphaA = scale.alphaA,
+                                 .xA = mid.xA,
+                                 .alphaV = scale.alphaV,
+                                 .xV = mid.xV};
+    const detail::IncrementalPotential phi(*mid.body.system, map,
+                                           mid.body.external);
+    const Vec<Real> g = phi.Gradient(mid.y);
+    Real worst = 0;
+    for (int direction = 0; direction < 4; ++direction) {
+      Vec<Real> d(g.size());
+      for (Real &value : d) {
+        value = normal(rng);
+      }
+      d.normalize();
+      constexpr Real h = 1e-6;
+      const Real fd =
+          (phi(mid.y + h * d).value - phi(mid.y - h * d).value) / (2 * h);
+      worst = std::max(worst, std::abs(fd - g.dot(d)) / g.norm());
+    }
+    std::cout << "[ measured ] " << GetParam() << " " << scale.method
+              << ": |FD - g . d| / |g| at most " << worst << "\n";
+    EXPECT_LE(worst, 1e-6) << scale.method;
+  }
+}
+
+// Phi is one function for the whole step: a Newton iterate leaves Phi(y) at a
+// fixed y as it was. And it is the function Step solves: after a
+// BackwardEuler step its gradient at the new positions is within tolerance.
+TEST_P(Integrators, PotentialIsFixedAcrossNewtonIterates) {
+  MidStep mid = GreenMidStep(GetParam());
+  Body &body = mid.body;
+  body.state.v = 10 * (mid.xV - body.state.x);
+  constexpr Real dt = 1.0 / 20;
+  const detail::AffineStep map{.alphaA = 1 / (dt * dt),
+                               .xA = body.state.x + dt * body.state.v,
+                               .alphaV = 1 / dt,
+                               .xV = body.state.x};
+  const detail::IncrementalPotential phi(*body.system, map, body.external);
+  const Real before = phi(mid.y).value;
+  Vec<Real> x;
+  const StepReport one = detail::Newton(phi, map.xA, 1, 0, x);
+  EXPECT_EQ(one.newtonIterations, 1);
+  EXPECT_LT(phi(x).value, phi(map.xA).value);
+  EXPECT_EQ(phi(mid.y).value, before);
+
+  const BackwardEuler method{.maxNewtonIterations = kIterations,
+                             .tolerance = kTight};
+  ASSERT_TRUE(body.Step(method, dt).converged);
+  EXPECT_LE(phi.Gradient(body.state.x).lpNorm<Eigen::Infinity>(), kTight);
 }
 
 INSTANTIATE_TEST_SUITE_P(TetAndBunny, Integrators,

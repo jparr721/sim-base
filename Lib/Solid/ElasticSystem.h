@@ -43,6 +43,10 @@ public:
   [[nodiscard]] auto Stiffness(const Vec<Real> &x, bool clamped) const
       -> SparseMat<Real>;
   [[nodiscard]] auto DampingMatrix(const Vec<Real> &x) const -> SparseMat<Real>;
+  [[nodiscard]] auto Dissipation(const Vec<Real> &x, const Vec<Real> &xV,
+                                 Real alphaV) const -> Real;
+  [[nodiscard]] auto StepForces(const Vec<Real> &x, const Vec<Real> &xV,
+                                Real alphaV) const -> Vec<Real>;
   [[nodiscard]] auto Constraints() const -> const sim::Constraints & {
     return constraints;
   }
@@ -71,6 +75,13 @@ private:
 
   [[nodiscard]] auto DeformationGradient(const Vec<Real> &x, int tet) const
       -> Mat3<Real>;
+  // The elastic and contact forces, with contact damping and drag.
+  [[nodiscard]] auto ForcesWithoutMaterialDamping(const Vec<Real> &x,
+                                                  const Vec<Real> &v) const
+      -> Vec<Real>;
+  void AddDampingStress(Vec<Real> &forces, int tet, const Mat3<Real> &p) const;
+  // The damping given as a matrix: contacts, drag and Rayleigh.
+  [[nodiscard]] auto MatrixDamping(const Vec<Real> &x) const -> SparseMat<Real>;
   [[nodiscard]] auto RayleighMatrix(const Rayleigh &rayleigh,
                                     const Vec<Real> &x) const
       -> SparseMat<Real>;
@@ -79,6 +90,6 @@ private:
       -> std::vector<Eigen::Triplet<Real>>;
 };
 
-static_assert(System<ElasticSystem>);
+static_assert(StepDissipativeSystem<ElasticSystem>);
 
 } // namespace sim

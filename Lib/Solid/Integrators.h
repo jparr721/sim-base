@@ -103,55 +103,119 @@ void Project(const Constraints &constraints, Vec<Real> &y);
 
 auto LumpedInverse(const SparseMat<Real> &mass) -> Vec<Real>;
 
-// Solves the method's force residual g(x) = M a(x) - Forces(x, v(x)) -
-// external = 0 by Newton from `guess`. Iterate x_k minimizes along its step
-// Phi_k(y) = alphaA/2 |y - xA|^2_M + alphaV/2 |y - xV|^2_{D_k} + E(y) -
-// external . y, with D_k = DampingMatrix(x_k). The D_k term is the Rayleigh
-// dissipation potential 1/2 v^T D v scaled to the method. Every damping force
-// is linear in v, Forces(x, v) = Forces(x, 0) - D(x) v, so
-// grad Phi_k(x_k) = g(x_k), and a decrease of Phi_k is progress on g. Each
-// Newton step solves (alphaA M + K + alphaV D_k) dx = -g with the clamped K,
-// then backtracks on Phi_k (Armijo). The Jacobian leaves out how D(x) v
-// changes with x, which is zero for contact damping and drag, so Newton is
-// exact for them and converges linearly under material damping.
-template <System S>
-auto Newton(const S &system, const AffineStep &map, const Vec<Real> &external,
-            const Vec<Real> &guess, int maxIterations, Real tolerance,
-            Vec<Real> &x) -> StepReport {
-  const Constraints &constraints = system.Constraints();
-  const SparseMat<Real> &mass = system.Mass();
-  SparseMat<Real> damping = system.DampingMatrix(guess);
-  // Phi_k, and the sum of its terms' magnitudes, which scales its round-off.
-  struct Potential {
+// Each implicit step solves for the end-of-step positions by minimizing one
+// incremental potential, fixed for the whole step:
+//
+//   Phi(y) = alphaA/2 |y - xA|^2_M + E(y) - external . y + W(y).
+//
+// W is the dissipation the step does. Over a step of length h = 1 / alphaV,
+// with v(y) = (y - xV) / h, it is h times the dissipation potential at the
+// step's mean rates. Damping given as a matrix D (contacts, drag, Rayleigh)
+// adds h v^T D v / 2 = alphaV/2 |y - xV|^2_D, with D taken at xV. Green
+// damping adds, over tets, V h Psi_d at the mean strain rate
+// (E(F(y)) - E(F(xV))) / h, which is GreenDamping::StepPsi. Per method:
+//
+//   BackwardEuler  alphaA = 1 / dt^2,        h = dt,             xV = x_n.
+//   Newmark        alphaA = 1 / (beta dt^2), h = beta dt / gamma,
+//                  xV = xA - h (v_n + (1 - gamma) dt a_n).
+//   Bdf2           alphaA = 9 / (4 dt^2),    h = 2 dt / 3,
+//                  xV = (4 x_n - x_{n-1}) / 3.
+//   Quasistatic    alphaA = 0, and no W.
+//
+// xA is each Step's inertial target. grad Phi is the residual Newton drives
+// to zero: M a(y) minus the step's forces, which are the elastic and contact
+// forces, -D v(y), and Green damping's StepPk1 stress
+// 2 mu F (E(F) - E(F(xV))) / h. As h shrinks that stress tends to the rate
+// form 2 mu F Edot, and unlike the rate form it leaves a rigid step undamped
+// however far it turns. A System that is not a StepDissipativeSystem gets
+// D = DampingMatrix(xV) for all of its damping.
+template <System S> class IncrementalPotential {
+public:
+  // Phi, and the sum of its terms' magnitudes, which scales its round-off.
+  struct Value {
     Real value;
     Real magnitude;
-    Real energy;
   };
-  const auto phiWith = [&](const Vec<Real> &y, Real energy) -> Potential {
+
+  // system, map and external must outlive the potential.
+  IncrementalPotential(const S &system, const AffineStep &map,
+                       const Vec<Real> &external)
+      : system(system), map(map), external(external) {
+    if constexpr (!StepDissipativeSystem<S>) {
+      fixedDamping = map.alphaV != 0
+                         ? system.DampingMatrix(map.xV)
+                         : SparseMat<Real>(system.Dofs(), system.Dofs());
+    }
+  }
+
+  auto operator()(const Vec<Real> &y) const -> Value {
     const Vec<Real> dA = y - map.xA;
-    const Vec<Real> dV = y - map.xV;
-    const Real inertia = map.alphaA / 2 * dA.dot(mass * dA);
-    const Real dissipation = map.alphaV / 2 * dV.dot(damping * dV);
+    const Real inertia = map.alphaA / 2 * dA.dot(system.Mass() * dA);
+    const Real dissipation = Dissipation(y);
+    const Real energy = system.Energy(y);
     const Real work = external.dot(y);
     return {.value = inertia + dissipation + energy - work,
             .magnitude =
-                inertia + dissipation + std::abs(energy) + std::abs(work),
-            .energy = energy};
-  };
-  const auto phi = [&](const Vec<Real> &y) -> Potential {
-    return phiWith(y, system.Energy(y));
-  };
-  const auto residual = [&](const Vec<Real> &y) -> Vec<Real> {
-    Vec<Real> g = map.alphaA * (mass * (y - map.xA)) -
-                  system.Forces(y, map.alphaV * (y - map.xV)) - external;
-    Project(constraints, g);
-    return g;
-  };
+                inertia + dissipation + std::abs(energy) + std::abs(work)};
+  }
 
+  // grad Phi, with the constrained DOFs zeroed.
+  auto Gradient(const Vec<Real> &y) const -> Vec<Real> {
+    Vec<Real> g =
+        map.alphaA * (system.Mass() * (y - map.xA)) - Forces(y) - external;
+    Project(system.Constraints(), g);
+    return g;
+  }
+
+  // alphaA M + K + alphaV D(y), with K clamped. Under Green damping it leaves
+  // out the indefinite term 2 mu dF (E(F) - E(F(xV))) / h, so Newton
+  // converges linearly there.
+  auto Hessian(const Vec<Real> &y) const -> SparseMat<Real> {
+    return map.alphaA * system.Mass() + system.Stiffness(y, true) +
+           map.alphaV * system.DampingMatrix(y);
+  }
+
+  auto Constraints() const -> const sim::Constraints & {
+    return system.Constraints();
+  }
+
+private:
+  const S &system;
+  const AffineStep &map;
+  const Vec<Real> &external;
+  SparseMat<Real> fixedDamping;
+
+  auto Dissipation(const Vec<Real> &y) const -> Real {
+    if constexpr (StepDissipativeSystem<S>) {
+      return system.Dissipation(y, map.xV, map.alphaV);
+    } else {
+      const Vec<Real> dV = y - map.xV;
+      return map.alphaV / 2 * dV.dot(fixedDamping * dV);
+    }
+  }
+
+  auto Forces(const Vec<Real> &y) const -> Vec<Real> {
+    if constexpr (StepDissipativeSystem<S>) {
+      return system.StepForces(y, map.xV, map.alphaV);
+    } else {
+      Vec<Real> forces = system.Forces(y, Vec<Real>::Zero(system.Dofs()));
+      forces -= fixedDamping * Vec<Real>(map.alphaV * (y - map.xV));
+      return forces;
+    }
+  }
+};
+
+// Minimizes phi by Newton from `guess`, until no free DOF's residual exceeds
+// tolerance. Each iteration solves Hessian dx = -Gradient, then backtracks
+// on phi (Armijo).
+template <System S>
+auto Newton(const IncrementalPotential<S> &phi, const Vec<Real> &guess,
+            int maxIterations, Real tolerance, Vec<Real> &x) -> StepReport {
+  using Value = typename IncrementalPotential<S>::Value;
   x = guess;
   StepReport report{.converged = false};
-  Vec<Real> g = residual(x);
-  Potential phiX = phi(x);
+  Vec<Real> g = phi.Gradient(x);
+  Value phiX = phi(x);
   for (;; ++report.newtonIterations) {
     if (!g.allFinite() || !std::isfinite(phiX.value)) {
       return report;
@@ -163,14 +227,7 @@ auto Newton(const S &system, const AffineStep &map, const Vec<Real> &external,
     if (report.newtonIterations == maxIterations) {
       return report;
     }
-    if (report.newtonIterations > 0 && map.alphaV != 0) {
-      damping = system.DampingMatrix(x);
-      phiX = phiWith(x, phiX.energy);
-    }
-    const SparseMat<Real> jacobian = map.alphaA * mass +
-                                     system.Stiffness(x, true) +
-                                     map.alphaV * damping;
-    const CgSolve solve = SolveFiltered(jacobian, constraints, -g);
+    const CgSolve solve = SolveFiltered(phi.Hessian(x), phi.Constraints(), -g);
     report.cgIterations += solve.iterations;
     const Real slope = g.dot(solve.dx);
     if (!(slope < 0)) {
@@ -187,8 +244,8 @@ auto Newton(const S &system, const AffineStep &map, const Vec<Real> &external,
         return report;
       }
       Vec<Real> trial = x + alpha * solve.dx;
-      Vec<Real> gTrial = residual(trial);
-      const Potential phiTrial = phi(trial);
+      Vec<Real> gTrial = phi.Gradient(trial);
+      const Value phiTrial = phi(trial);
       if (phiTrial.value <= phiX.value + 1e-4 * alpha * slope ||
           (phiTrial.value <= phiX.value + band &&
            gTrial.norm() <= (1 - 1e-4 * alpha) * gNorm)) {
@@ -230,8 +287,8 @@ auto Step(const BackwardEuler &method, const S &system, IntegratorState &state,
                                .xV = state.x};
   Vec<Real> x;
   const StepReport report =
-      detail::Newton(system, map, external, inertial,
-                     method.maxNewtonIterations, method.tolerance, x);
+      detail::Newton(detail::IncrementalPotential(system, map, external),
+                     inertial, method.maxNewtonIterations, method.tolerance, x);
   state.v = map.alphaV * (x - map.xV);
   detail::Project(system.Constraints(), state.v);
   state.x = std::move(x);
@@ -261,8 +318,9 @@ auto Step(const Newmark &method, const S &system, IntegratorState &state,
                                .xV = predicted - velocityPredicted / alphaV};
   Vec<Real> x;
   const StepReport report = detail::Newton(
-      system, map, external, Vec<Real>(state.x + dt * state.v),
-      method.maxNewtonIterations, method.tolerance, x);
+      detail::IncrementalPotential(system, map, external),
+      Vec<Real>(state.x + dt * state.v), method.maxNewtonIterations,
+      method.tolerance, x);
   state.a = alphaA * (x - map.xA);
   state.v = alphaV * (x - map.xV);
   detail::Project(system.Constraints(), state.a);
@@ -291,8 +349,9 @@ auto Step(const Bdf2 &method, const S &system, IntegratorState &state,
       .xV = xV};
   Vec<Real> x;
   const StepReport report = detail::Newton(
-      system, map, external, Vec<Real>(state.x + dt * state.v),
-      method.maxNewtonIterations, method.tolerance, x);
+      detail::IncrementalPotential(system, map, external),
+      Vec<Real>(state.x + dt * state.v), method.maxNewtonIterations,
+      method.tolerance, x);
   state.xPrevious = std::move(state.x);
   state.vPrevious = std::move(state.v);
   state.v = map.alphaV * (x - map.xV);
@@ -311,8 +370,8 @@ auto Step(const Quasistatic &method, const S &system, IntegratorState &state,
                                .xV = Vec<Real>::Zero(system.Dofs())};
   Vec<Real> x;
   const StepReport report =
-      detail::Newton(system, map, external, state.x,
-                     method.maxNewtonIterations, method.tolerance, x);
+      detail::Newton(detail::IncrementalPotential(system, map, external),
+                     state.x, method.maxNewtonIterations, method.tolerance, x);
   state.x = std::move(x);
   state.v.setZero();
   return report;

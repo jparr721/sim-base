@@ -119,8 +119,9 @@ auto ElasticSystem::Energy(const Vec<Real> &x) const -> Real {
 // The force on a tet's corners is -V vec(dF/dx)^T vec(P(F))
 // (Dynamic Deformables, "Force Computation"). A contact pushes its vertex by
 // minus the vertex block of the collision gradient and damps its velocity
-// along the triangle normal. Material damping follows, and is zero when v is.
-auto ElasticSystem::Forces(const Vec<Real> &x, const Vec<Real> &v) const
+// along the triangle normal.
+auto ElasticSystem::ForcesWithoutMaterialDamping(const Vec<Real> &x,
+                                                 const Vec<Real> &v) const
     -> Vec<Real> {
   Vec<Real> forces = Vec<Real>::Zero(Dofs());
   ForEachDensity(
@@ -147,30 +148,80 @@ auto ElasticSystem::Forces(const Vec<Real> &x, const Vec<Real> &v) const
   if (drag != 0) {
     forces -= drag * (mesh.m * v);
   }
+  return forces;
+}
+
+// Adds a damping stress P's force on the tet's corners, -V (dF/dx)^T vec(P).
+void ElasticSystem::AddDampingStress(Vec<Real> &forces, int tet,
+                                     const Mat3<Real> &p) const {
+  const Vec12<Real> force = -mesh.RestVolumes()[tet] *
+                            (mesh.PartialFPartialxs()[tet].transpose() *
+                             Vectorize(p));
+  for (int corner = 0; corner < 4; ++corner) {
+    forces.segment<3>(3 * mesh.t(tet, corner)) += force.segment<3>(3 * corner);
+  }
+}
+
+// A DampingEnergy's stress is P(F, Fdot), with vec(Fdot) = (dF/dx) v.
+auto ElasticSystem::Forces(const Vec<Real> &x, const Vec<Real> &v) const
+    -> Vec<Real> {
+  Vec<Real> forces = ForcesWithoutMaterialDamping(x, v);
   if (v.isZero(0)) {
     return forces;
   }
-  // A DampingEnergy's stress is P(F, Fdot), with vec(Fdot) = (dF/dx) v, and
-  // its force on the tet's corners is -V (dF/dx)^T vec(P).
   if (const auto *green = std::get_if<GreenDamping>(&damping)) {
     for (int tt = 0; tt < mesh.t.rows(); ++tt) {
-      const Mat9x12<Real> &dfdx = mesh.PartialFPartialxs()[tt];
-      const Vec9<Real> fdot = dfdx * TetValues(mesh.t, tt, v);
-      const Mat3<Real> p =
-          green->Pk1(DeformationGradient(x, tt),
-                     Eigen::Map<const Mat3<Real>>(fdot.data()));
-      const Vec12<Real> force =
-          -mesh.RestVolumes()[tt] * (dfdx.transpose() * Vectorize(p));
-      for (int corner = 0; corner < 4; ++corner) {
-        forces.segment<3>(3 * mesh.t(tt, corner)) +=
-            force.segment<3>(3 * corner);
-      }
+      const Vec9<Real> fdot =
+          mesh.PartialFPartialxs()[tt] * TetValues(mesh.t, tt, v);
+      AddDampingStress(forces, tt,
+                       green->Pk1(DeformationGradient(x, tt),
+                                  Eigen::Map<const Mat3<Real>>(fdot.data())));
     }
   }
   if (const auto *rayleigh = std::get_if<Rayleigh>(&damping)) {
     forces -= RayleighMatrix(*rayleigh, x) * v;
   }
   return forces;
+}
+
+// Green damping's stress is its StepPk1 from F(xV) over h = 1 / alphaV, and
+// Rayleigh's matrix is the one at xV.
+auto ElasticSystem::StepForces(const Vec<Real> &x, const Vec<Real> &xV,
+                               Real alphaV) const -> Vec<Real> {
+  const Vec<Real> v = alphaV * (x - xV);
+  Vec<Real> forces = ForcesWithoutMaterialDamping(x, v);
+  if (v.isZero(0)) {
+    return forces;
+  }
+  if (const auto *green = std::get_if<GreenDamping>(&damping)) {
+    for (int tt = 0; tt < mesh.t.rows(); ++tt) {
+      AddDampingStress(forces, tt,
+                       green->StepPk1(DeformationGradient(x, tt),
+                                      DeformationGradient(xV, tt), 1 / alphaV));
+    }
+  }
+  if (const auto *rayleigh = std::get_if<Rayleigh>(&damping)) {
+    forces -= RayleighMatrix(*rayleigh, xV) * v;
+  }
+  return forces;
+}
+
+// alphaV / 2 |x - xV|^2_D with D the matrix damping at xV, which is
+// 1 / alphaV times the Rayleigh dissipation potential v^T D v / 2, plus
+// Green damping's StepPsi over each tet.
+auto ElasticSystem::Dissipation(const Vec<Real> &x, const Vec<Real> &xV,
+                                Real alphaV) const -> Real {
+  const Vec<Real> dV = x - xV;
+  Real dissipation = alphaV / 2 * dV.dot(MatrixDamping(xV) * dV);
+  const auto *green = std::get_if<GreenDamping>(&damping);
+  if (green != nullptr && alphaV != 0) {
+    for (int tt = 0; tt < mesh.t.rows(); ++tt) {
+      dissipation += mesh.RestVolumes()[tt] *
+                     green->StepPsi(DeformationGradient(x, tt),
+                                    DeformationGradient(xV, tt), 1 / alphaV);
+    }
+  }
+  return dissipation;
 }
 
 // Each tet adds V (dF/dx)^T H (dF/dx), a 12x12 block, where H is the energy's
@@ -220,26 +271,14 @@ auto ElasticSystem::RayleighMatrix(const Rayleigh &rayleigh,
   return rayleigh.mass * mesh.m + rayleigh.stiffness * k;
 }
 
-// -dForces/dv: each contact's normal damping, the drag, and the material
-// damping. A DampingEnergy's tet block is V (dF/dx)^T H (dF/dx), with H its
-// Hessian over vec(Fdot).
-auto ElasticSystem::DampingMatrix(const Vec<Real> &x) const
+// Each contact's normal damping, the drag, and Rayleigh's matrix at x.
+auto ElasticSystem::MatrixDamping(const Vec<Real> &x) const
     -> SparseMat<Real> {
   std::vector<Eigen::Triplet<Real>> triplets;
   for (const SoftContact &c : contacts) {
     const Vec3<Real> n = UnitNormal(c);
     AddBlock(triplets, c.vertex,
              VertexMass(c.vertex) * contact.damping * n * n.transpose());
-  }
-  if (const auto *green = std::get_if<GreenDamping>(&damping)) {
-    triplets.reserve(triplets.size() + 144 * mesh.t.rows());
-    for (int tt = 0; tt < mesh.t.rows(); ++tt) {
-      const Mat9<Real> h =
-          green->Hessian(DeformationGradient(x, tt), Mat3<Real>::Zero());
-      const Mat9x12<Real> &dfdx = mesh.PartialFPartialxs()[tt];
-      AddTetBlock(triplets, mesh.t, tt,
-                  mesh.RestVolumes()[tt] * (dfdx.transpose() * h * dfdx));
-    }
   }
   SparseMat<Real> d(Dofs(), Dofs());
   d.setFromTriplets(triplets.begin(), triplets.end());
@@ -248,6 +287,28 @@ auto ElasticSystem::DampingMatrix(const Vec<Real> &x) const
   }
   if (const auto *rayleigh = std::get_if<Rayleigh>(&damping)) {
     d += RayleighMatrix(*rayleigh, x);
+  }
+  return d;
+}
+
+// -dForces/dv: the matrix damping, plus a DampingEnergy's tet blocks
+// V (dF/dx)^T H (dF/dx), with H its Hessian over vec(Fdot).
+auto ElasticSystem::DampingMatrix(const Vec<Real> &x) const
+    -> SparseMat<Real> {
+  SparseMat<Real> d = MatrixDamping(x);
+  if (const auto *green = std::get_if<GreenDamping>(&damping)) {
+    std::vector<Eigen::Triplet<Real>> triplets;
+    triplets.reserve(144 * mesh.t.rows());
+    for (int tt = 0; tt < mesh.t.rows(); ++tt) {
+      const Mat9<Real> h =
+          green->Hessian(DeformationGradient(x, tt), Mat3<Real>::Zero());
+      const Mat9x12<Real> &dfdx = mesh.PartialFPartialxs()[tt];
+      AddTetBlock(triplets, mesh.t, tt,
+                  mesh.RestVolumes()[tt] * (dfdx.transpose() * h * dfdx));
+    }
+    SparseMat<Real> energy(Dofs(), Dofs());
+    energy.setFromTriplets(triplets.begin(), triplets.end());
+    d += energy;
   }
   return d;
 }
