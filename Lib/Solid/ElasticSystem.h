@@ -58,7 +58,8 @@ private:
   [[nodiscard]] auto DeformationGradient(const Vec<Real> &x, int tet) const
       -> Mat3<Real>;
   [[nodiscard]] auto RayleighMatrix(const Rayleigh &rayleigh,
-                                    const Vec<Real> &x) const -> SparseMat<Real>;
+                                    const Vec<Real> &x) const
+      -> SparseMat<Real>;
   // The elastic terms of Stiffness, without the contacts.
   [[nodiscard]] auto ElasticStiffness(const Vec<Real> &x, bool clamped) const
       -> std::vector<Eigen::Triplet<Real>>;

@@ -91,7 +91,8 @@ TEST(GreenDamping, HessianIsPsdAndPsiIsItsQuadraticForm) {
     const auto eigenvalues =
         Eigen::SelfAdjointEigenSolver<Mat9<Real>>(h, Eigen::EigenvaluesOnly)
             .eigenvalues();
-    EXPECT_GE(eigenvalues.minCoeff(), -1e-12 * eigenvalues.cwiseAbs().maxCoeff());
+    EXPECT_GE(eigenvalues.minCoeff(),
+              -1e-12 * eigenvalues.cwiseAbs().maxCoeff());
   }
 }
 

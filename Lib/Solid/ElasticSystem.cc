@@ -156,12 +156,14 @@ auto ElasticSystem::Forces(const Vec<Real> &x, const Vec<Real> &v) const
     for (int tt = 0; tt < mesh.t.rows(); ++tt) {
       const Mat9x12<Real> &dfdx = mesh.PartialFPartialxs()[tt];
       const Vec9<Real> fdot = dfdx * TetValues(mesh.t, tt, v);
-      const Mat3<Real> p = green->Pk1(
-          DeformationGradient(x, tt), Eigen::Map<const Mat3<Real>>(fdot.data()));
+      const Mat3<Real> p =
+          green->Pk1(DeformationGradient(x, tt),
+                     Eigen::Map<const Mat3<Real>>(fdot.data()));
       const Vec12<Real> force =
           -mesh.RestVolumes()[tt] * (dfdx.transpose() * Vectorize(p));
       for (int corner = 0; corner < 4; ++corner) {
-        forces.segment<3>(3 * mesh.t(tt, corner)) += force.segment<3>(3 * corner);
+        forces.segment<3>(3 * mesh.t(tt, corner)) +=
+            force.segment<3>(3 * corner);
       }
     }
   }
@@ -210,7 +212,8 @@ auto ElasticSystem::Stiffness(const Vec<Real> &x, bool clamped) const
 
 // mass M + stiffness K(x), with K the clamped elastic stiffness.
 auto ElasticSystem::RayleighMatrix(const Rayleigh &rayleigh,
-                                   const Vec<Real> &x) const -> SparseMat<Real> {
+                                   const Vec<Real> &x) const
+    -> SparseMat<Real> {
   const std::vector<Eigen::Triplet<Real>> triplets = ElasticStiffness(x, true);
   SparseMat<Real> k(Dofs(), Dofs());
   k.setFromTriplets(triplets.begin(), triplets.end());
@@ -231,11 +234,11 @@ auto ElasticSystem::DampingMatrix(const Vec<Real> &x) const
   if (const auto *green = std::get_if<GreenDamping>(&damping)) {
     triplets.reserve(triplets.size() + 144 * mesh.t.rows());
     for (int tt = 0; tt < mesh.t.rows(); ++tt) {
-      const Mat3<Real> f = DeformationGradient(x, tt);
+      const Mat9<Real> h =
+          green->Hessian(DeformationGradient(x, tt), Mat3<Real>::Zero());
       const Mat9x12<Real> &dfdx = mesh.PartialFPartialxs()[tt];
       AddTetBlock(triplets, mesh.t, tt,
-                  mesh.RestVolumes()[tt] *
-                      (dfdx.transpose() * green->Hessian(f, Mat3<Real>::Zero()) * dfdx));
+                  mesh.RestVolumes()[tt] * (dfdx.transpose() * h * dfdx));
     }
   }
   SparseMat<Real> d(Dofs(), Dofs());

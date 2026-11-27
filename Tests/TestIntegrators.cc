@@ -423,8 +423,8 @@ TEST(DampedIntegrators, MassDampingDecaysTranslationAtEachMethodsRate) {
       previous = speed;
       speed = expected;
     }
-    const Real error =
-        (body.state.v - speed * v0.replicate(4, 1)).norm() / (speed * v0.norm() * 2);
+    const Vec<Real> expected = speed * v0.replicate(4, 1);
+    const Real error = (body.state.v - expected).norm() / expected.norm();
     std::cout << "[ measured ] speed ratio " << speed << " (exact e^-alpha t "
               << std::exp(-alpha * dt * steps) << "), relative error " << error
               << ", max Newton " << maxNewton << "\n";
@@ -437,9 +437,10 @@ TEST(DampedIntegrators, MassDampingDecaysTranslationAtEachMethodsRate) {
                               .tolerance = kTight},
                 [&](int, Real v, Real) { return v / (1 + a); }),
             2);
-  EXPECT_LE(run(Newmark{.maxNewtonIterations = kIterations, .tolerance = kTight},
-                [&](int, Real v, Real) { return v * (1 - a / 2) / (1 + a / 2); }),
-            2);
+  EXPECT_LE(
+      run(Newmark{.maxNewtonIterations = kIterations, .tolerance = kTight},
+          [&](int, Real v, Real) { return v * (1 - a / 2) / (1 + a / 2); }),
+      2);
   EXPECT_LE(run(Bdf2{.maxNewtonIterations = kIterations, .tolerance = kTight},
                 [&](int step, Real v, Real previous) {
                   return step == 1 ? v / (1 + a)
