@@ -3,6 +3,7 @@
 #include <Energy/Volume/Energy.h>
 #include <Energy/Volume/LinearElasticity.h>
 #include <Energy/Volume/Material.h>
+#include <Energy/Volume/NeoHookeanBonetWood.h>
 #include <Energy/Volume/StVenantKirchhoff.h>
 #include <Energy/Volume/StableNeoHookean.h>
 #include <Sim/Scene.h>

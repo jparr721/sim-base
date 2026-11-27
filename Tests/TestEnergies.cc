@@ -3,6 +3,7 @@
 // when it is not isotropic or not defined for every F.
 
 #include <Energy/Volume/LinearElasticity.h>
+#include <Energy/Volume/NeoHookeanBonetWood.h>
 #include <Energy/Volume/StVenantKirchhoff.h>
 #include <Energy/Volume/StableNeoHookean.h>
 
@@ -163,10 +164,28 @@ struct HandDerived<LinearElasticity> : HandDerivedInput<LinearElasticity> {
   static auto Pk1() -> Mat3<Real> { return Vec3<Real>(4, 2, 2).asDiagonal(); }
 };
 
+// J = 2 >= kGuardJ, so log J is exact. |F|^2 = 6, F^-T = diag(1/2, 1, 1):
+// Psi = 1/2 (6 - 3) - log 2 + 2/2 (log 2)^2 = 3/2 - log 2 + (log 2)^2.
+// P = (F - F^-T) + 2 log 2 F^-T = diag(3/2 + log 2, 2 log 2, 2 log 2).
+template <>
+struct HandDerived<NeoHookeanBonetWood>
+    : HandDerivedInput<NeoHookeanBonetWood> {
+  static auto Psi() -> Real {
+    return Real(1.5) - std::log(Real(2)) + std::pow(std::log(Real(2)), 2);
+  }
+  static auto Pk1() -> Mat3<Real> {
+    const Real ln2 = std::log(Real(2));
+    return Vec3<Real>(Real(1.5) + ln2, 2 * ln2, 2 * ln2).asDiagonal();
+  }
+};
+
 template <typename E> class EnergyTest : public testing::Test {};
 
 using Energies =
-    testing::Types<StableNeoHookean, StVenantKirchhoff, LinearElasticity>;
+    testing::Types<StableNeoHookean,
+                   StVenantKirchhoff,
+                   LinearElasticity,
+                   NeoHookeanBonetWood>;
 TYPED_TEST_SUITE(EnergyTest, Energies);
 
 TEST(EnergySamples, IncludeInvertedF) {
@@ -281,6 +300,36 @@ TYPED_TEST(EnergyTest, MatchesHandDerivedValue) {
   const TypeParam e = Hand::Make();
   EXPECT_NEAR(e.Psi(Hand::F()), Hand::Psi(), 1e-14);
   EXPECT_LE((e.Pk1(Hand::F()) - Hand::Pk1()).norm(), 1e-14);
+}
+
+// F = diag(1, 1, t) as t falls from 1 through the guard at t = kGuardJ, to 0
+// and into inversion: Psi, P and the Hessian stay finite, Psi keeps growing,
+// and Psi and P are continuous across the guard.
+TEST(NeoHookeanBonetWood, GuardIsFiniteAndGrowsAsJShrinks) {
+  const NeoHookeanBonetWood e{kLame};
+  const auto at = [](Real t) -> Mat3<Real> {
+    return Vec3<Real>(1, 1, t).asDiagonal();
+  };
+  Real previous = e.Psi(at(1));
+  for (const Real t : {0.5, 0.2, 0.11, 0.1, 0.09, 0.05, 1e-2, 1e-4, 1e-8, 0.0,
+                       -1e-8, -0.1, -1.0}) {
+    const Real psi = e.Psi(at(t));
+    EXPECT_TRUE(std::isfinite(psi)) << "t = " << t;
+    EXPECT_TRUE(e.Pk1(at(t)).allFinite()) << "t = " << t;
+    EXPECT_TRUE(e.Hessian(at(t)).allFinite()) << "t = " << t;
+    EXPECT_GT(psi, previous) << "t = " << t;
+    previous = psi;
+  }
+
+  // A step of 2 dt across the guard changes Psi and P by no more than their
+  // slopes allow, so neither jumps there.
+  constexpr Real g = NeoHookeanBonetWood::kGuardJ;
+  constexpr Real dt = 1e-9;
+  const Real slack = 2 * dt * 1.01;
+  EXPECT_LE(std::abs(e.Psi(at(g - dt)) - e.Psi(at(g + dt))),
+            slack * e.Pk1(at(g)).norm());
+  EXPECT_LE((e.Pk1(at(g - dt)) - e.Pk1(at(g + dt))).norm(),
+            slack * e.Hessian(at(g)).norm());
 }
 
 TEST(RotationVariantSvd, ReconstructsWithRotations) {

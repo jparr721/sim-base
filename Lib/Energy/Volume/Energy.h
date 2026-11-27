@@ -75,4 +75,60 @@ SIM_INLINE auto ClampedIsotropicHessian(const Svd &svd,
   return h;
 }
 
+// dJ/dF for J = det F: the cofactor matrix, column i is the cross product of
+// the other two.
+SIM_INLINE auto Cofactor(const Mat3<Real> &f) -> Mat3<Real> {
+  Mat3<Real> g;
+  g.col(0) = f.col(1).cross(f.col(2));
+  g.col(1) = f.col(2).cross(f.col(0));
+  g.col(2) = f.col(0).cross(f.col(1));
+  return g;
+}
+
+// d^2 J / d vec(F)^2. With f_i the columns of F, the (a, b) 3x3 block is the
+// derivative of cofactor column a in f_b: d(f1 x f2)/df1 = -[f2]x,
+// d(f1 x f2)/df2 = [f1]x, and so on around the cycle (Smith et al. 2018,
+// Sec. 4.5).
+SIM_INLINE auto DeterminantHessian(const Mat3<Real> &f) -> Mat9<Real> {
+  Mat9<Real> h = Mat9<Real>::Zero();
+  for (int a = 0; a < 3; ++a) {
+    const int b = (a + 1) % 3;
+    const Mat3<Real> cross = CrossProductMatrix(f.col((a + 2) % 3));
+    h.block<3, 3>(3 * a, 3 * b) = -cross;
+    h.block<3, 3>(3 * b, 3 * a) = cross;
+  }
+  return h;
+}
+
+// Energies of the form Psi = mu/2 |F|^2 + h(J), the Neo-Hookean family, given
+// dh = h'(J) and d2h = h''(J). P = mu F + h' cof F, and the Hessian is
+// mu I + h'' vec(cof F) vec(cof F)^T + h' d^2J/dF^2.
+SIM_INLINE auto StretchVolumeHessian(const Mat3<Real> &f, Real mu, Real dh,
+                                     Real d2h) -> Mat9<Real> {
+  const Vec9<Real> g = Vectorize(Cofactor(f));
+  return mu * Mat9<Real>::Identity() + d2h * g * g.transpose() +
+         dh * DeterminantHessian(f);
+}
+
+// The clamped Hessian of mu/2 |F|^2 + h(J). In singular values,
+// dPsi/ds_i = mu s_i + h' s_j s_k, so the twist and flip eigenvalues
+// (psi_i +- psi_j) / (s_i +- s_j) are mu +- h' s_k, and the scaling block is
+// d^2 Psi / ds_i ds_j = mu delta_ij + h'' (J / s_i)(J / s_j) + h' s_k (i != j)
+// (Smith et al. 2019; Smith et al. 2018, Sec. 4.4).
+SIM_INLINE auto ClampedStretchVolumeHessian(const Svd &svd, Real mu, Real dh,
+                                            Real d2h) -> Mat9<Real> {
+  const Vec3<Real> &s = svd.sigma;
+  const Vec3<Real> others(s(1) * s(2), s(0) * s(2), s(0) * s(1));
+  Mat3<Real> scaling = d2h * others * others.transpose();
+  for (int k = 0; k < 3; ++k) {
+    const int i = (k + 1) % 3;
+    const int j = (k + 2) % 3;
+    scaling(i, j) += dh * s(k);
+    scaling(j, i) += dh * s(k);
+    scaling(k, k) += mu;
+  }
+  const Vec3<Real> muVec = Vec3<Real>::Constant(mu);
+  return ClampedIsotropicHessian(svd, scaling, muVec + dh * s, muVec - dh * s);
+}
+
 } // namespace sim
