@@ -40,6 +40,8 @@ target_compile_options(sim_energy_vertex_face_collision PRIVATE ${SIM_WARNINGS})
 target_link_libraries(sim_energy_vertex_face_collision PUBLIC Eigen3::Eigen)
 
 # A volume energy module: Energy/Volume/<file>.{h,cc} as sim_energy_<name>.
+# sim_volume_energies links every module, for sim_solid and TestEnergies.
+add_library(sim_volume_energies INTERFACE)
 function(sim_volume_energy name file)
     add_library(sim_energy_${name} STATIC Energy/Volume/Energy.h
             Energy/Volume/${file}.h Energy/Volume/${file}.cc)
@@ -48,9 +50,13 @@ function(sim_volume_energy name file)
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
     target_compile_options(sim_energy_${name} PRIVATE ${SIM_WARNINGS})
     target_link_libraries(sim_energy_${name} PUBLIC Eigen3::Eigen)
+    target_link_libraries(sim_volume_energies INTERFACE sim_energy_${name})
+    set_property(GLOBAL APPEND PROPERTY SIM_VOLUME_ENERGIES sim_energy_${name})
 endfunction()
 sim_volume_energy(stable_neo_hookean StableNeoHookean)
 sim_volume_energy(stvk StVenantKirchhoff)
+sim_volume_energy(linear_elasticity LinearElasticity)
+get_property(SIM_VOLUME_ENERGY_TARGETS GLOBAL PROPERTY SIM_VOLUME_ENERGIES)
 
 # Tet geometry and its global assembly: links the volume energies, never sim.
 add_library(sim_solid STATIC
@@ -66,8 +72,7 @@ target_include_directories(sim_solid PUBLIC
 target_compile_options(sim_solid PRIVATE ${SIM_WARNINGS})
 target_link_libraries(sim_solid PUBLIC
         sim_energy_vertex_face_collision
-        sim_energy_stable_neo_hookean
-        sim_energy_stvk
+        sim_volume_energies
         igl::core
         igl_copyleft::tetgen
         Eigen3::Eigen)
@@ -84,7 +89,7 @@ target_include_directories(sim PUBLIC
 target_compile_options(sim PRIVATE ${SIM_WARNINGS})
 install(TARGETS sim sim_solid sim_energy_mass_spring
         sim_energy_vertex_face_collision
-        sim_energy_stable_neo_hookean sim_energy_stvk EXPORT sim)
+        sim_volume_energies ${SIM_VOLUME_ENERGY_TARGETS} EXPORT sim)
 target_link_libraries(
         sim
         PUBLIC

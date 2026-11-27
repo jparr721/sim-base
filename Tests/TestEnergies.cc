@@ -2,6 +2,7 @@
 // to Energies and a HandDerived specialization, plus a Traits specialization
 // when it is not isotropic or not defined for every F.
 
+#include <Energy/Volume/LinearElasticity.h>
 #include <Energy/Volume/StVenantKirchhoff.h>
 #include <Energy/Volume/StableNeoHookean.h>
 
@@ -100,9 +101,12 @@ auto ProjectPsd(const Mat9<Real> &h) -> Mat9<Real> {
          eig.eigenvectors().transpose();
 }
 
-// What the suite asserts about an energy's symmetry. kIsotropic: Psi(R F) =
-// Psi(F R) = Psi(F) for every rotation R, and every rotation is at rest.
-enum class Symmetry { kIsotropic };
+// What the suite asserts about an energy's symmetry.
+//  kIsotropic: Psi(R F) = Psi(F R) = Psi(F) for every rotation R, and every
+//    rotation is at rest.
+//  kNone: only F = I is at rest. Rotations are strained and Psi(R F) differs
+//    from Psi(F), and the suite checks both so the trait is proven.
+enum class Symmetry { kIsotropic, kNone };
 
 // How the suite builds an energy and where it samples F. An energy that is
 // singular somewhere samples only the part of its domain kept away from the
@@ -126,6 +130,12 @@ template <typename E> struct HandDerivedInput {
 };
 template <typename E> struct HandDerived;
 
+template <> struct Traits<LinearElasticity> {
+  static constexpr Symmetry symmetry = Symmetry::kNone;
+  static auto Make(const Lame &lame) -> LinearElasticity { return {lame}; }
+  static auto InDomain(const Mat3<Real> &f) -> bool { return AnyF(f); }
+};
+
 // l = lambda + mu = 3. |F|^2 = 6 and J = 2:
 // Psi = 1/2 (6 - 3) - (2 - 1) + 3/2 (2 - 1)^2 = 2.
 // dJ/dF = cof F = diag(1, 2, 2) and l (J - 1) - mu = 2:
@@ -144,9 +154,18 @@ struct HandDerived<StVenantKirchhoff> : HandDerivedInput<StVenantKirchhoff> {
   static auto Pk1() -> Mat3<Real> { return Vec3<Real>(12, 3, 3).asDiagonal(); }
 };
 
+// eps = diag(1, 0, 0): Psi = 1 + 2/2 (1)^2 = 2.
+// P = 2 eps + 2 tr(eps) I = diag(4, 2, 2).
+template <>
+struct HandDerived<LinearElasticity> : HandDerivedInput<LinearElasticity> {
+  static auto Psi() -> Real { return 2; }
+  static auto Pk1() -> Mat3<Real> { return Vec3<Real>(4, 2, 2).asDiagonal(); }
+};
+
 template <typename E> class EnergyTest : public testing::Test {};
 
-using Energies = testing::Types<StableNeoHookean, StVenantKirchhoff>;
+using Energies =
+    testing::Types<StableNeoHookean, StVenantKirchhoff, LinearElasticity>;
 TYPED_TEST_SUITE(EnergyTest, Energies);
 
 TEST(EnergySamples, IncludeInvertedF) {
@@ -215,28 +234,45 @@ TYPED_TEST(EnergyTest, ClampedHessianIsPsdProjectionOfHessian) {
   EXPECT_LE(worst, 1e-9) << "sample " << worstAt;
 }
 
-TYPED_TEST(EnergyTest, RotationsAreAtRest) {
+TYPED_TEST(EnergyTest, RestStatesMatchSymmetry) {
   const TypeParam e = Traits<TypeParam>::Make(kLame);
   const Real scale = kLame.mu + kLame.lambda;
+  const Mat3<Real> identity = Mat3<Real>::Identity();
+  EXPECT_LE(std::abs(e.Psi(identity)), 1e-12 * scale);
+  EXPECT_LE(e.Pk1(identity).norm(), 1e-12 * scale);
   std::mt19937 rng(8);
   for (int n = 0; n < 100; ++n) {
     const Mat3<Real> r = RandomRotation(rng);
-    EXPECT_LE(std::abs(e.Psi(r)), 1e-12 * scale) << "rotation " << n;
-    EXPECT_LE(e.Pk1(r).norm(), 1e-12 * scale) << "rotation " << n;
+    if constexpr (Traits<TypeParam>::symmetry == Symmetry::kNone) {
+      EXPECT_GT(e.Psi(r), 1e-12 * scale) << "rotation " << n;
+    } else {
+      EXPECT_LE(std::abs(e.Psi(r)), 1e-12 * scale) << "rotation " << n;
+      EXPECT_LE(e.Pk1(r).norm(), 1e-12 * scale) << "rotation " << n;
+    }
   }
 }
 
-TYPED_TEST(EnergyTest, PsiIsRotationInvariant) {
+TYPED_TEST(EnergyTest, PsiHasItsSymmetry) {
   const TypeParam e = Traits<TypeParam>::Make(kLame);
   const std::vector<Mat3<Real>> &fs = DomainFs<TypeParam>();
   std::mt19937 rng(9);
+  int changed = 0;
   for (std::size_t n = 0; n < fs.size(); ++n) {
     const Mat3<Real> &f = fs[n];
     const Mat3<Real> r = RandomRotation(rng);
     const Real psi = e.Psi(f);
-    EXPECT_NEAR(e.Psi(r * f), psi, 1e-12 * std::abs(psi)) << "sample " << n;
-    EXPECT_NEAR(e.Psi(f * r), psi, 1e-12 * std::abs(psi)) << "sample " << n;
+    const auto same = [&](const Mat3<Real> &g) {
+      return std::abs(e.Psi(g) - psi) <= 1e-12 * std::abs(psi);
+    };
+    if constexpr (Traits<TypeParam>::symmetry == Symmetry::kNone) {
+      changed += !same(r * f);
+    } else {
+      EXPECT_TRUE(same(r * f)) << "sample " << n;
+      EXPECT_TRUE(same(f * r)) << "sample " << n;
+    }
   }
+  if constexpr (Traits<TypeParam>::symmetry == Symmetry::kNone)
+    EXPECT_GE(changed, 900);
 }
 
 TYPED_TEST(EnergyTest, MatchesHandDerivedValue) {
