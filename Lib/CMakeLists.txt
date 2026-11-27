@@ -57,6 +57,7 @@ add_library(sim_solid STATIC
         TetMesh.h TetMesh.cc
         Solid/System.h
         Solid/Constraints.h Solid/Constraints.cc
+        Solid/Contact.h
         Solid/ElasticSystem.h Solid/ElasticSystem.cc
         Energy/Volume/Material.h)
 target_include_directories(sim_solid PUBLIC
@@ -64,6 +65,7 @@ target_include_directories(sim_solid PUBLIC
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_options(sim_solid PRIVATE ${SIM_WARNINGS})
 target_link_libraries(sim_solid PUBLIC
+        sim_energy_vertex_face_collision
         sim_energy_stable_neo_hookean
         sim_energy_stvk
         igl::core

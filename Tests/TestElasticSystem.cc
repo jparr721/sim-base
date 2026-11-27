@@ -1,6 +1,7 @@
 #include <Solid/ElasticSystem.h>
 #include <gtest/gtest.h>
 
+#include <numbers>
 #include <random>
 
 using namespace sim;
@@ -67,6 +68,54 @@ auto ElasticEnergy(const TetMesh &mesh, const Material &material,
               std::visit([&](const auto &e) { return e.Psi(f); }, material);
   }
   return energy;
+}
+
+// -dForces/dx at x by central differences, with v = 0.
+auto FdStiffness(const ElasticSystem &system, const Vec<Real> &x) -> Mat<Real> {
+  const Vec<Real> v = Vec<Real>::Zero(system.Dofs());
+  const Real h = 1e-6;
+  Mat<Real> fd(system.Dofs(), system.Dofs());
+  for (int j = 0; j < system.Dofs(); ++j) {
+    Vec<Real> plus = x;
+    Vec<Real> minus = x;
+    plus(j) += h;
+    minus(j) -= h;
+    fd.col(j) = -(system.Forces(plus, v) - system.Forces(minus, v)) / (2 * h);
+  }
+  return fd;
+}
+
+const ContactModel kContact{.stiffness = 1e4, .epsilon = 0.02, .damping = 50};
+
+// An equilateral triangle of circumradius 0.05 near each of the first
+// `count` vertices of x, with a seeded random normal. The vertex is in turn
+// over the face, behind it, and beside an edge, always within kContact's
+// epsilon of the triangle.
+auto ContactsNear(const Vec<Real> &x, int count) -> std::vector<SoftContact> {
+  std::mt19937 rng(11);
+  std::normal_distribution<Real> gaussian;
+  constexpr Real r = 0.05;
+  std::vector<SoftContact> contacts;
+  for (int vertex = 0; vertex < count; ++vertex) {
+    const Vec3<Real> n =
+        Vec3<Real>(gaussian(rng), gaussian(rng), gaussian(rng)).normalized();
+    const Vec3<Real> u = n.unitOrthogonal();
+    const Vec3<Real> w = n.cross(u);
+    const Vec3<Real> p = x.segment<3>(3 * vertex);
+    Vec3<Real> center;
+    switch (vertex % 3) {
+    case 0: center = p - 0.01 * n; break;
+    case 1: center = p + 0.01 * n; break;
+    default: center = p + (r / 2 + 0.005) * u - 0.008 * n; break;
+    }
+    SoftContact c{.vertex = vertex, .triangle = {}};
+    for (int k = 0; k < 3; ++k) {
+      const Real angle = 2 * std::numbers::pi * k / 3;
+      c.triangle[k] = center + r * (std::cos(angle) * u + std::sin(angle) * w);
+    }
+    contacts.push_back(c);
+  }
+  return contacts;
 }
 
 auto SmallestEigenvalue(const SparseMat<Real> &k) -> Real {
@@ -136,19 +185,33 @@ Vec<Real> BunnyStiffness::x;
 TEST_P(BunnyStiffness, IsMinusForceJacobian) {
   const Material material = MaterialUnderTest();
   const ElasticSystem system(*mesh, material);
-  const Vec<Real> v = Vec<Real>::Zero(system.Dofs());
   const Mat<Real> k(system.Stiffness(x, false));
+  EXPECT_LE((k - FdStiffness(system, x)).norm(), 1e-6 * k.norm());
+}
 
-  const Real h = 1e-6;
-  Mat<Real> fd(system.Dofs(), system.Dofs());
-  for (int j = 0; j < system.Dofs(); ++j) {
-    Vec<Real> plus = x;
-    Vec<Real> minus = x;
-    plus(j) += h;
-    minus(j) -= h;
-    fd.col(j) = -(system.Forces(plus, v) - system.Forces(minus, v)) / (2 * h);
-  }
+// The contact terms alone, which the elastic terms would otherwise swamp, and
+// then the whole matrix.
+TEST_P(BunnyStiffness, WithContactsIsMinusForceJacobian) {
+  const Material material = MaterialUnderTest();
+  const ElasticSystem bare(*mesh, material);
+  ElasticSystem system(*mesh, material, kContact, 0.5);
+  system.SetContacts(ContactsNear(x, 60));
+  const Mat<Real> k(system.Stiffness(x, false));
+  const Mat<Real> fd = FdStiffness(system, x);
+  const Mat<Real> contactK = k - Mat<Real>(bare.Stiffness(x, false));
+  const Mat<Real> contactFd = fd - FdStiffness(bare, x);
+  EXPECT_GT(contactK.norm(), 1);
+  EXPECT_LE((contactK - contactFd).norm(), 1e-6 * contactK.norm());
   EXPECT_LE((k - fd).norm(), 1e-6 * k.norm());
+}
+
+TEST_P(BunnyStiffness, ClampedWithContactsIsPsd) {
+  const Material material = MaterialUnderTest();
+  ElasticSystem system(*mesh, material, kContact);
+  system.SetContacts(ContactsNear(x, 60));
+  const SparseMat<Real> clamped = system.Stiffness(x, true);
+  EXPECT_GE(SmallestEigenvalue(clamped),
+            -1e-10 * LargestMagnitudeEigenvalue(clamped));
 }
 
 TEST_P(BunnyStiffness, IsSymmetric) {
@@ -186,6 +249,28 @@ TEST(TestElasticSystem, DampingMatrixIsZeroUntilDampingExists) {
   EXPECT_EQ(d.rows(), system.Dofs());
   EXPECT_EQ(d.cols(), system.Dofs());
   EXPECT_EQ(d.nonZeros(), 0);
+}
+
+TEST(TestElasticSystem, DampingMatrixIsMinusVelocityJacobian) {
+  const TetMesh mesh = OneTet();
+  const Material material = Materials()[0];
+  ElasticSystem system(mesh, material, kContact, 0.5);
+  const Vec<Real> x = Perturbed(mesh.Positions(), 0.05);
+  system.SetContacts(ContactsNear(x, 4));
+  const Vec<Real> v = Vec<Real>::LinSpaced(12, -1, 1);
+  const Mat<Real> d(system.DampingMatrix(x));
+
+  const Real h = 1e-6;
+  Mat<Real> fd(12, 12);
+  for (int j = 0; j < 12; ++j) {
+    Vec<Real> plus = v;
+    Vec<Real> minus = v;
+    plus(j) += h;
+    minus(j) -= h;
+    fd.col(j) = -(system.Forces(x, plus) - system.Forces(x, minus)) / (2 * h);
+  }
+  EXPECT_GT(d.norm(), 0);
+  EXPECT_LE((d - fd).norm(), 1e-6 * d.norm());
 }
 
 TEST(TestConstraints, FilterZeroesPinnedDofsAndIsAProjection) {
