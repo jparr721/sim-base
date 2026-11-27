@@ -151,6 +151,12 @@ void ValidateStrandDamping(const Damping &damping) {
   }
 }
 
+auto ContactAt(int vertex, const VertexFaceCollision &hit) -> SoftContact {
+  return {.vertex = vertex,
+          .triangle = {hit.faceVertices[0], hit.faceVertices[1],
+                       hit.faceVertices[2]}};
+}
+
 // One strand: its rod, the system over it and the integrator that steps it.
 // The system refers to the rod, so it never moves.
 struct StrandSim {
@@ -410,9 +416,7 @@ struct World::Impl {
     for (const auto &collider : colliders) {
       for (const auto &hit :
            collider->DetectFaceCollisions(body.contactRadius, positions)) {
-        found.push_back({.vertex = surface[hit.vertexIndex],
-                         .triangle = {hit.faceVertices[0], hit.faceVertices[1],
-                                      hit.faceVertices[2]}});
+        found.push_back(ContactAt(surface[hit.vertexIndex], hit));
       }
     }
     return found;
@@ -443,10 +447,7 @@ struct World::Impl {
       std::vector<SoftContact> strandContacts;
       strandContacts.reserve(found.size());
       for (const auto &hit : found) {
-        strandContacts.push_back(
-            {.vertex = hit.vertexIndex,
-             .triangle = {hit.faceVertices[0], hit.faceVertices[1],
-                          hit.faceVertices[2]}});
+        strandContacts.push_back(ContactAt(hit.vertexIndex, hit));
       }
       strand.system.SetContacts(std::move(strandContacts));
       // Gravity is a force per strand vertex, not an acceleration.
