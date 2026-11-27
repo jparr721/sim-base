@@ -8,6 +8,7 @@
 #include <Energy/Volume/NeoHookeanBonetWood.h>
 #include <Energy/Volume/StVenantKirchhoff.h>
 #include <Energy/Volume/StableNeoHookean.h>
+#include <Energy/Volume/StableNeoHookeanBarrier.h>
 #include <Energy/Volume/SymmetricDirichlet.h>
 
 #include <variant>
@@ -25,6 +26,7 @@ using Material =
                  SymmetricDirichlet,
                  AnisotropicStVenantKirchhoff,
                  AnisotropicArap,
-                 AnisotropicFung>;
+                 AnisotropicFung,
+                 StableNeoHookeanBarrier>;
 
 } // namespace sim

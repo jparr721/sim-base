@@ -10,9 +10,11 @@
 #include <Energy/Volume/NeoHookeanBonetWood.h>
 #include <Energy/Volume/StVenantKirchhoff.h>
 #include <Energy/Volume/StableNeoHookean.h>
+#include <Energy/Volume/StableNeoHookeanBarrier.h>
 #include <Energy/Volume/SymmetricDirichlet.h>
 
 #include <gtest/gtest.h>
+#include <limits>
 #include <numbers>
 #include <random>
 
@@ -296,6 +298,40 @@ struct HandDerived<AnisotropicFung> : FiberHandDerivedInput<AnisotropicFung> {
   }
 };
 
+// The barrier's domain is J > 0. Samples keep J >= 0.01 so finite
+// differences of its 1 / J^2 Hessian stay meaningful.
+template <>
+struct Traits<StableNeoHookeanBarrier>
+    : DefaultTraits<StableNeoHookeanBarrier> {
+  static auto InDomain(const Mat3<Real> &f) -> bool {
+    return f.determinant() >= 0.01;
+  }
+};
+
+// F = diag(1, 1, 1/8), so J = 1/8 is inside the barrier g = 1/4, and
+// l = 3 = kappa. J - g = -1/8 and log(J / g) = -log 2.
+// Psi_SNH = 1/2 (2 + 1/64 - 3) - (1/8 - 1) + 3/2 (7/8)^2 = 49/32.
+// b = -3 (1/64)(-log 2) = 3 log 2 / 64.
+// b' = -3 (2 (-1/8)(-log 2) + (1/64) / (1/8)) = -3 log 2 / 4 - 3/8, and
+// h' = 3 (-7/8) - 1 + b' = -4 - 3 log 2 / 4. cof F = diag(1/8, 1/8, 1):
+// P = F + h' cof F
+//   = diag(1/2 - 3 log 2 / 32, 1/2 - 3 log 2 / 32, -31/8 - 3 log 2 / 4).
+template <>
+struct HandDerived<StableNeoHookeanBarrier>
+    : HandDerivedInput<StableNeoHookeanBarrier> {
+  static auto F() -> Mat3<Real> {
+    return Vec3<Real>(1, 1, Real(1) / 8).asDiagonal();
+  }
+  static auto Psi() -> Real {
+    return Real(49) / 32 + 3 * std::log(Real(2)) / 64;
+  }
+  static auto Pk1() -> Mat3<Real> {
+    const Real ln2 = std::log(Real(2));
+    const Real side = Real(0.5) - 3 * ln2 / 32;
+    return Vec3<Real>(side, side, Real(-31) / 8 - 3 * ln2 / 4).asDiagonal();
+  }
+};
+
 template <typename E> class EnergyTest : public testing::Test {};
 
 using Energies =
@@ -307,7 +343,8 @@ using Energies =
                    SymmetricDirichlet,
                    AnisotropicStVenantKirchhoff,
                    AnisotropicArap,
-                   AnisotropicFung>;
+                   AnisotropicFung,
+                   StableNeoHookeanBarrier>;
 TYPED_TEST_SUITE(EnergyTest, Energies);
 
 TEST(EnergySamples, IncludeInvertedF) {
@@ -469,6 +506,40 @@ TEST(NeoHookeanBonetWood, GuardIsFiniteAndGrowsAsJShrinks) {
   const Real slack = 2 * dt * 1.01;
   EXPECT_LE(std::abs(e.Psi(at(g - dt)) - e.Psi(at(g + dt))),
             slack * e.Pk1(at(g)).norm());
+  EXPECT_LE((e.Pk1(at(g - dt)) - e.Pk1(at(g + dt))).norm(),
+            slack * e.Hessian(at(g)).norm());
+}
+
+// F = diag(1, 1, t). At and above the barrier it is SNH exactly. Inside it,
+// the barrier term Psi - Psi_SNH is positive and grows as t -> 0+, and Psi is
+// infinite for t <= 0, where the derivatives fall back to SNH's.
+TEST(StableNeoHookeanBarrier, BarrierGrowsAsJShrinksAndBlocksInversion) {
+  const StableNeoHookeanBarrier e{kLame};
+  const StableNeoHookean snh{kLame};
+  const auto at = [](Real t) -> Mat3<Real> {
+    return Vec3<Real>(1, 1, t).asDiagonal();
+  };
+  for (const Real t : {2.0, 1.0, 0.5, StableNeoHookeanBarrier::kBarrierJ}) {
+    EXPECT_NEAR(e.Psi(at(t)), snh.Psi(at(t)), 1e-14) << "t = " << t;
+    EXPECT_LE((e.Pk1(at(t)) - snh.Pk1(at(t))).norm(), 1e-13) << "t = " << t;
+  }
+  Real previous = 0;
+  for (const Real t : {0.2, 0.1, 1e-2, 1e-4, 1e-8, 1e-16}) {
+    const Real barrier = e.Psi(at(t)) - snh.Psi(at(t));
+    EXPECT_TRUE(std::isfinite(e.Psi(at(t)))) << "t = " << t;
+    EXPECT_GT(barrier, previous) << "t = " << t;
+    previous = barrier;
+  }
+  for (const Real t : {0.0, -0.5}) {
+    EXPECT_EQ(e.Psi(at(t)), std::numeric_limits<Real>::infinity());
+    EXPECT_LE((e.Pk1(at(t)) - snh.Pk1(at(t))).norm(), 1e-13) << "t = " << t;
+    EXPECT_LE((e.Hessian(at(t)) - snh.Hessian(at(t))).norm(), 1e-12)
+        << "t = " << t;
+  }
+
+  constexpr Real g = StableNeoHookeanBarrier::kBarrierJ;
+  constexpr Real dt = 1e-9;
+  const Real slack = 2 * dt * 1.01;
   EXPECT_LE((e.Pk1(at(g - dt)) - e.Pk1(at(g + dt))).norm(),
             slack * e.Hessian(at(g)).norm());
 }
