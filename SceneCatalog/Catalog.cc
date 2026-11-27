@@ -68,16 +68,12 @@ auto BunnyDrop() -> SceneDesc {
   return BunnyRamp("bunny-drop", 1.0 / 1'000.0, ForwardEuler{}, 0.02);
 }
 
-// The same scene at a 20 Hz game tick.
-//  - The contact epsilon is 0.03 rather than 0.02. At 0.02 one step has a
-//    vertex slide off the floor triangle it was found against, and the
-//    contact's energy, which flips sides across the triangle's plane beyond
-//    its edges, pins it to the plane. Newton then stalls there.
-//  - Newton gets 25 iterations. Where clamping is active it converges
-//    linearly, and the worst step of this run takes 17.
+// The same scene at a 20 Hz game tick. Newton gets 25 iterations. Where
+// clamping is active it converges linearly, and the worst step of this run
+// takes 14.
 auto BunnyDropImplicit() -> SceneDesc {
   return BunnyRamp("bunny-drop-implicit", 1.0 / 20,
-                   BackwardEuler{.maxNewtonIterations = 25}, 0.03);
+                   BackwardEuler{.maxNewtonIterations = 25}, 0.02);
 }
 
 auto StrandBend() -> SceneDesc {
