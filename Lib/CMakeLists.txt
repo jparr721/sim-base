@@ -41,6 +41,7 @@ function(sim_volume_energy name file)
     target_link_libraries(sim_energy_${name} PUBLIC Eigen3::Eigen)
 endfunction()
 sim_volume_energy(stable_neo_hookean StableNeoHookean)
+sim_volume_energy(stvk StVenantKirchhoff)
 
 add_library(sim STATIC
         ${HEADERS} ${SOURCES}
