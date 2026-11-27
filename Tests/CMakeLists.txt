@@ -39,7 +39,8 @@ package_add_test(TestLibMath TestLibMath.cc)
 package_add_test(TestStrandForces TestStrandForces.cc)
 package_add_test(TestElementEnergies TestElementEnergies.cc)
 # Only the energy module, so the test fails to link if the module needs sim.
-set_property(TARGET TestElementEnergies PROPERTY LINK_LIBRARIES sim_energy_mass_spring gmock gtest_main)
+set_property(TARGET TestElementEnergies PROPERTY LINK_LIBRARIES
+        sim_energy_mass_spring sim_energy_vertex_face_collision gmock gtest_main)
 package_add_test(TestEnergies TestEnergies.cc)
 # Only the energy modules, so the test fails to link if a module needs sim.
 set_property(TARGET TestEnergies PROPERTY LINK_LIBRARIES

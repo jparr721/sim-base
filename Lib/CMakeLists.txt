@@ -14,7 +14,8 @@ file(GLOB ENERGY_STRAND_HEADERS "Energy/Strand/*.h")
 file(GLOB ENERGY_STRAND_SOURCES "Energy/Strand/*.cc")
 
 file(GLOB ENERGY_COLLISION_HEADERS "Energy/Collision/*.h")
-file(GLOB ENERGY_COLLISION_SOURCES "Energy/Collision/*.cc")
+list(REMOVE_ITEM ENERGY_COLLISION_HEADERS
+        "${CMAKE_CURRENT_SOURCE_DIR}/Energy/Collision/VertexFaceSqrtCollision.h")
 
 include(GNUInstallDirs)
 
@@ -27,6 +28,16 @@ target_include_directories(sim_energy_mass_spring PUBLIC
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_options(sim_energy_mass_spring PRIVATE ${SIM_WARNINGS})
 target_link_libraries(sim_energy_mass_spring PUBLIC Eigen3::Eigen)
+
+add_library(sim_energy_vertex_face_collision STATIC
+        Energy/ElementEnergy.h
+        Energy/Collision/VertexFaceSqrtCollision.h
+        Energy/Collision/VertexFaceSqrtCollision.cc)
+target_include_directories(sim_energy_vertex_face_collision PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_compile_options(sim_energy_vertex_face_collision PRIVATE ${SIM_WARNINGS})
+target_link_libraries(sim_energy_vertex_face_collision PUBLIC Eigen3::Eigen)
 
 # A volume energy module: Energy/Volume/<file>.{h,cc} as sim_energy_<name>.
 function(sim_volume_energy name file)
@@ -64,17 +75,19 @@ add_library(sim STATIC
         ${COLLISION_HEADERS} ${COLLISION_SOURCES}
         ${INTEGRATOR_HEADERS} ${INTEGRATOR_SOURCES}
         ${ENERGY_STRAND_HEADERS} ${ENERGY_STRAND_SOURCES}
-        ${ENERGY_COLLISION_HEADERS} ${ENERGY_COLLISION_SOURCES})
+        ${ENERGY_COLLISION_HEADERS})
 target_include_directories(sim PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_options(sim PRIVATE ${SIM_WARNINGS})
 install(TARGETS sim sim_solid sim_energy_mass_spring
+        sim_energy_vertex_face_collision
         sim_energy_stable_neo_hookean sim_energy_stvk EXPORT sim)
 target_link_libraries(
         sim
         PUBLIC
         sim_energy_mass_spring
+        sim_energy_vertex_face_collision
         sim_solid
         igl::core
         Eigen3::Eigen

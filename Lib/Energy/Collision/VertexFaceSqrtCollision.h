@@ -1,50 +1,33 @@
 #pragma once
 
-#include <LibMath.h>
+#include <Energy/ElementEnergy.h>
 
 namespace sim {
 
+// Vertex-face penalty contact (Dynamic Deformables, Kim & Eberle 2022, the
+// collision chapter's vertex-face energy). x stacks the colliding vertex, then
+// the triangle's three vertices. With d the distance from the vertex to its
+// closest point on the triangle and sigma = -1 when the vertex is behind the
+// triangle's normal, Psi = k (d - sigma eps)^2: it pushes the vertex to eps in
+// front of the face.
+//
+// d is a minimum over the triangle's barycentric coordinates, so the gradient
+// holds them fixed (the envelope theorem). The Hessian adds how the closest
+// point slides as x moves. Psi is smooth away from the triangle's plane and
+// from the boundaries between its face, edge and corner regions.
 class VertexFaceSqrtCollision {
 public:
   Real collisionStiffness;
   Real collisionEpsilon;
   VertexFaceSqrtCollision(Real collisionStiffness, Real collisionEpsilon);
 
-  [[nodiscard]] auto Gradient(const Vec12<Real> &x) const -> Vec12<Real>;
-  [[nodiscard]] auto
-  GetInsideBarycentricCoordinates(const std::vector<Vec3<Real>> &vertices) const
-      -> Vec3<Real>;
-  [[nodiscard]] auto tDiffPartial(const Vec3<Real> &bary) const
-      -> Mat3x12<Real>;
-
-  SIM_INLINE void GetVerticesAndEdges(const Vec12<Real> &x,
-                                  std::vector<Vec3<Real>> &v,
-                                  std::vector<Vec3<Real>> &e) const {
-    v.resize(4);
-    for (int i = 0; i < 4; i++) {
-      v[i][0] = x[i * 3];
-      v[i][1] = x[i * 3 + 1];
-      v[i][2] = x[i * 3 + 2];
-    }
-
-    e.resize(3);
-    e[0] = v[3] - v[2];
-    e[1] = v[0] - v[2];
-    e[2] = v[1] - v[2];
-  }
-
-  [[nodiscard]] SIM_INLINE auto
-  ShouldReverse(const std::vector<Vec3<Real>> &e) const -> bool {
-    // get the normal
-    Vec3<Real> n = e[2].cross(e[0]);
-    n = n / n.norm();
-
-    // e[1] is already the collision vertex recentered to the origin
-    // (v[0] - v[2])
-    const Real dotted = n.dot(e[1]);
-
-    return dotted < 0;
-  }
+  [[nodiscard]] auto Psi(const VecN<12> &x) const -> Real;
+  [[nodiscard]] auto Gradient(const VecN<12> &x) const -> VecN<12>;
+  [[nodiscard]] auto Hessian(const VecN<12> &x) const -> MatN<12>;
+  // Hessian with its negative eigenvalues set to 0.
+  [[nodiscard]] auto ClampedHessian(const VecN<12> &x) const -> MatN<12>;
 };
+
+static_assert(ElementEnergy<VertexFaceSqrtCollision, 12>);
 
 } // namespace sim
