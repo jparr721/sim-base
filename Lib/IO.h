@@ -4,8 +4,10 @@
 #include <fstream>
 #include <igl/boundary_facets.h>
 
+namespace sim {
+
 template <typename T>
-INLINE auto ReadTobjFile(const std::string &filename, Mat<T> &verts,
+SIM_INLINE auto ReadTobjFile(const std::string &filename, Mat<T> &verts,
                          Mat<int> &tets, Mat<int> &faces) -> bool {
   std::vector<Vec3<T>> vertsVec;
   std::vector<Vec4<int>> tetsVec;
@@ -50,7 +52,7 @@ INLINE auto ReadTobjFile(const std::string &filename, Mat<T> &verts,
   }
 
   tets.resize(tetsVec.size(), 4);
-  for (int i = 0; i < tetsVec.size(); i++) {
+  for (int i = 0; i < std::ssize(tetsVec); i++) {
     tets.row(i) = tetsVec[i];
   }
 
@@ -60,3 +62,5 @@ INLINE auto ReadTobjFile(const std::string &filename, Mat<T> &verts,
   faces.rowwise().reverse();
   return true;
 }
+
+} // namespace sim

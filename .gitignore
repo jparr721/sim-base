@@ -41,3 +41,5 @@ cmake-build-*
 
 bin/
 *.pbrt
+# Agent worktrees
+.claude/

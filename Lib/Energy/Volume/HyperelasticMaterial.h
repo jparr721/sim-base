@@ -4,13 +4,15 @@
 #include <Settings.h>
 #include <cfloat>
 
-INLINE auto ComputeMu(Real E, Real nu) -> Real { return E / (2 * (1 + nu)); }
+namespace sim {
 
-INLINE auto ComputeLambda(Real E, Real nu) -> Real {
+SIM_INLINE auto ComputeMu(Real E, Real nu) -> Real { return E / (2 * (1 + nu)); }
+
+SIM_INLINE auto ComputeLambda(Real E, Real nu) -> Real {
   return E * nu / ((1 + nu) * (1 - 2 * nu));
 }
 
-INLINE auto CauchyInvariant(const Mat3<Real> &F) -> Real {
+SIM_INLINE auto CauchyInvariant(const Mat3<Real> &F) -> Real {
   return F.squaredNorm();
 }
 
@@ -145,3 +147,5 @@ protected:
   Real mu;
   Real lambda;
 };
+
+} // namespace sim

@@ -1,5 +1,7 @@
 #include <Energy/Volume/SNH.h>
 
+namespace sim {
+
 auto SNH::Psi(const Mat3<Real> &F) const -> Real {
   // Equation [13] in [Smith et al. 2018]
   Real Ic = CauchyInvariant(F);
@@ -13,8 +15,6 @@ auto SNH::Psi(const Mat3<Real> &F) const -> Real {
 
 auto SNH::Pk1(const Mat3<Real> &F) const -> Mat<Real> {
   Real J = F.determinant();
-  const Real alpha = 1.0 + mu / lambda;
-  Real Jminus1 = F.determinant() - alpha;
   const Mat3<Real> pJpF = PJPF(F);
 
   return mu * F - mu * pJpF + lambda * (J - 1) * pJpF;
@@ -68,3 +68,5 @@ auto SNH::CrossProduct(const Vec3<Real> &x) -> Mat3<Real> {
 }
 
 auto SNH::Invariant3(const Mat3<Real> &F) -> Real { return F.determinant(); }
+
+} // namespace sim

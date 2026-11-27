@@ -6,6 +6,8 @@
 #include <Integrator/StrandIntegrator.h>
 #include <StrandMesh.h>
 
+namespace sim {
+
 class ForwardEulerStrand : public StrandIntegrator {
 public:
   Real collisionStiffness = 10;
@@ -24,7 +26,7 @@ public:
         collisionStiffness, collisionEpsilon);
   }
 
-  INLINE void Step(bool bump = false) override {
+  SIM_INLINE void Step() override {
     Vec<Real> R = this->strandMesh->ComputeMaterialForces();
 
     std::vector<Vec12<Real>> perElementForces;
@@ -70,11 +72,10 @@ public:
     this->velocity = u / this->dt;
 
     // Sparse identity matrix
-    Real coeff = bump ? 0.45 : 0.75;
     SparseMat<Real> filter =
         ConstructDiagonalSparseMatrix(
             Vec<Real>::Ones(this->strandMesh->DOFs()).eval()) -
-        this->dt * coeff * this->strandMesh->der->mInv;
+        this->dt * this->damping * this->strandMesh->der->mInv;
     this->velocity = filter * this->velocity;
 
     Vec<Real> positions = this->strandMesh->Positions();
@@ -89,10 +90,11 @@ public:
     this->strandMesh->der->UpdateLengths();
     this->strandMesh->der->Computekbs();
     this->strandMesh->der->UpdateBishopFrames();
-    //    this->strandMesh->der->UpdateQuasistaticMaterialFrame();
     this->strandMesh->der->UpdateMaterialFrames();
     this->strandMesh->der->UpdateMaterialCurvatures();
     this->strandMesh->der->UpdateKbGradients();
     this->strandMesh->der->UpdateHolonomyGradient();
   }
 };
+
+} // namespace sim

@@ -1,0 +1,7 @@
+add_executable(embed embed.cc)
+target_link_libraries(embed PRIVATE sim_scenes)
+target_compile_options(embed PRIVATE ${SIM_WARNINGS})
+set_target_properties(embed PROPERTIES CXX_STANDARD 20)
+if (BUILD_TESTING)
+    add_test(NAME EmbedHeadless COMMAND embed)
+endif ()

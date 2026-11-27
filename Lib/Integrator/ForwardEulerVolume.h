@@ -3,6 +3,8 @@
 #include "VolumeIntegrator.h"
 #include <Energy/Volume/HyperelasticMaterial.h>
 
+namespace sim {
+
 class ForwardEulerVolume : public VolumeIntegrator {
 public:
   ForwardEulerVolume(std::shared_ptr<TetMesh> tetMesh,
@@ -12,7 +14,7 @@ public:
       : VolumeIntegrator(std::move(tetMesh), std::move(material), dt, rayleighAlpha,
                     rayleighBeta) {}
 
-  INLINE void Step() override {
+  SIM_INLINE void Step() override {
     // Get new deformation gradients
     this->tetMesh->ComputeDeformationGradients();
 
@@ -53,3 +55,5 @@ public:
     this->velocity = filter * this->velocity;
   }
 };
+
+} // namespace sim

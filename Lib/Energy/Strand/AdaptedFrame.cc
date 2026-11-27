@@ -1,5 +1,7 @@
 #include <Energy/Strand/AdaptedFrame.h>
 
+namespace sim {
+
 auto ComputeEdges(const Mat<Real> &vertices) -> std::vector<Edge> {
   std::vector<Edge> edges;
   edges.reserve(vertices.rows() - 1);
@@ -12,11 +14,11 @@ auto ComputeEdges(const Mat<Real> &vertices) -> std::vector<Edge> {
 void ParallelTransportModifiedBishopFrames(
     const std::vector<Vec3<Real>> &curvatureBinormals,
     const std::vector<Edge> &edges, std::vector<BishopFrame> &frames) {
-  ASSERT(!curvatureBinormals.empty(), "No curvature binormals provided");
-  ASSERT(!edges.empty(), "No edges provided");
-  ASSERT(!frames.empty(), "At least the initial frame is required");
+  SIM_ASSERT(!curvatureBinormals.empty(), "No curvature binormals provided");
+  SIM_ASSERT(!edges.empty(), "No edges provided");
+  SIM_ASSERT(!frames.empty(), "At least the initial frame is required");
 
-  for (int ii = 1; ii < edges.size(); ++ii) {
+  for (int ii = 1; ii < std::ssize(edges); ++ii) {
     // Get the normalized tangent vector
     Vec3<Real> ti = edges.at(ii).t;
 
@@ -36,3 +38,5 @@ void ParallelTransportModifiedBishopFrames(
     frames.at(ii) = BishopFrame(ti, u, v);
   }
 }
+
+} // namespace sim

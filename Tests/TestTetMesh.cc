@@ -2,6 +2,8 @@
 #include <gtest/gtest.h>
 #include <iostream>
 
+using namespace sim;
+
 Mat3<Real> I = Mat3<Real>::Identity();
 
 TEST(TestTetMesh, TestPartialFPartialx0) {

@@ -1,94 +1,7 @@
 #include <TetMesh.h>
 
-void TetMesh::Draw() {
-  GLOBAL GLfloat lightAmbient[] = {0.2f, 0.2f, 0.2f, 1.0f};
-  GLOBAL GLfloat lightDiffuse[] = {0.8f, 0.8f, 0.8f, 1.0f};
-  GLOBAL GLfloat lightSpecular[] = {0.5f, 0.5f, 0.5f, 1.0f};
-  glLightfv(GL_LIGHT0, GL_AMBIENT, lightAmbient);
-  glLightfv(GL_LIGHT0, GL_DIFFUSE, lightDiffuse);
-  glLightfv(GL_LIGHT0, GL_SPECULAR, lightSpecular);
+namespace sim {
 
-  // USE THESE TO SHADE MATERIALS
-  glShadeModel(GL_SMOOTH);
-  glMaterialfv(GL_FRONT, GL_DIFFUSE, gDiffuseGray.data());
-  glMaterialfv(GL_FRONT, GL_AMBIENT, gAmbientFull.data());
-  glMaterialfv(GL_FRONT, GL_SPECULAR, gSpecularFull.data());
-  glMaterialfv(GL_FRONT, GL_SHININESS, gShininess.data());
-
-  glEnable(GL_DEPTH_TEST);
-
-  // Draw lines
-  glEnable(GL_POLYGON_OFFSET_LINE);
-  glPolygonOffset(-1.0, -1.0);
-  glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-  glColor3d(0.0, 0.0, 0.0);
-  glBegin(GL_TRIANGLES);
-  for (int ii = 0; ii < f.rows(); ++ii) {
-    const Vec3<int> face = f.row(ii);
-    const Vec3<Real> a = v.row(face(0));
-    const Vec3<Real> b = v.row(face(1));
-    const Vec3<Real> c = v.row(face(2));
-    glVertex3dv(a.data());
-    glVertex3dv(b.data());
-    glVertex3dv(c.data());
-  }
-  glEnd();
-
-  // Draw without lines
-  glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-  glColor4d(0.7, 0.7, 0.7, 0.25);
-  glBegin(GL_TRIANGLES);
-  for (int ii = 0; ii < f.rows(); ++ii) {
-    const Vec3<int> face = f.row(ii);
-    const Vec3<Real> a = v.row(face(0));
-    const Vec3<Real> b = v.row(face(1));
-    const Vec3<Real> c = v.row(face(2));
-    glVertex3dv(a.data());
-    glVertex3dv(b.data());
-    glVertex3dv(c.data());
-  }
-  glEnd();
-  glDisable(GL_POLYGON_OFFSET_LINE);
-
-  // Draw normals
-  if (drawNormals) {
-    glColor3d(1.0, 0.0, 1.0);
-    glBegin(GL_LINES);
-    for (int ii = 0; ii < f.rows(); ++ii) {
-      const Vec3<int> face = f.row(ii);
-      const Vec3<Real> a = v.row(face(0));
-      const Vec3<Real> b = v.row(face(1));
-      const Vec3<Real> c = v.row(face(2));
-
-      const Vec3<Real> an = n.row(face(0));
-      const Vec3<Real> bn = n.row(face(1));
-      const Vec3<Real> cn = n.row(face(2));
-
-      glVertex3dv(a.data());
-      glVertex3dv((a + an).eval().data());
-
-      glVertex3dv(b.data());
-      glVertex3dv((b + bn).eval().data());
-
-      glVertex3dv(c.data());
-      glVertex3dv((c + cn).eval().data());
-    }
-    glEnd();
-  }
-
-  if (drawPinned) {
-    glColor3d(1.0, 0.0, 0.0);
-    glPointSize(5.0);
-    glBegin(GL_POINTS);
-    for (int ii = 0; ii < pinned.size(); ++ii) {
-      if (pinned(ii) == 1) {
-        const Vec3<Real> a = v.row(ii);
-        glVertex3dv(a.data());
-      }
-    }
-    glEnd();
-  }
-}
 void TetMesh::BuildMassMatrix() {
   m.resize(DOFs(), DOFs());
   mInv.resize(DOFs(), DOFs());
@@ -116,7 +29,7 @@ void TetMesh::ComputeTetRestVolumes() {
     restVolumes.at(ii) = TetVolume(v.row(t(ii, 0)), v.row(t(ii, 1)),
                                    v.row(t(ii, 2)), v.row(t(ii, 3)));
     // Prevent negative volumes
-    ASSERT2(restVolumes.at(ii) >= 0.0);
+    SIM_ASSERT(restVolumes.at(ii) >= 0.0, "");
   }
 }
 void TetMesh::ComputeVertexAreas() {
@@ -194,8 +107,8 @@ void TetMesh::Tetrahedralize() {
   f.rowwise().reverseInPlace();
 }
 void TetMesh::ComputeDeformationGradients() {
-  ASSERT2(!dmInvs.empty());
-  ASSERT2(!partialFPartialxs.empty());
+  SIM_ASSERT(!dmInvs.empty(), "");
+  SIM_ASSERT(!partialFPartialxs.empty(), "");
 
   // Compute Ds values for each tet
   for (int ii = 0; ii < t.rows(); ++ii) {
@@ -215,7 +128,7 @@ void TetMesh::ComputeDeformationGradients() {
 }
 auto TetMesh::ComputeMaterialForces(
     const std::shared_ptr<HyperelasticMaterial> &material) -> Vec<Real> {
-  ASSERT2(!needsNewDeformationGradients);
+  SIM_ASSERT(!needsNewDeformationGradients, "");
   std::vector<Vec12<Real>> perElementForces(t.rows());
   for (int tt = 0; tt < t.rows(); ++tt) {
     const Mat3<Real> &F = fs[tt];
@@ -244,7 +157,7 @@ auto TetMesh::ComputeMaterialForces(
 }
 auto TetMesh::EvalPartialFPartialx(int index, const Mat3<Real> &dmInv)
     -> Mat3<Real> {
-  ASSERT(index >= 0 && index <= 11, "Index: " + std::to_string(index) +
+  SIM_ASSERT(index >= 0 && index <= 11, "Index: " + std::to_string(index) +
                                         " invalid. Must be in range[0, 11].");
 
   Mat3<Real> ret = Mat3<Real>::Zero();
@@ -286,7 +199,7 @@ auto TetMesh::EvalPartialFPartialx(int index, const Mat3<Real> &dmInv)
     ret(2, 2) = 1;
     break;
   default:
-    ASSERT(ASSERT_ALWAYS_FALSE_V, "Unreachable");
+    SIM_ASSERT(false, "Unreachable");
   }
   return ret * dmInv;
 }
@@ -304,3 +217,5 @@ auto TetMesh::TetVolume(const Vec3<Real> &a, const Vec3<Real> &b,
   const auto d3 = d - a;
   return d3.dot(d1.cross(d2)) / 6.0;
 }
+
+} // namespace sim

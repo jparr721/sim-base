@@ -2,6 +2,8 @@
 
 #include "VolumeIntegrator.h"
 
+namespace sim {
+
 template <typename T> class BackwardEulerVolume : public VolumeIntegrator {
 public:
   BackwardEulerVolume(std::shared_ptr<TetMesh> tetMesh,
@@ -10,9 +12,11 @@ public:
       : VolumeIntegrator(std::move(tetMesh), std::move(material), dt,
                        rayleighAlpha, rayleighBeta) {}
 
-  INLINE void Step() override {
+  SIM_INLINE void Step() override {
 
   }
 
 private:
 };
+
+} // namespace sim

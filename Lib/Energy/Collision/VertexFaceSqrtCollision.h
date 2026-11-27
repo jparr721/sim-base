@@ -2,6 +2,8 @@
 
 #include <LibMath.h>
 
+namespace sim {
+
 class VertexFaceSqrtCollision {
 public:
   Real collisionStiffness;
@@ -15,7 +17,7 @@ public:
   [[nodiscard]] auto tDiffPartial(const Vec3<Real> &bary) const
       -> Mat3x12<Real>;
 
-  INLINE void GetVerticesAndEdges(const Vec12<Real> &x,
+  SIM_INLINE void GetVerticesAndEdges(const Vec12<Real> &x,
                                   std::vector<Vec3<Real>> &v,
                                   std::vector<Vec3<Real>> &e) const {
     v.resize(4);
@@ -31,9 +33,8 @@ public:
     e[2] = v[1] - v[2];
   }
 
-  [[nodiscard]] INLINE auto
-  ShouldReverse(const std::vector<Vec3<Real>> &v,
-                const std::vector<Vec3<Real>> &e) const -> bool {
+  [[nodiscard]] SIM_INLINE auto
+  ShouldReverse(const std::vector<Vec3<Real>> &e) const -> bool {
     // get the normal
     Vec3<Real> n = e[2].cross(e[0]);
     n = n / n.norm();
@@ -45,3 +46,5 @@ public:
     return dotted < 0;
   }
 };
+
+} // namespace sim

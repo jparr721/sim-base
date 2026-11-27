@@ -1,18 +1,22 @@
 #pragma once
 
-#include <LibMath.h>
+#include <Energy/ElementEnergy.h>
 
-class MassSpring {
-public:
-  // Spring stiffness
+namespace sim {
+
+// A cubic spring on one edge x = (x0, x1): Psi = k (l^3/3 - d l^2/2) with
+// l = |x1 - x0| and d the rest length. Its gradient is |e| times the gradient
+// of the quadratic spring k/2 (l - d)^2.
+struct MassSpring {
   Real k;
+  Real restLength;
 
-  // Spring rest length
-  Real d;
-
-  Real kover2;
-
-  MassSpring(Real k, Real d) : k(k), d(d), kover2(k / 2) {}
-  [[nodiscard]] auto Psi(const Vec6<Real> &x) const -> Real;
-  [[nodiscard]] auto Gradient(const Vec6<Real> &x) const -> Vec6<Real>;
+  [[nodiscard]] auto Psi(const VecN<6> &x) const -> Real;
+  [[nodiscard]] auto Gradient(const VecN<6> &x) const -> VecN<6>;
+  [[nodiscard]] auto Hessian(const VecN<6> &x) const -> MatN<6>;
+  [[nodiscard]] auto ClampedHessian(const VecN<6> &x) const -> MatN<6>;
 };
+
+static_assert(ElementEnergy<MassSpring, 6>);
+
+} // namespace sim

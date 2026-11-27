@@ -4,6 +4,7 @@ import os
 from rich import print
 from rich.progress import track
 import copy
+import glob
 
 app = typer.Typer()
 
@@ -167,11 +168,11 @@ def make_render_scene(folder: str, radius: float):
         # Now create the scene, first by copying the template
         s = copy.deepcopy(scene_drop)
 
-        if 'txt' in file:
-            comb_filename = file.replace("frame", "comb")
-            comb_filename = comb_filename.replace(".txt", ".obj")
-            s += make_bspline(file)
-            s += make_obj(comb_filename)
+        # sim_viewer exports colliders as collider<body>_NNNN.obj beside frame_NNNN.
+        frame_number = os.path.splitext(file)[0].removeprefix("frame_")
+        s += make_bspline(file)
+        for collider in sorted(glob.glob(os.path.join(folder, f"collider*_{frame_number}.obj"))):
+            s += make_obj(os.path.basename(collider))
 
         s += "</scene>\n"
         fn = os.path.splitext(file)[0]

@@ -1,6 +1,8 @@
 #pragma once
 #include <LibMath.h>
 
+namespace sim {
+
 ///////////////////////////////////////////////////////////////////////////////////
 // This is (sort of) the edge-edge collision energy described in a variety of
 // places:
@@ -110,3 +112,5 @@ protected:
   // collision epsilon -- how far apart should we push things?
   Real _eps;
 };
+
+} // namespace sim
