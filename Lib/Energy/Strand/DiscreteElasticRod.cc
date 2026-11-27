@@ -133,7 +133,6 @@ auto DiscreteElasticRod::SpringAt(int edge) const -> MassSpring {
 // run's floating-point results are unchanged.
 auto DiscreteElasticRod::Forces(const Vec<Real> &x) const -> Vec<Real> {
   Vec<Real> R = Vec<Real>::Zero(DOFs());
-  std::vector<Vec3<Real>> kbAt(nRods - 1);
   std::vector<Vec3<Real>> holonomyGradients(nRods + 1, Vec3<Real>::Zero());
 
   // Bending E = sum_i alpha |kb_i|^2 / lbar_i, with lbar_i the rest lengths of
@@ -147,16 +146,13 @@ auto DiscreteElasticRod::Forces(const Vec<Real> &x) const -> Vec<Real> {
     R.segment<3>(3 * ii) += outer * c.gradient.prev.transpose() * c.kb;
     R.segment<3>(3 * (ii + 1)) += outer * c.gradient.mid.transpose() * c.kb;
     R.segment<3>(3 * (ii + 2)) += outer * c.gradient.next.transpose() * c.kb;
-    kbAt.at(ii) = c.kb;
-  }
-
-  for (int ii = 0; ii < nRods - 1; ++ii) {
-    const Vec3<Real> prev = kbAt.at(ii) / (2 * restEdges.at(ii).length);
-    const Vec3<Real> next = -kbAt.at(ii) / (2 * restEdges.at(ii + 1).length);
+    const Vec3<Real> prev = c.kb / (2 * restEdges.at(ii).length);
+    const Vec3<Real> next = -c.kb / (2 * restEdges.at(ii + 1).length);
     holonomyGradients.at(ii) += prev;
     holonomyGradients.at(ii + 1) -= prev + next;
     holonomyGradients.at(ii + 2) += next;
   }
+
   const Real thetaDiff = thetas(thetas.rows() - 1) - thetas(0);
   const Real twistContrib = 2 * gTwistingModulus * thetaDiff / totalRestLength;
   for (int ii = 0; ii < nRods + 1; ++ii) {
