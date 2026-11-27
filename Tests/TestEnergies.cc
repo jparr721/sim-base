@@ -14,9 +14,11 @@
 #include <Energy/Volume/SymmetricDirichlet.h>
 
 #include <gtest/gtest.h>
+#include <iomanip>
 #include <limits>
 #include <numbers>
 #include <random>
+#include <sstream>
 
 using namespace sim;
 
@@ -71,6 +73,13 @@ auto RandomRotation(std::mt19937 &rng) -> Mat3<Real> {
 template <typename A, typename B>
 auto RelErr(const A &got, const B &want) -> Real {
   return (got - want).norm() / std::max(got.norm(), want.norm());
+}
+
+// Shown in --gtest_output=xml, so the margins under each bound can be read.
+void RecordWorst(Real worst) {
+  std::ostringstream text;
+  text << std::scientific << std::setprecision(2) << worst;
+  testing::Test::RecordProperty("worst", text.str());
 }
 
 constexpr Real kFdStep = 1e-6;
@@ -366,6 +375,7 @@ TYPED_TEST(EnergyTest, Pk1MatchesFdOfPsi) {
       worstAt = n;
     }
   }
+  RecordWorst(worst);
   EXPECT_LE(worst, 1e-6) << "sample " << worstAt;
 }
 
@@ -381,18 +391,22 @@ TYPED_TEST(EnergyTest, HessianMatchesFdOfPk1) {
       worstAt = n;
     }
   }
+  RecordWorst(worst);
   EXPECT_LE(worst, 1e-6) << "sample " << worstAt;
 }
 
 TYPED_TEST(EnergyTest, ClampedHessianIsPsd) {
   const TypeParam e = Traits<TypeParam>::Make(kLame);
   const std::vector<Mat3<Real>> &fs = DomainFs<TypeParam>();
+  Real worst = 0;
   for (std::size_t n = 0; n < fs.size(); ++n) {
     const Mat9<Real> h = e.ClampedHessian(fs[n], RotationVariantSvd(fs[n]));
     const Real minEigenvalue =
         Eigen::SelfAdjointEigenSolver<Mat9<Real>>(h).eigenvalues().minCoeff();
     ASSERT_GE(minEigenvalue, -1e-10 * h.norm()) << "sample " << n;
+    worst = std::min(worst, minEigenvalue / h.norm());
   }
+  RecordWorst(worst);
 }
 
 // PSD alone passes for a zero matrix. The analytic eigensystem must give the
@@ -416,6 +430,7 @@ TYPED_TEST(EnergyTest, ClampedHessianIsPsdProjectionOfHessian) {
       worstAt = n;
     }
   }
+  RecordWorst(worst);
   EXPECT_LE(worst, 1e-9) << "sample " << worstAt;
 }
 
