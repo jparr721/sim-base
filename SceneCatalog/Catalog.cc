@@ -35,7 +35,7 @@ const Lame kBunnyLame = Lame::FromYoungs(5.0, 0.45);
 // to rest on the floor, over 14 simulated seconds. Only drag can stop it on a
 // frictionless floor.
 auto BunnyRamp(std::string name, Real dt, const Integrator &integrator,
-               const Damping &damping, Real collisionEpsilon) -> SceneDesc {
+               const Damping &damping) -> SceneDesc {
   constexpr Real theta = std::numbers::pi / 6;
   const Vec3<Real> downhill(std::cos(theta), -std::sin(theta), 0);
   const Vec3<Real> rampNormal(std::sin(theta), std::cos(theta), 0);
@@ -55,7 +55,7 @@ auto BunnyRamp(std::string name, Real dt, const Integrator &integrator,
                .material = StableNeoHookean{kBunnyLame},
                .integrator = integrator,
                .damping = damping,
-               .collisionEpsilon = collisionEpsilon,
+               .collisionEpsilon = 0.02,
                .drag = 0.75,
            },
            Collider{.shape = Box{rampHalf},
@@ -74,8 +74,7 @@ auto BunnyRamp(std::string name, Real dt, const Integrator &integrator,
 }
 
 auto BunnyDrop() -> SceneDesc {
-  return BunnyRamp("bunny-drop", 1.0 / 1'000.0, ForwardEuler{}, NoDamping{},
-                   0.02);
+  return BunnyRamp("bunny-drop", 1.0 / 1'000.0, ForwardEuler{}, NoDamping{});
 }
 
 // The same scene at a 20 Hz game tick. Newton gets 25 iterations. Where
@@ -83,7 +82,7 @@ auto BunnyDrop() -> SceneDesc {
 // takes 14.
 auto BunnyDropImplicit() -> SceneDesc {
   return BunnyRamp("bunny-drop-implicit", 1.0 / 20,
-                   BackwardEuler{.maxNewtonIterations = 25}, NoDamping{}, 0.02);
+                   BackwardEuler{.maxNewtonIterations = 25}, NoDamping{});
 }
 
 // bunny-drop-implicit with Green-strain damping. The undamped bunny keeps
@@ -93,7 +92,7 @@ auto BunnyDropImplicit() -> SceneDesc {
 auto BunnyDropImplicitDamped() -> SceneDesc {
   return BunnyRamp("bunny-drop-implicit-damped", 1.0 / 20,
                    BackwardEuler{.maxNewtonIterations = 25},
-                   GreenDamping{.mu = 2}, 0.02);
+                   GreenDamping{.mu = 2});
 }
 
 // The catalog's energies, each demonstrated on bunny-drop-implicit-damped
