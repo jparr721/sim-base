@@ -5,6 +5,7 @@
 #include <array>
 #include <cmath>
 #include <numbers>
+#include <string>
 
 namespace sim {
 
@@ -22,8 +23,10 @@ auto LineStrand(int nVertices) -> Mat<Real> {
 }
 
 // The bunny falls onto a frictionless 30 degree ramp, slides down it and comes
-// to rest on the floor. Only drag can stop it on a frictionless floor.
-auto BunnyDrop() -> SceneDesc {
+// to rest on the floor, over 14 simulated seconds. Only drag can stop it on a
+// frictionless floor.
+auto BunnyRamp(std::string name, Real dt, const Integrator &integrator,
+               Real collisionEpsilon) -> SceneDesc {
   constexpr Real theta = std::numbers::pi / 6;
   const Vec3<Real> downhill(std::cos(theta), -std::sin(theta), 0);
   const Vec3<Real> rampNormal(std::sin(theta), std::cos(theta), 0);
@@ -33,8 +36,8 @@ auto BunnyDrop() -> SceneDesc {
   const Vec3<Real> rampTop(0, 1.2 * std::sin(theta), 0);
   const Vec3<Real> floorHalf(2.75, 0.25, 1.5);
   return {
-      .name = "bunny-drop",
-      .dt = 1.0 / 1'000.0,
+      .name = std::move(name),
+      .dt = dt,
       .bodies =
           {SoftBody{
                .mesh = {Meshes / "bunny.obj"},
@@ -42,7 +45,8 @@ auto BunnyDrop() -> SceneDesc {
                                      Vec3<Real>(0, 0.66, 0)},
                .material =
                    StableNeoHookean{.lame = Lame::FromYoungs(5.0, 0.45)},
-               .integrator = ForwardEuler{},
+               .integrator = integrator,
+               .collisionEpsilon = collisionEpsilon,
                .drag = 0.75,
            },
            Collider{.shape = Box{rampHalf},
@@ -52,12 +56,28 @@ auto BunnyDrop() -> SceneDesc {
                                       -theta, Vec3<Real>::UnitZ()))}},
            Collider{.shape = Box{floorHalf},
                     .place = {.centroid = Vec3<Real>(1.25, -floorHalf.y(), 0)}}},
-      .lastStep = 14'000,
+      .lastStep = static_cast<int>(std::lround(14 / dt)),
       // From the front and a little above, centered on the ramp's foot. The
       // camera orbits `displacement`, and `eye` is its offset from there.
       .view = {.eye = Vec3<float>(0.8f, 1.6f, 4.6f),
                .displacement = Vec3<float>(1.25f, 0.8f, 0.0f)},
   };
+}
+
+auto BunnyDrop() -> SceneDesc {
+  return BunnyRamp("bunny-drop", 1.0 / 1'000.0, ForwardEuler{}, 0.02);
+}
+
+// The same scene at a 20 Hz game tick.
+//  - The contact epsilon is 0.03 rather than 0.02. At 0.02 one step has a
+//    vertex slide off the floor triangle it was found against, and the
+//    contact's energy, which flips sides across the triangle's plane beyond
+//    its edges, pins it to the plane. Newton then stalls there.
+//  - Newton gets 25 iterations. Where clamping is active it converges
+//    linearly, and the worst step of this run takes 17.
+auto BunnyDropImplicit() -> SceneDesc {
+  return BunnyRamp("bunny-drop-implicit", 1.0 / 20,
+                   BackwardEuler{.maxNewtonIterations = 25}, 0.03);
 }
 
 auto StrandBend() -> SceneDesc {
@@ -151,6 +171,7 @@ auto FrameDebug() -> SceneDesc {
 
 constexpr std::array kCatalog = {
     SceneEntry{"bunny-drop", BunnyDrop},
+    SceneEntry{"bunny-drop-implicit", BunnyDropImplicit},
     SceneEntry{"strand-bend", StrandBend},
     SceneEntry{"strand-twist", StrandTwist},
     SceneEntry{"strand-drop", StrandDrop},

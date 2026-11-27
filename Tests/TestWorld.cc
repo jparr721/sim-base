@@ -388,10 +388,13 @@ struct PlacedBox {
   }
 };
 
-// The demo: the bunny stays finite, never sinks into the ramp or the floor by
-// its contact epsilon, and ends at rest on the floor past the ramp's foot.
-TEST(SoftContact, BunnySlidesDownRampAndRestsOnFloor) {
-  const auto desc = MakeScene("bunny-drop");
+// The demo, explicit and at a 20 Hz tick: the bunny stays finite, never sinks
+// into the ramp or the floor by its contact epsilon, and ends at rest on the
+// floor past the ramp's foot. Every implicit step's Newton solve converges.
+class BunnyRamp : public testing::TestWithParam<std::string> {};
+
+TEST_P(BunnyRamp, SlidesDownRampAndRestsOnFloor) {
+  const auto desc = MakeScene(GetParam());
   const auto &bunny = std::get<sim::SoftBody>(desc.bodies[0]);
   const PlacedBox ramp(desc.bodies[1]);
   const PlacedBox floor(desc.bodies[2]);
@@ -408,10 +411,20 @@ TEST(SoftContact, BunnySlidesDownRampAndRestsOnFloor) {
   Real rampDepth = -std::numeric_limits<Real>::infinity();
   Real floorDepth = -std::numeric_limits<Real>::infinity();
   Vec3<Real> secondToLast = Vec3<Real>::Zero();
-  const int restWindow = static_cast<int>(1 / desc.dt);
+  const int restWindow = static_cast<int>(std::lround(1 / desc.dt));
+  int maxNewton = 0;
+  int maxCg = 0;
+  long newton = 0;
+  long cg = 0;
   while (!world.Finished()) {
     world.Step();
     ASSERT_TRUE(mesh.v.allFinite()) << "step " << world.Steps();
+    const sim::StepReport &report = world.StepReports()[0];
+    ASSERT_TRUE(report.converged) << "step " << world.Steps();
+    maxNewton = std::max(maxNewton, report.newtonIterations);
+    maxCg = std::max(maxCg, report.cgIterations);
+    newton += report.newtonIterations;
+    cg += report.cgIterations;
     for (int ii = 0; ii < mesh.v.rows(); ++ii) {
       rampDepth = std::max(rampDepth, ramp.Depth(mesh.v.row(ii)));
       floorDepth = std::max(floorDepth, floor.Depth(mesh.v.row(ii)));
@@ -427,6 +440,10 @@ TEST(SoftContact, BunnySlidesDownRampAndRestsOnFloor) {
             << "), foot x " << footX << ", lowest x "
             << mesh.v.col(0).minCoeff() << ", centroid speed over the last "
             << "second " << speed << "\n";
+  std::cout << "[ measured ] Newton iterations per step: max " << maxNewton
+            << ", mean " << static_cast<Real>(newton) / world.Steps()
+            << "; CG iterations per step: max " << maxCg << ", mean "
+            << static_cast<Real>(cg) / world.Steps() << "\n";
   EXPECT_LT(rampDepth, bunny.collisionEpsilon);
   EXPECT_LT(floorDepth, bunny.collisionEpsilon);
   EXPECT_GT(mesh.v.col(0).minCoeff(), footX);
@@ -434,5 +451,13 @@ TEST(SoftContact, BunnySlidesDownRampAndRestsOnFloor) {
   EXPECT_LT(centroid.y() - floorTop, 0.5);
   EXPECT_LT(speed, 5e-3);
 }
+
+INSTANTIATE_TEST_SUITE_P(Scenes, BunnyRamp,
+                         testing::Values("bunny-drop", "bunny-drop-implicit"),
+                         [](const auto &info) {
+                           std::string name = info.param;
+                           std::ranges::replace(name, '-', '_');
+                           return name;
+                         });
 
 } // namespace
