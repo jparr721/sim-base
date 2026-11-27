@@ -65,6 +65,16 @@ sim_volume_energy(anisotropic_fung AnisotropicFung)
 sim_volume_energy(stable_neo_hookean_barrier StableNeoHookeanBarrier)
 get_property(SIM_VOLUME_ENERGY_TARGETS GLOBAL PROPERTY SIM_VOLUME_ENERGIES)
 
+# A damping module: a DampingEnergy over (F, Fdot). Links the core math only.
+add_library(sim_damping_green STATIC
+        Energy/Volume/Energy.h
+        Energy/Damping/GreenDamping.h Energy/Damping/GreenDamping.cc)
+target_include_directories(sim_damping_green PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_compile_options(sim_damping_green PRIVATE ${SIM_WARNINGS})
+target_link_libraries(sim_damping_green PUBLIC Eigen3::Eigen)
+
 # The System concept and its constraints: what integrators see of a body.
 add_library(sim_system STATIC
         Solid/System.h
@@ -89,7 +99,8 @@ add_library(sim_solid STATIC
         TetMesh.h TetMesh.cc
         Solid/Contact.h
         Solid/ElasticSystem.h Solid/ElasticSystem.cc
-        Energy/Volume/Material.h)
+        Energy/Volume/Material.h
+        Energy/Damping/Damping.h)
 target_include_directories(sim_solid PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
@@ -98,6 +109,7 @@ target_link_libraries(sim_solid PUBLIC
         sim_system
         sim_energy_vertex_face_collision
         sim_volume_energies
+        sim_damping_green
         igl::core
         igl_copyleft::tetgen
         Eigen3::Eigen)
@@ -113,6 +125,7 @@ target_include_directories(sim PUBLIC
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_options(sim PRIVATE ${SIM_WARNINGS})
 install(TARGETS sim sim_solid sim_system sim_integrators sim_energy_mass_spring
+        sim_damping_green
         sim_energy_vertex_face_collision
         sim_volume_energies ${SIM_VOLUME_ENERGY_TARGETS} EXPORT sim)
 target_link_libraries(

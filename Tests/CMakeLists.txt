@@ -45,6 +45,10 @@ package_add_test(TestEnergies TestEnergies.cc)
 # Only the energy modules, so the test fails to link if a module needs sim.
 set_property(TARGET TestEnergies PROPERTY LINK_LIBRARIES
         sim_volume_energies gmock gtest_main)
+package_add_test(TestDamping TestDamping.cc)
+# Only the damping module, so the test fails to link if the module needs more.
+set_property(TARGET TestDamping PROPERTY LINK_LIBRARIES
+        sim_damping_green gmock gtest_main)
 package_add_test(TestElasticSystem TestElasticSystem.cc)
 # Only sim_solid, so the test fails to link if assembly needs sim.
 set_property(TARGET TestElasticSystem PROPERTY LINK_LIBRARIES sim_solid gmock gtest_main)

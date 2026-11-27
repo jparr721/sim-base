@@ -25,6 +25,19 @@ concept Energy = requires(const E &e, const Mat3<Real> &f, const Svd &svd) {
   { e.ClampedHessian(f, svd) } -> std::same_as<Mat9<Real>>;
 };
 
+// A damping energy density of F and its rate Fdot: Psi(F, Fdot) is a
+// Rayleigh dissipation potential, so the damping force on a tet is
+// -V (dF/dx)^T vec(Pk1) with Pk1 = dPsi/dFdot, and Hessian is
+// d^2 Psi / d vec(Fdot)^2. Psi is quadratic in Fdot, so the force is linear
+// in the velocities.
+template <typename D>
+concept DampingEnergy =
+    requires(const D &d, const Mat3<Real> &f, const Mat3<Real> &fdot) {
+      { d.Psi(f, fdot) } -> std::same_as<Real>;
+      { d.Pk1(f, fdot) } -> std::same_as<Mat3<Real>>;
+      { d.Hessian(f, fdot) } -> std::same_as<Mat9<Real>>;
+    };
+
 struct Lame {
   Real mu;
   Real lambda;
