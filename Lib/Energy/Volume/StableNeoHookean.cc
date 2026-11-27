@@ -6,15 +6,6 @@ namespace {
 
 auto SnhLambda(const Lame &lame) -> Real { return lame.lambda + lame.mu; }
 
-// dJ/dF: the cofactor matrix, column i is the cross product of the other two.
-auto CofactorOf(const Mat3<Real> &f) -> Mat3<Real> {
-  Mat3<Real> g;
-  g.col(0) = f.col(1).cross(f.col(2));
-  g.col(1) = f.col(2).cross(f.col(0));
-  g.col(2) = f.col(0).cross(f.col(1));
-  return g;
-}
-
 } // namespace
 
 auto StableNeoHookean::Psi(const Mat3<Real> &f) const -> Real {
@@ -31,7 +22,7 @@ auto StableNeoHookean::Pk1(const Mat3<Real> &f) const -> Mat3<Real> {
   const Real mu = lame.mu;
   const Real lambda = SnhLambda(lame);
   const Real j = f.determinant();
-  const Mat3<Real> g = CofactorOf(f);
+  const Mat3<Real> g = Cofactor(f);
   return mu * f - mu * g + lambda * (j - 1) * g;
 }
 
@@ -42,7 +33,7 @@ auto StableNeoHookean::Pk1(const Mat3<Real> &f) const -> Mat3<Real> {
 auto StableNeoHookean::Hessian(const Mat3<Real> &f) const -> Mat9<Real> {
   const Real mu = lame.mu;
   const Real lambda = SnhLambda(lame);
-  const Vec9<Real> g = Vectorize(CofactorOf(f));
+  const Vec9<Real> g = Vectorize(Cofactor(f));
   const Real s = lambda * (f.determinant() - 1) - mu;
 
   Mat9<Real> hessianJ = Mat9<Real>::Zero();
