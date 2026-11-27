@@ -219,6 +219,12 @@ TEST(World, NonPositiveScaleIsRejected) {
   EXPECT_THROW(Placed(strand), std::invalid_argument);
 }
 
+TEST(World, NonPositiveContactEpsilonIsRejected) {
+  auto bunny = Bunny({});
+  bunny.collisionEpsilon = 0;
+  EXPECT_THROW(Placed(bunny), std::invalid_argument);
+}
+
 TEST(World, PathActionWithoutLastStepIsRejected) {
   auto desc = MakeScene("strand-bend");
   desc.script.front().lastStep.reset();
