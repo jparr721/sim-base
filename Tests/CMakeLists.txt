@@ -44,7 +44,7 @@ set_property(TARGET TestElementEnergies PROPERTY LINK_LIBRARIES
 package_add_test(TestEnergies TestEnergies.cc)
 # Only the energy modules, so the test fails to link if a module needs sim.
 set_property(TARGET TestEnergies PROPERTY LINK_LIBRARIES
-        sim_energy_stable_neo_hookean sim_energy_stvk gmock gtest_main)
+        sim_volume_energies gmock gtest_main)
 package_add_test(TestElasticSystem TestElasticSystem.cc)
 # Only sim_solid, so the test fails to link if assembly needs sim.
 set_property(TARGET TestElasticSystem PROPERTY LINK_LIBRARIES sim_solid gmock gtest_main)
