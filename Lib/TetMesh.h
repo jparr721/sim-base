@@ -8,6 +8,8 @@
 #include <igl/per_vertex_normals.h>
 #include <igl/read_triangle_mesh.h>
 
+#include <functional>
+
 namespace sim {
 
 class TetMesh {
@@ -41,9 +43,14 @@ public:
 
   TetMesh() = default;
 
-  explicit TetMesh(const fs::path &file) {
+  // Tetrahedralizes `file` in its own coordinates, then rests the mesh at
+  // place(v, t), so a placement cannot change the tetrahedralization.
+  using Placer =
+      std::function<Mat<Real>(const Mat<Real> &v, const Mat<int> &t)>;
+  TetMesh(const fs::path &file, const Placer &place) {
     igl::read_triangle_mesh(file.string(), v, f);
     Tetrahedralize();
+    v = place(v, t);
     igl::per_vertex_normals(v, f, n);
     InitializeDataStructures();
   }

@@ -14,8 +14,27 @@ struct BodyId {
   int index;
 };
 
+// Where a body sits in the world. World recenters the body's rest shape on
+// its centroid, then scales, rotates and moves it so the centroid lands here.
+struct Placement {
+  Vec3<Real> centroid = Vec3<Real>::Zero();
+  Eigen::Quaternion<Real> rotation = Eigen::Quaternion<Real>::Identity();
+  Real scale = 1;
+};
+
+struct MeshFile {
+  fs::path path;
+};
+
+// A closed box centered on its body's centroid.
+struct Box {
+  Vec3<Real> halfExtents;
+};
+
+// Points are body-local. Their vertex mean is the centroid.
 struct Strand {
   Mat<Real> points;
+  Placement place;
   std::vector<int> pinned;
   Real leftTwistRate = 0;  // rad/s applied to the first edge's material frame
   Real rightTwistRate = 0; // rad/s applied to the last edge's material frame
@@ -29,17 +48,21 @@ struct NeoHookean {
 };
 using Material = std::variant<NeoHookean>;
 
+// The tetrahedralized mesh is recentered on its volume-weighted centroid.
 struct SoftBody {
-  fs::path mesh;
+  MeshFile mesh;
+  Placement place;
   Material material;
-  // Vertices strictly inside this box are pinned.
-  Eigen::AlignedBox<Real, 3> pinRegion;
+  // Vertices strictly inside this body-local box (recentered, before scale
+  // and rotation) are pinned.
+  std::optional<Eigen::AlignedBox<Real, 3>> pinRegion;
 };
 
-// Static triangle mesh strands collide against.
+// Static triangle mesh strands collide against, recentered on its
+// area-weighted centroid.
 struct Collider {
-  fs::path mesh;
-  Vec3<Real> offset = Vec3<Real>::Zero();
+  std::variant<MeshFile, Box> shape;
+  Placement place;
 };
 
 using Body = std::variant<Strand, SoftBody, Collider>;
@@ -54,6 +77,7 @@ struct MovePinned {
   Real toDx;
 };
 
+// Moves the collider's centroid along a path of offsets from place.centroid.
 struct MoveCollider {
   BodyId collider;
   Vec3<Real> from;

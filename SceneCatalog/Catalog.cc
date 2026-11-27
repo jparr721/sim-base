@@ -11,10 +11,11 @@ namespace {
 
 constexpr float kZoom = 10;
 
-auto LineStrand(int nVertices, Real y) -> Mat<Real> {
+// Unit-spaced vertices along x, centered on the origin.
+auto LineStrand(int nVertices) -> Mat<Real> {
   Mat<Real> points(nVertices, 3);
   for (int ii = 0; ii < nVertices; ++ii) {
-    points.row(ii) = Vec3<Real>(ii, y, 0);
+    points.row(ii) = Vec3<Real>(ii - (nVertices - 1) / 2.0, 0, 0);
   }
   return points;
 }
@@ -25,9 +26,14 @@ auto BunnyDrop() -> SceneDesc {
       .name = "bunny-drop",
       .dt = 1.0 / 3000.0,
       .bodies = {SoftBody{
-          .mesh = Meshes / "bunny.obj",
+          .mesh = {Meshes / "bunny.obj"},
+          .place = {.centroid = Vec3<Real>(-0.11954105949006674,
+                                           0.46292674024111929,
+                                           0.051522498745946617)},
           .material = NeoHookean{.youngsModulus = 5.0, .poissonRatio = 0.45},
-          .pinRegion = {Vec3<Real>(-inf, 0.9, -inf), Vec3<Real>(inf, inf, inf)},
+          .pinRegion = Eigen::AlignedBox<Real, 3>(
+              Vec3<Real>(-inf, 0.43707325975888073, -inf),
+              Vec3<Real>(inf, inf, inf)),
       }},
       // Elevated three-quarter view of the bunny's face side. The camera
       // orbits `displacement`, and `eye` is its offset from there.
@@ -40,7 +46,8 @@ auto StrandBend() -> SceneDesc {
   return {
       .name = "strand-bend",
       .dt = 1.0 / 1'000.0,
-      .bodies = {Strand{.points = LineStrand(5, 0),
+      .bodies = {Strand{.points = LineStrand(5),
+                        .place = {.centroid = Vec3<Real>(2, 0, 0)},
                         .pinned = {0, 4},
                         .collisionStiffness = 5,
                         .collisionEpsilon = 0.3}},
@@ -61,7 +68,8 @@ auto StrandTwist() -> SceneDesc {
   return {
       .name = "strand-twist",
       .dt = 1.0 / 1'000.0,
-      .bodies = {Strand{.points = LineStrand(8, 0),
+      .bodies = {Strand{.points = LineStrand(8),
+                        .place = {.centroid = Vec3<Real>(3.5, 0, 0)},
                         .pinned = {0, 7},
                         .rightTwistRate = 50,
                         .collisionStiffness = 5,
@@ -85,13 +93,11 @@ auto StrandDrop() -> SceneDesc {
                .up = Vec3<float>(-0.342824, 0.939373, -0.00713152),
                .displacement = Vec3<float>(-0.367183, -0.0835798, 9.81318)},
   };
+  const Mat<Real> hair = 0.25 * LineStrand(32);
   for (Real ss = 8; ss < 12; ss += 0.05) {
-    Mat<Real> v(32, 3);
-    for (int ii = 0; ii < 32; ++ii) {
-      v.row(ii) = Vec3<Real>(0.25 * ii, 0, ss);
-    }
     const BodyId strand{static_cast<int>(desc.bodies.size())};
-    desc.bodies.emplace_back(Strand{.points = v,
+    desc.bodies.emplace_back(Strand{.points = hair,
+                                    .place = {.centroid = {3.875, 0, ss}},
                                     .pinned = {0},
                                     .collisionStiffness = 5,
                                     .collisionEpsilon = 0.3});
@@ -100,14 +106,17 @@ auto StrandDrop() -> SceneDesc {
          .effect = SetDamping{.strand = strand, .coefficient = 0.45}});
   }
   const BodyId comb{static_cast<int>(desc.bodies.size())};
-  desc.bodies.emplace_back(Collider{.mesh = Meshes / "comb_more_teeth.obj",
-                                    .offset = Vec3<Real>(-1, -1, 10)});
+  desc.bodies.emplace_back(Collider{
+      .shape = MeshFile{Meshes / "comb_more_teeth.obj"},
+      .place = {.centroid = Vec3<Real>(-1.0181996320738793,
+                                       -0.99999922397060237,
+                                       9.9997512330105884)}});
   desc.script.push_back({.firstStep = 20'001,
                          .lastStep = 30'000,
                          .holdSteps = 50,
                          .effect = MoveCollider{.collider = comb,
-                                                .from = Vec3<Real>(-1, -1, 10),
-                                                .to = Vec3<Real>(-1, -8, 10)}});
+                                                .from = Vec3<Real>(0, 0, 0),
+                                                .to = Vec3<Real>(0, -7, 0)}});
   return desc;
 }
 
@@ -115,7 +124,8 @@ auto FrameDebug() -> SceneDesc {
   return {
       .name = "frame-debug",
       .dt = 1.0 / 1'000.0,
-      .bodies = {Strand{.points = LineStrand(5, 1)}},
+      .bodies = {Strand{.points = LineStrand(5),
+                        .place = {.centroid = Vec3<Real>(2, 1, 0)}}},
       .lastStep = 0,
       .view = {.zoom = kZoom, .showMaterialFrames = true},
   };

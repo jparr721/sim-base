@@ -30,7 +30,8 @@ TEST(World, FrameDebugNeverSteps) {
 
 // golden::kRuns stops strand-drop before the comb moves, so check the sweep
 // alone: before step s the comb sits at its rest pose plus
-// (-1, sweep((s - 20001) / 50), 10), with sweep running from -1 down to -8.
+// (0, sweep((s - 20001) / 50), 0), with sweep running from 0 down to -7. The
+// rest pose is the comb file moved by (-1, -1, 10).
 TEST(World, CombSweepFollowsHoldSteps) {
   auto desc = MakeScene("strand-drop");
   const auto collider = std::ranges::find_if(desc.bodies, [](const auto &b) {
@@ -48,19 +49,23 @@ TEST(World, CombSweepFollowsHoldSteps) {
   desc.script = {action};
   sim::World world(desc);
 
-  CollisionMesh expected;
-  ASSERT_TRUE(igl::readOBJ((Meshes / "comb_more_teeth.obj").string(),
-                           expected.rv, expected.f));
-  expected.v = expected.rv;
-  const Vec<Real> combTranslation = Vec<Real>::LinSpaced(200, -8, -1).reverse();
+  Mat<Real> file;
+  Mat<int> faces;
+  ASSERT_TRUE(igl::readOBJ((Meshes / "comb_more_teeth.obj").string(), file,
+                           faces));
   const auto *mesh = std::get<const CollisionMesh *>(world.Bodies()[0]);
-  expected.Translate(Vec3<Real>(-1, -1, 10));
-  ASSERT_TRUE(mesh->v == expected.v);
+  const Mat<Real> filePose =
+      file.rowwise() + Vec3<Real>(-1, -1, 10).transpose();
+  ASSERT_LT((mesh->v - filePose).cwiseAbs().maxCoeff(), 1e-12);
+
+  CollisionMesh expected;
+  expected.rv = mesh->v;
+  expected.v = expected.rv;
+  const Vec<Real> drop = Vec<Real>::LinSpaced(200, 0, -7);
   for (int step = 1; step <= 30'000; ++step) {
     world.Step();
     if (step > 20'000) {
-      expected.Translate(
-          Vec3<Real>(-1, combTranslation((step - 20'001) / 50), 10.0));
+      expected.Translate(Vec3<Real>(0, drop((step - 20'001) / 50), 0));
     }
     ASSERT_TRUE(mesh->v == expected.v) << "step " << step;
   }
