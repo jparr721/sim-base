@@ -39,4 +39,16 @@ auto GreenDamping::Hessian(const Mat3<Real> &f,
   return h;
 }
 
+auto GreenDamping::StepPsi(const Mat3<Real> &f, const Mat3<Real> &f0,
+                           Real h) const -> Real {
+  return h * Psi((f0 + f) / 2, (f - f0) / h);
+}
+
+// dE(f) = sym(f^T df), so dStepPsi = 2 mu Edot : sym(f^T df) with Edot the
+// mean rate, and dStepPsi/df = 2 mu f Edot.
+auto GreenDamping::StepPk1(const Mat3<Real> &f, const Mat3<Real> &f0,
+                           Real h) const -> Mat3<Real> {
+  return 2 * mu * f * GreenStrainRate((f0 + f) / 2, (f - f0) / h);
+}
+
 } // namespace sim

@@ -130,4 +130,72 @@ TEST(GreenDamping, RigidMotionIsNotDamped) {
   EXPECT_GT(smallestStretch, 1e-2);
 }
 
+// The samples' Fdot as a step from f0 = f - h Fdot to f.
+constexpr Real kStep = 0.05;
+
+TEST(GreenDamping, StepPk1IsTheGradientOfStepPsi) {
+  Real worst = 0;
+  for (const auto &[f, fdot] : Samples()) {
+    const Mat3<Real> f0 = f - kStep * fdot;
+    Mat3<Real> fd;
+    for (int k = 0; k < 9; ++k) {
+      Mat3<Real> plus = f;
+      Mat3<Real> minus = f;
+      plus(k) += kFdStep;
+      minus(k) -= kFdStep;
+      fd(k) = (kDamping.StepPsi(plus, f0, kStep) -
+               kDamping.StepPsi(minus, f0, kStep)) /
+              (2 * kFdStep);
+    }
+    worst = std::max(worst, RelErr(kDamping.StepPk1(f, f0, kStep), fd));
+  }
+  EXPECT_LE(worst, 1e-6);
+}
+
+// As the step shrinks at a fixed rate, StepPsi / h and StepPk1 tend to Psi
+// and Pk1, with an error of order h.
+TEST(GreenDamping, StepFormTendsToTheRateFormAsTheStepShrinks) {
+  for (const Real h : {1e-3, 1e-6}) {
+    Real worstPsi = 0;
+    Real worstPk1 = 0;
+    for (const auto &[f, fdot] : Samples()) {
+      const Mat3<Real> f0 = f - h * fdot;
+      worstPsi = std::max(worstPsi,
+                          std::abs(kDamping.StepPsi(f, f0, h) / h -
+                                   kDamping.Psi(f, fdot)) /
+                              std::max(kDamping.Psi(f, fdot), Real(1)));
+      worstPk1 = std::max(worstPk1, (kDamping.StepPk1(f, f0, h) -
+                                     kDamping.Pk1(f, fdot))
+                                            .norm() /
+                                        std::max(kDamping.Pk1(f, fdot).norm(),
+                                                 Real(1)));
+    }
+    EXPECT_LE(worstPsi, 100 * h) << "h " << h;
+    EXPECT_LE(worstPk1, 100 * h) << "h " << h;
+  }
+}
+
+// A step that turns F by a finite rotation leaves E unchanged, so it
+// dissipates nothing, where the rate form at the chord rate (f - f0) / h
+// does.
+TEST(GreenDamping, StepThroughAFiniteRotationIsNotDamped) {
+  const Mat3<Real> turn =
+      Eigen::AngleAxis<Real>(0.6, Vec3<Real>(1, 2, 3).normalized())
+          .toRotationMatrix();
+  Real worst = 0;
+  Real chord = std::numeric_limits<Real>::infinity();
+  for (const auto &[f0, unused] : Samples()) {
+    const Mat3<Real> f = turn * f0;
+    const Real scale = kDamping.mu * f0.squaredNorm() * f0.squaredNorm();
+    worst = std::max(worst, kDamping.StepPsi(f, f0, kStep) / scale);
+    worst = std::max(worst, kDamping.StepPk1(f, f0, kStep).norm() / scale);
+    chord = std::min(chord,
+                     kStep * kDamping.Psi(f, (f - f0) / kStep) / scale);
+  }
+  std::cout << "[ measured ] a 0.6 rad turn: step form at most " << worst
+            << " of mu |F|^4, chord rate form at least " << chord << "\n";
+  EXPECT_LE(worst, 1e-13);
+  EXPECT_GT(chord, 1e-3);
+}
+
 } // namespace

@@ -19,6 +19,17 @@ struct GreenDamping {
       -> Mat3<Real>;
   [[nodiscard]] auto Hessian(const Mat3<Real> &f, const Mat3<Real> &fdot) const
       -> Mat9<Real>;
+
+  // The dissipation of an implicit step of length h that moves F from f0 to
+  // f, per unit rest volume: h Psi at the step's mean strain rate
+  // (E(f) - E(f0)) / h. E is quadratic in F, so that rate is exactly the
+  // Edot of the mean gradient (f0 + f) / 2 moving at (f - f0) / h. It is zero
+  // when f is f0 turned by any rotation, however large.
+  [[nodiscard]] auto StepPsi(const Mat3<Real> &f, const Mat3<Real> &f0,
+                             Real h) const -> Real;
+  // dStepPsi/df: 2 mu f (E(f) - E(f0)) / h.
+  [[nodiscard]] auto StepPk1(const Mat3<Real> &f, const Mat3<Real> &f0,
+                             Real h) const -> Mat3<Real>;
 };
 
 static_assert(DampingEnergy<GreenDamping>);
