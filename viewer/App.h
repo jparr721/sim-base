@@ -7,7 +7,7 @@
 namespace viewer {
 
 struct Options {
-  std::optional<std::string> scene; // catalog name; the first entry if empty
+  std::string scene = "bunny-drop"; // catalog name
   std::optional<std::string> exportDirectory; // export every rendered frame
 };
 
