@@ -264,8 +264,8 @@ template <System S>
 auto Step(const ForwardEuler & /*method*/, const S &system,
           IntegratorState &state, const Vec<Real> &external, Real dt)
     -> StepReport {
-  const SparseMat<Real> massInverse = ConstructDiagonalSparseMatrix<Real>(
-      Vec<Real>(system.Mass().diagonal()).cwiseInverse());
+  const SparseMat<Real> massInverse =
+      ConstructDiagonalSparseMatrix<Real>(detail::LumpedInverse(system.Mass()));
   const SparseMat<Real> filter = system.Constraints().Filter();
   const Vec<Real> forces = system.Forces(state.x, state.v);
   // dx = S (dt^2 M^-1 f + dt v), then v = S dx / dt.
