@@ -202,10 +202,8 @@ auto Bending::Gradient(const VecN<9> &x) const -> VecN<9> {
 auto Bending::Hessian(const VecN<9> &x) const -> MatN<9> {
   const Curvature c = CurvatureOf(x, restLength0, restLength1);
   const Real d = c.denominator;
-  const Mat3<Real> j0 = -(2 * CrossProductMatrix(c.e1) +
-                          c.kb * c.e1.transpose()) / d;
-  const Mat3<Real> j1 =
-      (2 * CrossProductMatrix(c.e0) - c.kb * c.e0.transpose()) / d;
+  const Mat3<Real> j0 = -c.gradient.prev;
+  const Mat3<Real> &j1 = c.gradient.next;
   const Vec3<Real> a = j0.transpose() * c.kb;
   const Vec3<Real> b = j1.transpose() * c.kb;
   const Real mu = c.kb.squaredNorm();
