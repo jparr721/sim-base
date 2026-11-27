@@ -58,6 +58,7 @@ sim_volume_energy(stvk StVenantKirchhoff)
 sim_volume_energy(linear_elasticity LinearElasticity)
 sim_volume_energy(neo_hookean_bonet_wood NeoHookeanBonetWood)
 sim_volume_energy(arap Arap)
+sim_volume_energy(symmetric_dirichlet SymmetricDirichlet)
 get_property(SIM_VOLUME_ENERGY_TARGETS GLOBAL PROPERTY SIM_VOLUME_ENERGIES)
 
 # Tet geometry and its global assembly: links the volume energies, never sim.

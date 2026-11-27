@@ -7,6 +7,7 @@
 #include <Energy/Volume/NeoHookeanBonetWood.h>
 #include <Energy/Volume/StVenantKirchhoff.h>
 #include <Energy/Volume/StableNeoHookean.h>
+#include <Energy/Volume/SymmetricDirichlet.h>
 
 #include <gtest/gtest.h>
 #include <random>
@@ -195,6 +196,26 @@ template <> struct HandDerived<Arap> : HandDerivedInput<Arap> {
   static auto Pk1() -> Mat3<Real> { return Vec3<Real>(2, 0, 0).asDiagonal(); }
 };
 
+// Symmetric Dirichlet is singular at s = 0, so samples keep every singular
+// value at least 0.1 from it. Inverted F stay in.
+template <>
+struct Traits<SymmetricDirichlet> : DefaultTraits<SymmetricDirichlet> {
+  static auto InDomain(const Mat3<Real> &f) -> bool {
+    return std::abs(RotationVariantSvd(f).sigma(2)) >= 0.1;
+  }
+};
+
+// |F|^2 = 6 and |F^-1|^2 = 1/4 + 2 = 9/4: Psi = 1/4 (6 + 9/4 - 6) = 9/16.
+// F^-T F^-1 F^-T = diag(1/8, 1, 1): P = 1/2 (F - diag(1/8, 1, 1))
+// = diag(15/16, 0, 0).
+template <>
+struct HandDerived<SymmetricDirichlet> : HandDerivedInput<SymmetricDirichlet> {
+  static auto Psi() -> Real { return Real(9) / 16; }
+  static auto Pk1() -> Mat3<Real> {
+    return Vec3<Real>(Real(15) / 16, 0, 0).asDiagonal();
+  }
+};
+
 template <typename E> class EnergyTest : public testing::Test {};
 
 using Energies =
@@ -202,7 +223,8 @@ using Energies =
                    StVenantKirchhoff,
                    LinearElasticity,
                    NeoHookeanBonetWood,
-                   Arap>;
+                   Arap,
+                   SymmetricDirichlet>;
 TYPED_TEST_SUITE(EnergyTest, Energies);
 
 TEST(EnergySamples, IncludeInvertedF) {

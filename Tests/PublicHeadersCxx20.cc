@@ -7,6 +7,7 @@
 #include <Energy/Volume/NeoHookeanBonetWood.h>
 #include <Energy/Volume/StVenantKirchhoff.h>
 #include <Energy/Volume/StableNeoHookean.h>
+#include <Energy/Volume/SymmetricDirichlet.h>
 #include <Sim/Scene.h>
 #include <Sim/World.h>
 #include <Solid/Constraints.h>
