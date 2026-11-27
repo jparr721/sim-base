@@ -185,6 +185,19 @@ TEST_P(Integrators, ForwardEulerBlowsUpAtTheSameDt) {
   EXPECT_LE(step, 600);
 }
 
+// The free tet or bunny stretched 5% in y about its centroid, at rest, with
+// no gravity and no contacts.
+auto Stretched(const std::string &name, const Damping &damping) -> Body {
+  Body body(name, name == "tet" ? FreeTet() : Bunny(false), kSoft,
+            Vec3<Real>::Zero(), damping);
+  const Vec3<Real> centroid = body.mesh->v.colwise().mean();
+  for (int ii = 0; ii < body.mesh->v.rows(); ++ii) {
+    body.state.x(3 * ii + 1) =
+        centroid.y() + 1.05 * (body.state.x(3 * ii + 1) - centroid.y());
+  }
+  return body;
+}
+
 // Undamped, contact-free and with no external force, the trapezoidal rule
 // keeps the energy of a 5% stretch within 1% over 600 steps. Its energy error
 // is second order in dt and grows with how unresolved the stiffest modes
@@ -194,13 +207,7 @@ TEST_P(Integrators, ForwardEulerBlowsUpAtTheSameDt) {
 // runs at 1/240.
 TEST_P(Integrators, NewmarkConservesEnergy) {
   const bool tet = GetParam() == "tet";
-  Body body(GetParam(), tet ? FreeTet() : Bunny(false), kSoft,
-            Vec3<Real>::Zero());
-  const Vec3<Real> centroid = body.mesh->v.colwise().mean();
-  for (int ii = 0; ii < body.mesh->v.rows(); ++ii) {
-    body.state.x(3 * ii + 1) =
-        centroid.y() + 1.05 * (body.state.x(3 * ii + 1) - centroid.y());
-  }
+  Body body = Stretched(GetParam(), NoDamping{});
   const Real dt = tet ? 1.0 / 60 : 1.0 / 240;
   const Newmark method{.maxNewtonIterations = kIterations, .tolerance = kTight};
   const Real initial = body.TotalEnergy();
@@ -306,19 +313,6 @@ TEST_P(Integrators, UnconvergedStepReportsFailure) {
   EXPECT_EQ(report.newtonIterations, 1);
   EXPECT_TRUE(body.state.x.allFinite());
   EXPECT_TRUE(body.state.v.allFinite());
-}
-
-// The free tet or bunny stretched 5% in y about its centroid, at rest, with
-// no gravity and no contacts.
-auto Stretched(const std::string &name, const Damping &damping) -> Body {
-  Body body(name, name == "tet" ? FreeTet() : Bunny(false), kSoft,
-            Vec3<Real>::Zero(), damping);
-  const Vec3<Real> centroid = body.mesh->v.colwise().mean();
-  for (int ii = 0; ii < body.mesh->v.rows(); ++ii) {
-    body.state.x(3 * ii + 1) =
-        centroid.y() + 1.05 * (body.state.x(3 * ii + 1) - centroid.y());
-  }
-  return body;
 }
 
 const GreenDamping kGreen{.mu = 0.5};
