@@ -3,7 +3,8 @@
 #include <Settings.h>
 
 #include <array>
-#include <limits>
+#include <cmath>
+#include <numbers>
 
 namespace sim {
 
@@ -20,25 +21,41 @@ auto LineStrand(int nVertices) -> Mat<Real> {
   return points;
 }
 
+// The bunny falls onto a frictionless 30 degree ramp, slides down it and comes
+// to rest on the floor. Only drag can stop it on a frictionless floor.
 auto BunnyDrop() -> SceneDesc {
-  constexpr Real inf = std::numeric_limits<Real>::infinity();
+  constexpr Real theta = std::numbers::pi / 6;
+  const Vec3<Real> downhill(std::cos(theta), -std::sin(theta), 0);
+  const Vec3<Real> rampNormal(std::sin(theta), std::cos(theta), 0);
+  const Vec3<Real> rampHalf(1.5, 0.1, 1);
+  // The center of the ramp's top face, which meets the floor 1.2 downhill of
+  // here. The last 0.3 of the ramp is under the floor.
+  const Vec3<Real> rampTop(0, 1.2 * std::sin(theta), 0);
+  const Vec3<Real> floorHalf(2.75, 0.25, 1.5);
   return {
       .name = "bunny-drop",
-      .dt = 1.0 / 3000.0,
-      .bodies = {SoftBody{
-          .mesh = {Meshes / "bunny.obj"},
-          .place = {.centroid = Vec3<Real>(-0.11954105949006674,
-                                           0.46292674024111929,
-                                           0.051522498745946617)},
-          .material = StableNeoHookean{.lame = Lame::FromYoungs(5.0, 0.45)},
-          .pinRegion = Eigen::AlignedBox<Real, 3>(
-              Vec3<Real>(-inf, 0.43707325975888073, -inf),
-              Vec3<Real>(inf, inf, inf)),
-      }},
-      // Elevated three-quarter view of the bunny's face side. The camera
-      // orbits `displacement`, and `eye` is its offset from there.
-      .view = {.eye = Vec3<float>(-1.0f, 0.76f, 1.3f),
-               .displacement = Vec3<float>(-0.08f, 0.5f, 0.0f)},
+      .dt = 1.0 / 1'000.0,
+      .bodies =
+          {SoftBody{
+               .mesh = {Meshes / "bunny.obj"},
+               .place = {.centroid = rampTop - 0.8 * downhill +
+                                     Vec3<Real>(0, 0.66, 0)},
+               .material =
+                   StableNeoHookean{.lame = Lame::FromYoungs(5.0, 0.45)},
+               .drag = 0.75,
+           },
+           Collider{.shape = Box{rampHalf},
+                    .place = {.centroid = rampTop - rampHalf.y() * rampNormal,
+                              .rotation = Eigen::Quaternion<Real>(
+                                  Eigen::AngleAxis<Real>(
+                                      -theta, Vec3<Real>::UnitZ()))}},
+           Collider{.shape = Box{floorHalf},
+                    .place = {.centroid = Vec3<Real>(1.25, -floorHalf.y(), 0)}}},
+      .lastStep = 14'000,
+      // From the front and a little above, centered on the ramp's foot. The
+      // camera orbits `displacement`, and `eye` is its offset from there.
+      .view = {.eye = Vec3<float>(0.8f, 1.6f, 4.6f),
+               .displacement = Vec3<float>(1.25f, 0.8f, 0.0f)},
   };
 }
 

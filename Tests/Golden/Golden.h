@@ -26,7 +26,7 @@ struct Run {
 };
 
 inline const std::vector<Run> kRuns = {
-    {"bunny-drop", 600, 100},
+    {"bunny-drop", 14000, 1000},
     {"strand-bend", 7000, 500},
     {"strand-twist", 3000, 250},
     {"strand-drop", 20500, 2500},

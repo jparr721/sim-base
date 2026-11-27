@@ -341,4 +341,73 @@ TEST(SoftContact, TetSlidesDownFrictionlessRampAtGSinTheta) {
   EXPECT_NEAR(acceleration / (g * std::sin(theta)), 1, 0.02);
 }
 
+// A placed Box collider: how far a point is inside it.
+struct PlacedBox {
+  Vec3<Real> centroid;
+  Mat3<Real> rotation;
+  Vec3<Real> halfExtents;
+
+  explicit PlacedBox(const sim::Body &body) {
+    const auto &collider = std::get<sim::Collider>(body);
+    centroid = collider.place.centroid;
+    rotation = collider.place.rotation.toRotationMatrix();
+    halfExtents = std::get<sim::Box>(collider.shape).halfExtents;
+  }
+  // Positive inside, by the distance to the nearest face.
+  auto Depth(const Vec3<Real> &p) const -> Real {
+    const Vec3<Real> local = rotation.transpose() * (p - centroid);
+    return (halfExtents - local.cwiseAbs()).minCoeff();
+  }
+  auto TopCenter() const -> Vec3<Real> {
+    return centroid + halfExtents.y() * rotation.col(1);
+  }
+};
+
+// The demo: the bunny stays finite, never sinks into the ramp or the floor by
+// its contact epsilon, and ends at rest on the floor past the ramp's foot.
+TEST(SoftContact, BunnySlidesDownRampAndRestsOnFloor) {
+  const auto desc = MakeScene("bunny-drop");
+  const auto &bunny = std::get<sim::SoftBody>(desc.bodies[0]);
+  const PlacedBox ramp(desc.bodies[1]);
+  const PlacedBox floor(desc.bodies[2]);
+  const Real floorTop = floor.TopCenter().y();
+  // Where the ramp's top face, running downhill along its local x, meets
+  // the floor's top.
+  const Vec3<Real> downhill = ramp.rotation.col(0);
+  const Vec3<Real> rampTop = ramp.TopCenter();
+  const Real footX =
+      (rampTop + (floorTop - rampTop.y()) / downhill.y() * downhill).x();
+
+  sim::World world(desc);
+  const auto &mesh = Only<TetMesh>(world);
+  Real rampDepth = -std::numeric_limits<Real>::infinity();
+  Real floorDepth = -std::numeric_limits<Real>::infinity();
+  Vec3<Real> secondToLast = Vec3<Real>::Zero();
+  const int restWindow = static_cast<int>(1 / desc.dt);
+  while (!world.Finished()) {
+    world.Step();
+    ASSERT_TRUE(mesh.v.allFinite()) << "step " << world.Steps();
+    for (int ii = 0; ii < mesh.v.rows(); ++ii) {
+      rampDepth = std::max(rampDepth, ramp.Depth(mesh.v.row(ii)));
+      floorDepth = std::max(floorDepth, floor.Depth(mesh.v.row(ii)));
+    }
+    if (world.Steps() == *desc.lastStep - restWindow) {
+      secondToLast = Centroid(mesh.v);
+    }
+  }
+  const Vec3<Real> centroid = Centroid(mesh.v);
+  const Real speed = (centroid - secondToLast).norm();
+  std::cout << "[ measured ] deepest into ramp " << rampDepth << ", floor "
+            << floorDepth << ", final centroid (" << centroid.transpose()
+            << "), foot x " << footX << ", lowest x "
+            << mesh.v.col(0).minCoeff() << ", centroid speed over the last "
+            << "second " << speed << "\n";
+  EXPECT_LT(rampDepth, bunny.collisionEpsilon);
+  EXPECT_LT(floorDepth, bunny.collisionEpsilon);
+  EXPECT_GT(mesh.v.col(0).minCoeff(), footX);
+  EXPECT_GT(mesh.v.col(1).minCoeff(), floorTop);
+  EXPECT_LT(centroid.y() - floorTop, 0.5);
+  EXPECT_LT(speed, 5e-3);
+}
+
 } // namespace
