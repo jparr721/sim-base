@@ -2,6 +2,7 @@
 // to Energies and a HandDerived specialization, plus a Traits specialization
 // when it is not isotropic or not defined for every F.
 
+#include <Energy/Volume/AnisotropicStVenantKirchhoff.h>
 #include <Energy/Volume/Arap.h>
 #include <Energy/Volume/LinearElasticity.h>
 #include <Energy/Volume/NeoHookeanBonetWood.h>
@@ -10,6 +11,7 @@
 #include <Energy/Volume/SymmetricDirichlet.h>
 
 #include <gtest/gtest.h>
+#include <numbers>
 #include <random>
 
 using namespace sim;
@@ -107,9 +109,12 @@ auto ProjectPsd(const Mat9<Real> &h) -> Mat9<Real> {
 // What the suite asserts about an energy's symmetry.
 //  kIsotropic: Psi(R F) = Psi(F R) = Psi(F) for every rotation R, and every
 //    rotation is at rest.
+//  kAboutFiber: Psi(R F) = Psi(F) for every rotation R and Psi(F Q) = Psi(F)
+//    for every rotation Q about the fiber, and every rotation is at rest.
+//    Psi(F R) for an arbitrary R must differ from Psi(F), as the control.
 //  kNone: only F = I is at rest. Rotations are strained and Psi(R F) differs
 //    from Psi(F), and the suite checks both so the trait is proven.
-enum class Symmetry { kIsotropic, kNone };
+enum class Symmetry { kIsotropic, kAboutFiber, kNone };
 
 // How the suite builds an energy and where it samples F. An energy that is
 // singular somewhere samples only the part of its domain kept away from the
@@ -121,6 +126,14 @@ template <typename E> struct DefaultTraits {
   static auto InDomain(const Mat3<Real> &f) -> bool { return AnyF(f); }
 };
 template <typename E> struct Traits : DefaultTraits<E> {};
+
+// Fiber energies sample a fiber off every axis.
+template <typename E> struct FiberTraits : DefaultTraits<E> {
+  static constexpr Symmetry symmetry = Symmetry::kAboutFiber;
+  static auto Make(const Lame &lame) -> E {
+    return {.lame = lame, .fiber = Vec3<Real>(1, 2, 3).normalized()};
+  }
+};
 
 template <typename E> auto DomainFs() -> const std::vector<Mat3<Real>> & {
   static const std::vector<Mat3<Real>> fs = SampleFsWhere(Traits<E>::InDomain);
@@ -134,6 +147,20 @@ template <typename E> struct HandDerivedInput {
   static auto F() -> Mat3<Real> { return Vec3<Real>(2, 1, 1).asDiagonal(); }
 };
 template <typename E> struct HandDerived;
+
+// Fiber energies' hand derivations use the fiber a = (1, 1, 0) / sqrt2, so
+// F a = (2, 1, 0) / sqrt2, I5 = 5/2 and (F a) a^T = 1/2 [2 2 0; 1 1 0; 0 0 0].
+template <typename E> struct FiberHandDerivedInput : HandDerivedInput<E> {
+  static auto Make() -> E {
+    return {.lame = {.mu = 1, .lambda = 2},
+            .fiber = Vec3<Real>(1, 1, 0).normalized()};
+  }
+  static auto FaAt() -> Mat3<Real> {
+    Mat3<Real> m;
+    m << 2, 2, 0, 1, 1, 0, 0, 0, 0;
+    return m / 2;
+  }
+};
 
 template <>
 struct Traits<LinearElasticity> : DefaultTraits<LinearElasticity> {
@@ -216,6 +243,19 @@ struct HandDerived<SymmetricDirichlet> : HandDerivedInput<SymmetricDirichlet> {
   }
 };
 
+template <>
+struct Traits<AnisotropicStVenantKirchhoff>
+    : FiberTraits<AnisotropicStVenantKirchhoff> {};
+
+// E_a = (5/2 - 1) / 2 = 3/4: Psi = 1/2 (3/4)^2 = 9/32.
+// P = mu E_a (F a) a^T = 3/4 (F a) a^T.
+template <>
+struct HandDerived<AnisotropicStVenantKirchhoff>
+    : FiberHandDerivedInput<AnisotropicStVenantKirchhoff> {
+  static auto Psi() -> Real { return Real(9) / 32; }
+  static auto Pk1() -> Mat3<Real> { return Real(3) / 4 * FaAt(); }
+};
+
 template <typename E> class EnergyTest : public testing::Test {};
 
 using Energies =
@@ -224,7 +264,8 @@ using Energies =
                    LinearElasticity,
                    NeoHookeanBonetWood,
                    Arap,
-                   SymmetricDirichlet>;
+                   SymmetricDirichlet,
+                   AnisotropicStVenantKirchhoff>;
 TYPED_TEST_SUITE(EnergyTest, Energies);
 
 TEST(EnergySamples, IncludeInvertedF) {
@@ -276,15 +317,21 @@ TYPED_TEST(EnergyTest, ClampedHessianIsPsd) {
 }
 
 // PSD alone passes for a zero matrix. The analytic eigensystem must give the
-// same projection as an eigendecomposition of the exact Hessian.
+// same projection as an eigendecomposition of the exact Hessian. The error is
+// relative to the Hessian too, because a projection can be exactly 0 (every
+// eigenvalue negative), where the numerical one is rounding noise.
 TYPED_TEST(EnergyTest, ClampedHessianIsPsdProjectionOfHessian) {
   const TypeParam e = Traits<TypeParam>::Make(kLame);
   const std::vector<Mat3<Real>> &fs = DomainFs<TypeParam>();
   Real worst = 0;
   std::size_t worstAt = 0;
   for (std::size_t n = 0; n < fs.size(); ++n) {
-    const Real err = RelErr(e.ClampedHessian(fs[n], RotationVariantSvd(fs[n])),
-                            ProjectPsd(e.Hessian(fs[n])));
+    const Mat9<Real> h = e.Hessian(fs[n]);
+    const Mat9<Real> clamped =
+        e.ClampedHessian(fs[n], RotationVariantSvd(fs[n]));
+    const Mat9<Real> projected = ProjectPsd(h);
+    const Real err = (clamped - projected).norm() /
+                     std::max({clamped.norm(), projected.norm(), h.norm()});
     if (err > worst) {
       worst = err;
       worstAt = n;
@@ -325,12 +372,22 @@ TYPED_TEST(EnergyTest, PsiHasItsSymmetry) {
     };
     if constexpr (Traits<TypeParam>::symmetry == Symmetry::kNone) {
       changed += !same(r * f);
+    } else if constexpr (Traits<TypeParam>::symmetry ==
+                         Symmetry::kAboutFiber) {
+      const Mat3<Real> aboutFiber =
+          Eigen::AngleAxis<Real>(std::uniform_real_distribution<Real>(
+                                     -std::numbers::pi, std::numbers::pi)(rng),
+                                 e.fiber)
+              .toRotationMatrix();
+      EXPECT_TRUE(same(r * f)) << "sample " << n;
+      EXPECT_TRUE(same(f * aboutFiber)) << "sample " << n;
+      changed += !same(f * r);
     } else {
       EXPECT_TRUE(same(r * f)) << "sample " << n;
       EXPECT_TRUE(same(f * r)) << "sample " << n;
     }
   }
-  if constexpr (Traits<TypeParam>::symmetry == Symmetry::kNone)
+  if constexpr (Traits<TypeParam>::symmetry != Symmetry::kIsotropic)
     EXPECT_GE(changed, 900);
 }
 

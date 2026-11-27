@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Energy/Volume/AnisotropicStVenantKirchhoff.h>
 #include <Energy/Volume/Arap.h>
 #include <Energy/Volume/LinearElasticity.h>
 #include <Energy/Volume/NeoHookeanBonetWood.h>
@@ -19,6 +20,7 @@ using Material =
                  LinearElasticity,
                  NeoHookeanBonetWood,
                  Arap,
-                 SymmetricDirichlet>;
+                 SymmetricDirichlet,
+                 AnisotropicStVenantKirchhoff>;
 
 } // namespace sim

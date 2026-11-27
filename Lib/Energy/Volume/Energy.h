@@ -139,4 +139,39 @@ SIM_INLINE auto ClampedStretchVolumeHessian(const Svd &svd, Real mu, Real dh,
   return ClampedIsotropicHessian(svd, scaling, muVec + dh * s, muVec - dh * s);
 }
 
+// Fiber energies Psi(I5) of I5 = |F a|^2 for a unit fiber a (Kim et al.
+// 2019, "Anisotropic Elasticity for Inversion-Safety and Element
+// Rehabilitation"), given dpsi = Psi'(I5): dI5/dF = 2 F a a^T.
+SIM_INLINE auto FiberPk1(const Mat3<Real> &f, const Vec3<Real> &a, Real dpsi)
+    -> Mat3<Real> {
+  return 2 * dpsi * (f * a) * a.transpose();
+}
+
+// The Hessian of Psi(I5) is 2 Psi' (a a^T kron I) + 4 Psi'' g g^T with
+// g = vec(F a a^T). Its eigensystem (Kim et al. 2019): the range of
+// a a^T kron I is the three matrices b a^T. On g / sqrt(I5) the eigenvalue is
+// 2 Psi' + 4 I5 Psi'', on the two b a^T with b orthogonal to F a it is
+// 2 Psi', and the other six eigenvalues are 0. clamped drops the modes whose
+// eigenvalue is not positive.
+SIM_INLINE auto FiberHessian(const Mat3<Real> &f, const Vec3<Real> &a,
+                             Real dpsi, Real d2psi, bool clamped)
+    -> Mat9<Real> {
+  Mat9<Real> span = Mat9<Real>::Zero();
+  for (int j = 0; j < 3; ++j) {
+    for (int l = 0; l < 3; ++l)
+      span.block<3, 3>(3 * j, 3 * l).diagonal().setConstant(a(j) * a(l));
+  }
+  const Vec9<Real> g = Vectorize((f * a) * a.transpose());
+  const Real i5 = g.squaredNorm();
+  if (!clamped)
+    return 2 * dpsi * span + 4 * d2psi * g * g.transpose();
+
+  const Real across = std::max(2 * dpsi, Real(0));
+  if (i5 == 0)
+    return across * span;
+  const Mat9<Real> along = g * g.transpose() / i5;
+  return std::max(2 * dpsi + 4 * i5 * d2psi, Real(0)) * along +
+         across * (span - along);
+}
+
 } // namespace sim
