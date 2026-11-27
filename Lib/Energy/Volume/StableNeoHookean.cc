@@ -33,20 +33,8 @@ auto StableNeoHookean::Pk1(const Mat3<Real> &f) const -> Mat3<Real> {
 auto StableNeoHookean::Hessian(const Mat3<Real> &f) const -> Mat9<Real> {
   const Real mu = lame.mu;
   const Real lambda = SnhLambda(lame);
-  const Vec9<Real> g = Vectorize(Cofactor(f));
-  const Real s = lambda * (f.determinant() - 1) - mu;
-
-  Mat9<Real> hessianJ = Mat9<Real>::Zero();
-  for (int a = 0; a < 3; ++a) {
-    const int b = (a + 1) % 3;
-    const int c = (a + 2) % 3;
-    const Mat3<Real> cross = CrossProductMatrix(f.col(c));
-    hessianJ.block<3, 3>(3 * a, 3 * b) = -cross;
-    hessianJ.block<3, 3>(3 * b, 3 * a) = cross;
-  }
-
-  return mu * Mat9<Real>::Identity() + lambda * g * g.transpose() +
-         s * hessianJ;
+  return StretchVolumeHessian(f, mu, lambda * (f.determinant() - 1) - mu,
+                              lambda);
 }
 
 // In singular values, Psi = mu/2 (sum s_i^2 - 3) - mu (J - 1) + l/2 (J - 1)^2
