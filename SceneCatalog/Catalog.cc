@@ -110,14 +110,11 @@ auto BunnyEnergy(std::string name, Material material,
 }
 
 // StVK's energy is zero at every reflection, so an inverted tet can rest
-// inverted. Under the base bunny's Green damping (mu = 2), about 30 tets
-// invert on impact and stay inverted near J = -1, and Newton cycles without
-// converging on step 180. Green damping with mu = 8 holds every tet
-// uninverted through the run, and Newton takes 6 iterations at worst.
+// inverted. From step 38, up to 37 tets invert on impact and stay inverted
+// near J = -1, and the bunny still slides to rest past the ramp's foot.
+// Newton takes 12 iterations at worst.
 auto BunnyStVenantKirchhoff() -> SceneDesc {
-  SceneDesc desc = BunnyEnergy("bunny-stvk", StVenantKirchhoff{kBunnyLame});
-  std::get<SoftBody>(desc.bodies[0]).damping = GreenDamping{.mu = 8};
-  return desc;
+  return BunnyEnergy("bunny-stvk", StVenantKirchhoff{kBunnyLame});
 }
 
 // The reference energy. It is not rotation invariant: turning a tet strains
@@ -132,13 +129,14 @@ auto BunnyNeoHookean() -> SceneDesc {
   return BunnyEnergy("bunny-neo-hookean", NeoHookeanBonetWood{kBunnyLame});
 }
 
-// ARAP has no volume term, so nothing resists a sliver tet flipping. Under
-// the base bunny's Green damping (mu = 2), tets invert at steps 116 and 280
-// and the bunny still moves 5.0e-3 over the last second. Green damping with
-// mu = 4 keeps every tet uninverted, and the bunny settles to 1.6e-3.
+// ARAP has no volume term, so nothing resists a sliver tet flipping. Two tets
+// invert near step 119 and recover. Under the base bunny's Green damping
+// (mu = 2) the bunny still moves 5.2e-3 over the last second, and with
+// mu = 2.25 it settles to 1.7e-3. Settling is not monotone in mu: 2.5 gives
+// 0.9e-3 and 3.5 gives 2.2e-3.
 auto BunnyArap() -> SceneDesc {
   SceneDesc desc = BunnyEnergy("bunny-arap", Arap{kBunnyLame});
-  std::get<SoftBody>(desc.bodies[0]).damping = GreenDamping{.mu = 4};
+  std::get<SoftBody>(desc.bodies[0]).damping = GreenDamping{.mu = 2.25};
   return desc;
 }
 
