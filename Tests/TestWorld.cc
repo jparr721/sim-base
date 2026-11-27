@@ -3,6 +3,10 @@
 #include <gtest/gtest.h>
 #include <igl/readOBJ.h>
 
+#include <fstream>
+#include <iostream>
+#include <numbers>
+
 using namespace sim;
 
 namespace {
@@ -219,6 +223,122 @@ TEST(World, PathActionWithoutLastStepIsRejected) {
   auto desc = MakeScene("strand-bend");
   desc.script.front().lastStep.reset();
   EXPECT_THROW(sim::World{desc}, std::invalid_argument);
+}
+
+// A regular tet of edge 0.2 sqrt(2) as an OBJ, so it goes through the same
+// tetrahedralization as any SoftBody mesh.
+auto RegularTetFile() -> sim::fs::path {
+  const auto file = sim::fs::path(testing::TempDir()) / "regular_tet.obj";
+  std::ofstream out(file);
+  out << "v 0.1 0.1 0.1\nv 0.1 -0.1 -0.1\nv -0.1 0.1 -0.1\nv -0.1 -0.1 0.1\n"
+         "f 1 2 3\nf 1 4 2\nf 1 3 4\nf 2 4 3\n";
+  return file;
+}
+
+auto Tet(const sim::Placement &place) -> sim::SoftBody {
+  return {.mesh = {RegularTetFile()},
+          .place = place,
+          .material = sim::StableNeoHookean{.lame = sim::Lame::FromYoungs(50, 0.3)}};
+}
+
+// A Box whose top face is the plane through `top` with unit normal `normal`
+// (a rotation about z of the +y axis), centered under `top`.
+auto Slab(const Vec3<Real> &top, Real angle, const Vec3<Real> &halfExtents)
+    -> sim::Collider {
+  const Eigen::Quaternion<Real> rotation(
+      Eigen::AngleAxis<Real>(angle, Vec3<Real>::UnitZ()));
+  return {.shape = sim::Box{.halfExtents = halfExtents},
+          .place = {.centroid = top - halfExtents.y() *
+                                          (rotation * Vec3<Real>::UnitY()),
+                    .rotation = rotation}};
+}
+
+auto Centroid(const Mat<Real> &v) -> Vec3<Real> {
+  return v.colwise().mean().transpose();
+}
+
+auto MaxSpeed(const Mat<Real> &now, const Mat<Real> &before, Real dt) -> Real {
+  return (now - before).rowwise().norm().maxCoeff() / dt;
+}
+
+// A tilted tet falls 0.3 onto a floor whose top is y = 0. It never sinks past
+// the contact epsilon below the top, and comes to rest. Without drag its
+// rocking along the frictionless floor and its elastic vibration never decay.
+TEST(SoftContact, TetDroppedOnFloorComesToRest) {
+  sim::SoftBody tet =
+      Tet({.centroid = Vec3<Real>(0, 0.5, 0),
+           .rotation = Eigen::Quaternion<Real>(
+               Eigen::AngleAxis<Real>(0.4, Vec3<Real>(1, 0, 1).normalized()))});
+  tet.drag = 2;
+  constexpr Real dt = 1e-3;
+  sim::World world(sim::SceneDesc{
+      .name = "tet-drop",
+      .dt = dt,
+      .bodies = {tet, Slab(Vec3<Real>::Zero(), 0, Vec3<Real>(2, 0.25, 2))}});
+  const auto &mesh = Only<TetMesh>(world);
+  Real lowest = std::numeric_limits<Real>::infinity();
+  Mat<Real> before = mesh.v;
+  Real speed = 0;
+  for (int step = 1; step <= 8000; ++step) {
+    world.Step();
+    lowest = std::min(lowest, mesh.v.col(1).minCoeff());
+    speed = MaxSpeed(mesh.v, before, dt);
+    before = mesh.v;
+  }
+  std::cout << "[ measured ] lowest y " << lowest << ", final max speed "
+            << speed << ", final lowest y " << mesh.v.col(1).minCoeff()
+            << "\n";
+  EXPECT_TRUE(mesh.v.allFinite());
+  EXPECT_GT(lowest, -tet.collisionEpsilon);
+  EXPECT_LT(speed, 1e-3);
+  EXPECT_GT(mesh.v.col(1).minCoeff(), 0);
+}
+
+// A tet set face down on a frictionless 30 degree ramp slides with centroid
+// acceleration g sin(theta) along the slope once it is in contact.
+TEST(SoftContact, TetSlidesDownFrictionlessRampAtGSinTheta) {
+  constexpr Real theta = std::numbers::pi / 6;
+  constexpr Real dt = 1e-3;
+  const Vec3<Real> normal(std::sin(theta), std::cos(theta), 0);
+  const Vec3<Real> downhill(std::cos(theta), -std::sin(theta), 0);
+  const Vec3<Real> top(0, 1, 0);
+  sim::World world(sim::SceneDesc{
+      .name = "tet-ramp",
+      .dt = dt,
+      .bodies = {Tet({.centroid = top - 1.5 * downhill + 0.078 * normal,
+                      .rotation = Eigen::Quaternion<Real>::FromTwoVectors(
+                          Vec3<Real>(1, 1, 1), normal)}),
+                 Slab(top, -theta, Vec3<Real>(3, 0.25, 1))}});
+  const auto &mesh = Only<TetMesh>(world);
+  const Real g = world.Desc().gravity.norm();
+
+  // Least squares s(t) = a t^2 / 2 + b t + c over the window. Free fall
+  // has the same slope component, so the tet must also stay on the ramp.
+  constexpr int settle = 1000;
+  constexpr int window = 1500;
+  Mat<Real> design(window, 3);
+  Vec<Real> along(window);
+  Vec<Real> height(window);
+  for (int step = 1; step <= settle + window; ++step) {
+    world.Step();
+    if (step > settle) {
+      const Real t = (step - settle) * dt;
+      design.row(step - settle - 1) << t * t / 2, t, 1;
+      along(step - settle - 1) = Centroid(mesh.v).dot(downhill);
+      height(step - settle - 1) = (Centroid(mesh.v) - top).dot(normal);
+    }
+  }
+  std::cout << "[ measured ] centroid height over the ramp in "
+            << height.minCoeff() << ".." << height.maxCoeff() << "\n";
+  EXPECT_GT(height.minCoeff(), 0);
+  EXPECT_LT(height.maxCoeff() - height.minCoeff(), 0.01);
+  const Real acceleration =
+      design.colPivHouseholderQr().solve(along)(0);
+  std::cout << "[ measured ] slope acceleration " << acceleration
+            << ", g sin(theta) " << g * std::sin(theta) << ", ratio "
+            << acceleration / (g * std::sin(theta)) << "\n";
+  EXPECT_TRUE(mesh.v.allFinite());
+  EXPECT_NEAR(acceleration / (g * std::sin(theta)), 1, 0.02);
 }
 
 } // namespace

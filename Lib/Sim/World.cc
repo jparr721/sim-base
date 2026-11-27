@@ -5,6 +5,7 @@
 #include <igl/parallel_for.h>
 #include <igl/readOBJ.h>
 
+#include <algorithm>
 #include <format>
 #include <stdexcept>
 
@@ -122,6 +123,10 @@ struct World::Impl {
   std::vector<std::unique_ptr<ForwardEulerStrand>> strandIntegrators;
   std::vector<std::shared_ptr<TetMesh>> softBodies;
   std::vector<std::unique_ptr<ForwardEulerVolume>> volumeIntegrators;
+  // Per soft body: its surface vertex indices, and how near a collider
+  // triangle one has to be to touch it.
+  std::vector<std::vector<int>> surfaceVertices;
+  std::vector<Real> softContactRadius;
   std::vector<std::unique_ptr<CollisionMesh>> colliders;
 
   std::vector<std::vector<VertexFaceCollision>> collisionsPerStrand;
@@ -174,10 +179,25 @@ struct World::Impl {
         }
       }
     }
+    if (!(softBody.collisionStiffness >= 0 && softBody.collisionEpsilon > 0 &&
+          softBody.collisionDamping >= 0 && softBody.drag >= 0)) {
+      Malformed("a SoftBody needs a positive collisionEpsilon and "
+                "non-negative collision stiffness, damping and drag");
+    }
+    std::vector<int> surface(mesh->f.data(), mesh->f.data() + mesh->f.size());
+    std::ranges::sort(surface);
+    const auto [last, end] = std::ranges::unique(surface);
+    surface.erase(last, end);
+    surfaceVertices.push_back(std::move(surface));
+    softContactRadius.push_back(softBody.collisionEpsilon);
+
     slot.push_back(static_cast<int>(softBodies.size()));
     states.emplace_back(mesh.get());
-    volumeIntegrators.push_back(
-        std::make_unique<ForwardEulerVolume>(mesh, softBody.material, desc.dt));
+    volumeIntegrators.push_back(std::make_unique<ForwardEulerVolume>(
+        mesh, softBody.material, desc.dt, softBody.drag, 0,
+        ContactModel{.stiffness = softBody.collisionStiffness,
+                     .epsilon = softBody.collisionEpsilon,
+                     .damping = softBody.collisionDamping}));
     softBodies.push_back(std::move(mesh));
   }
 
@@ -268,6 +288,27 @@ struct World::Impl {
         action.effect);
   }
 
+  // Soft body ii's surface vertices within its contact radius of a collider
+  // triangle, one contact per vertex and triangle.
+  auto SoftContacts(int ii) const -> std::vector<SoftContact> {
+    const TetMesh &mesh = *softBodies[ii];
+    const std::vector<int> &surface = surfaceVertices[ii];
+    Mat<Real> positions(std::ssize(surface), 3);
+    for (int row = 0; row < std::ssize(surface); ++row) {
+      positions.row(row) = mesh.v.row(surface[row]);
+    }
+    std::vector<SoftContact> found;
+    for (const auto &collider : colliders) {
+      for (const auto &hit :
+           collider->DetectFaceCollisions(softContactRadius[ii], positions)) {
+        found.push_back({.vertex = surface[hit.vertexIndex],
+                         .triangle = {hit.faceVertices[0], hit.faceVertices[1],
+                                      hit.faceVertices[2]}});
+      }
+    }
+    return found;
+  }
+
   void Step() {
     const int step = steps + 1;
     for (const auto &action : desc.script) {
@@ -299,7 +340,9 @@ struct World::Impl {
       integrator->AddGravity(gravity);
       integrator->Step();
     });
-    for (auto &integrator : volumeIntegrators) {
+    for (int ii = 0; ii < std::ssize(volumeIntegrators); ++ii) {
+      auto &integrator = volumeIntegrators[ii];
+      integrator->SetContacts(SoftContacts(ii));
       integrator->AddGravity(gravity);
       integrator->Step();
     }

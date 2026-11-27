@@ -44,6 +44,7 @@ struct Strand {
 };
 
 // The tetrahedralized mesh is recentered on its volume-weighted centroid.
+// Its surface vertices collide with every Collider, frictionlessly.
 struct SoftBody {
   MeshFile mesh;
   Placement place;
@@ -51,10 +52,18 @@ struct SoftBody {
   // Vertices strictly inside this body-local box (recentered, before scale
   // and rotation) are pinned.
   std::optional<Eigen::AlignedBox<Real, 3>> pinRegion;
+  // Per unit vertex mass: 1/s^2 for stiffness and 1/s for damping. A vertex
+  // within collisionEpsilon of a collider triangle is pushed back out to
+  // collisionEpsilon, and its velocity along the triangle normal is damped.
+  Real collisionStiffness = 1e4;
+  Real collisionEpsilon = 0.02;
+  Real collisionDamping = 50;
+  // 1/s: mass-proportional damping, -drag M v.
+  Real drag = 0;
 };
 
-// Static triangle mesh strands collide against, recentered on its
-// area-weighted centroid.
+// Static triangle mesh that strands and soft bodies collide against,
+// recentered on its area-weighted centroid.
 struct Collider {
   std::variant<MeshFile, Box> shape;
   Placement place;
