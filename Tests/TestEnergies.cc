@@ -3,6 +3,7 @@
 // when it is not isotropic or not defined for every F.
 
 #include <Energy/Volume/AnisotropicArap.h>
+#include <Energy/Volume/AnisotropicFung.h>
 #include <Energy/Volume/AnisotropicStVenantKirchhoff.h>
 #include <Energy/Volume/Arap.h>
 #include <Energy/Volume/LinearElasticity.h>
@@ -282,6 +283,19 @@ struct HandDerived<AnisotropicArap> : FiberHandDerivedInput<AnisotropicArap> {
   }
 };
 
+template <> struct Traits<AnisotropicFung> : FiberTraits<AnisotropicFung> {};
+
+// stiffening k = 1 and E_a = 3/4, so k E_a^2 = 9/16:
+// Psi = 1/2 (exp(9/16) - 1).
+// P = 2 Psi'(I5) (F a) a^T = E_a exp(9/16) (F a) a^T.
+template <>
+struct HandDerived<AnisotropicFung> : FiberHandDerivedInput<AnisotropicFung> {
+  static auto Psi() -> Real { return (std::exp(Real(9) / 16) - 1) / 2; }
+  static auto Pk1() -> Mat3<Real> {
+    return Real(3) / 4 * std::exp(Real(9) / 16) * FaAt();
+  }
+};
+
 template <typename E> class EnergyTest : public testing::Test {};
 
 using Energies =
@@ -292,7 +306,8 @@ using Energies =
                    Arap,
                    SymmetricDirichlet,
                    AnisotropicStVenantKirchhoff,
-                   AnisotropicArap>;
+                   AnisotropicArap,
+                   AnisotropicFung>;
 TYPED_TEST_SUITE(EnergyTest, Energies);
 
 TEST(EnergySamples, IncludeInvertedF) {

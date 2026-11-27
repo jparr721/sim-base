@@ -1,6 +1,7 @@
 // A game embedding the library builds gnu++20; the public headers must compile there.
 #include <Energy/Collision/VertexFaceSqrtCollision.h>
 #include <Energy/Volume/AnisotropicArap.h>
+#include <Energy/Volume/AnisotropicFung.h>
 #include <Energy/Volume/AnisotropicStVenantKirchhoff.h>
 #include <Energy/Volume/Arap.h>
 #include <Energy/Volume/Energy.h>

@@ -61,6 +61,7 @@ sim_volume_energy(arap Arap)
 sim_volume_energy(symmetric_dirichlet SymmetricDirichlet)
 sim_volume_energy(anisotropic_stvk AnisotropicStVenantKirchhoff)
 sim_volume_energy(anisotropic_arap AnisotropicArap)
+sim_volume_energy(anisotropic_fung AnisotropicFung)
 get_property(SIM_VOLUME_ENERGY_TARGETS GLOBAL PROPERTY SIM_VOLUME_ENERGIES)
 
 # Tet geometry and its global assembly: links the volume energies, never sim.
