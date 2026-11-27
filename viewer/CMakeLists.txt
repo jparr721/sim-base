@@ -42,6 +42,11 @@ target_include_directories(imgui SYSTEM PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURC
 target_link_libraries(imgui PUBLIC glfw)
 target_compile_options(imgui PRIVATE -w)
 
+# GL-free, so Tests/TestAlbedoTexture links it without a window.
+add_library(sim_viewer_albedo STATIC AlbedoTexture.cc)
+target_include_directories(sim_viewer_albedo PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(sim_viewer_albedo PRIVATE ${SIM_WARNINGS})
+
 add_executable(sim_viewer
         main.cc
         App.cc
