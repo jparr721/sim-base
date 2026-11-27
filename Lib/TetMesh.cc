@@ -34,7 +34,7 @@ void TetMesh::ComputeTetRestVolumes() {
 }
 void TetMesh::ComputeVertexAreas() {
   // Fill the vector with zeroes
-  oneRingAreas.assign(t.rows(), 0.0);
+  oneRingAreas.assign(v.rows(), 0.0);
 
   for (int ii = 0; ii < t.rows(); ++ii) {
     const Vec4<int> tet = t.row(ii);
