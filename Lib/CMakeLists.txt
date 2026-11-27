@@ -7,12 +7,6 @@ list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/TetMesh.cc")
 file(GLOB COLLISION_HEADERS "Collision/*.h")
 file(GLOB COLLISION_SOURCES "Collision/*.cc")
 
-file(GLOB INTEGRATOR_HEADERS "Integrator/*.h")
-file(GLOB INTEGRATOR_SOURCES "Integrator/*.cc")
-
-file(GLOB ENERGY_STRAND_HEADERS "Energy/Strand/*.h")
-file(GLOB ENERGY_STRAND_SOURCES "Energy/Strand/*.cc")
-
 file(GLOB ENERGY_COLLISION_HEADERS "Energy/Collision/*.h")
 list(REMOVE_ITEM ENERGY_COLLISION_HEADERS
         "${CMAKE_CURRENT_SOURCE_DIR}/Energy/Collision/VertexFaceSqrtCollision.h")
@@ -94,6 +88,22 @@ target_include_directories(sim_integrators PUBLIC
 target_compile_options(sim_integrators PRIVATE ${SIM_WARNINGS})
 target_link_libraries(sim_integrators PUBLIC sim_system Eigen3::Eigen)
 
+# DER energies and the strand System: links no mesh, collider or integrator.
+file(GLOB STRAND_SOURCES "Energy/Strand/*.h" "Energy/Strand/*.cc"
+        "Strand/*.h" "Strand/*.cc")
+add_library(sim_strand STATIC ${STRAND_SOURCES}
+        Solid/Contact.h Energy/Damping/Damping.h)
+target_include_directories(sim_strand PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_compile_options(sim_strand PRIVATE ${SIM_WARNINGS})
+target_link_libraries(sim_strand PUBLIC
+        sim_system
+        sim_energy_mass_spring
+        sim_energy_vertex_face_collision
+        sim_damping_green
+        Eigen3::Eigen)
+
 # Tet geometry and its global assembly: links the volume energies, never sim.
 add_library(sim_solid STATIC
         TetMesh.h TetMesh.cc
@@ -117,14 +127,12 @@ target_link_libraries(sim_solid PUBLIC
 add_library(sim STATIC
         ${HEADERS} ${SOURCES}
         ${COLLISION_HEADERS} ${COLLISION_SOURCES}
-        ${INTEGRATOR_HEADERS} ${INTEGRATOR_SOURCES}
-        ${ENERGY_STRAND_HEADERS} ${ENERGY_STRAND_SOURCES}
         ${ENERGY_COLLISION_HEADERS})
 target_include_directories(sim PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_options(sim PRIVATE ${SIM_WARNINGS})
-install(TARGETS sim sim_solid sim_system sim_integrators sim_energy_mass_spring
+install(TARGETS sim sim_solid sim_strand sim_system sim_integrators sim_energy_mass_spring
         sim_damping_green
         sim_energy_vertex_face_collision
         sim_volume_energies ${SIM_VOLUME_ENERGY_TARGETS} EXPORT sim)
@@ -133,6 +141,7 @@ target_link_libraries(
         PUBLIC
         sim_energy_mass_spring
         sim_energy_vertex_face_collision
+        sim_strand
         sim_solid
         sim_integrators
         igl::core

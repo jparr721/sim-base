@@ -56,6 +56,10 @@ package_add_test(TestIntegrators TestIntegrators.cc)
 # sim_solid for the bodies, sim_integrators for the methods, and never sim.
 set_property(TARGET TestIntegrators PROPERTY LINK_LIBRARIES
         sim_integrators sim_solid gmock gtest_main)
+package_add_test(TestDerSystem TestDerSystem.cc)
+# sim_strand for the system, sim_integrators for a step, and never sim.
+set_property(TARGET TestDerSystem PROPERTY LINK_LIBRARIES
+        sim_integrators sim_strand gmock gtest_main)
 package_add_test(TestSceneGolden TestSceneGolden.cc)
 set_property(TARGET TestSceneGolden PROPERTY LINK_LIBRARIES sim_scenes gmock gtest_main)
 package_add_test(TestWorld TestWorld.cc)

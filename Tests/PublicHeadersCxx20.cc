@@ -21,3 +21,4 @@
 #include <Solid/ElasticSystem.h>
 #include <Solid/Integrators.h>
 #include <Solid/System.h>
+#include <Strand/DerSystem.h>

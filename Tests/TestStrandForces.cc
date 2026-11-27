@@ -104,17 +104,10 @@ auto Holonomy(const Mat<Real> &x, const Mat<Real> &y, const Vec3<Real> &u0)
                     carried.dot(transported));
 }
 
-// The per-step update sequence of ForwardEulerStrand::Step.
+// The rest rod moved to x in one step.
 auto MakeRod(const Mat<Real> &x) -> DiscreteElasticRod {
   DiscreteElasticRod der(RestRod());
-  der.vertices = x;
-  der.UpdateLengths();
-  der.Computekbs();
-  der.UpdateBishopFrames();
-  der.UpdateMaterialFrames();
-  der.UpdateMaterialCurvatures();
-  der.UpdateKbGradients();
-  der.UpdateHolonomyGradient();
+  der.Advance(RowwiseFlatten(x), 0);
   return der;
 }
 
@@ -122,7 +115,7 @@ auto Forces(DiscreteElasticRod &der, Real k, Real thetaEnd) -> Vec<Real> {
   der.springStiffness = k;
   der.thetas.setZero();
   der.thetas(der.thetas.rows() - 1) = thetaEnd;
-  return der.ComputeCenterlineForcesStraight();
+  return der.Forces(der.Positions());
 }
 
 // sum_i alpha |kb_i|^2 / lbar_i with lbar_i = |e~^{i-1}| + |e~^i|.

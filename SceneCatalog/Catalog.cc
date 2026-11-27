@@ -22,6 +22,12 @@ auto LineStrand(int nVertices) -> Mat<Real> {
   return points;
 }
 
+// The velocity filter v <- (I - dt c M^-1) v that the explicit strand
+// integrator applied after each step, as Rayleigh mass damping. A strand
+// vertex has mass m = 0.2, so the filter is an explicit step of the force
+// -c v = -(c / m) M v.
+auto StrandDamping(Real c) -> Damping { return Rayleigh{.mass = c / 0.2}; }
+
 // The bunny falls onto a frictionless 30 degree ramp, slides down it and comes
 // to rest on the floor, over 14 simulated seconds. Only drag can stop it on a
 // frictionless floor.
@@ -94,6 +100,8 @@ auto StrandBend() -> SceneDesc {
       .dt = 1.0 / 1'000.0,
       .bodies = {Strand{.points = LineStrand(5),
                         .place = {.centroid = Vec3<Real>(2, 0, 0)},
+                        .integrator = ForwardEuler{},
+                        .damping = StrandDamping(0.75),
                         .pinned = {0, 4},
                         .collisionStiffness = 5,
                         .collisionEpsilon = 0.3}},
@@ -116,6 +124,8 @@ auto StrandTwist() -> SceneDesc {
       .dt = 1.0 / 1'000.0,
       .bodies = {Strand{.points = LineStrand(8),
                         .place = {.centroid = Vec3<Real>(3.5, 0, 0)},
+                        .integrator = ForwardEuler{},
+                        .damping = StrandDamping(0.75),
                         .pinned = {0, 7},
                         .rightTwistRate = 50,
                         .collisionStiffness = 5,
@@ -128,7 +138,9 @@ auto StrandTwist() -> SceneDesc {
 }
 
 // The comb sweeps one sample per 50 steps once step 20000 has passed, and
-// damping drops to 0.45 one hold later.
+// damping drops to 0.45 one hold later. The filter damped the velocity a
+// step had just made, and Rayleigh damping acts on the velocity the step
+// starts from, so the drop is set a step later than the filter's was.
 auto StrandDrop() -> SceneDesc {
   SceneDesc desc{
       .name = "strand-drop",
@@ -144,12 +156,15 @@ auto StrandDrop() -> SceneDesc {
     const BodyId strand{static_cast<int>(desc.bodies.size())};
     desc.bodies.emplace_back(Strand{.points = hair,
                                     .place = {.centroid = {3.875, 0, ss}},
+                                    .integrator = ForwardEuler{},
+                                    .damping = StrandDamping(0.75),
                                     .pinned = {0},
                                     .collisionStiffness = 5,
                                     .collisionEpsilon = 0.3});
     desc.script.push_back(
-        {.firstStep = 20'051,
-         .effect = SetDamping{.strand = strand, .coefficient = 0.45}});
+        {.firstStep = 20'052,
+         .effect = SetDamping{.strand = strand,
+                              .damping = StrandDamping(0.45)}});
   }
   const BodyId comb{static_cast<int>(desc.bodies.size())};
   desc.bodies.emplace_back(Collider{
@@ -171,7 +186,9 @@ auto FrameDebug() -> SceneDesc {
       .name = "frame-debug",
       .dt = 1.0 / 1'000.0,
       .bodies = {Strand{.points = LineStrand(5),
-                        .place = {.centroid = Vec3<Real>(2, 1, 0)}}},
+                        .place = {.centroid = Vec3<Real>(2, 1, 0)},
+                        .integrator = ForwardEuler{},
+                        .damping = StrandDamping(0.75)}},
       .lastStep = 0,
       .view = {.zoom = kZoom, .showMaterialFrames = true},
   };

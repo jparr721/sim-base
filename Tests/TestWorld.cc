@@ -43,6 +43,26 @@ static_assert(!BuildsWithoutIntegrator<sim::SoftBody>);
 static_assert(!BuildsWithoutDamping<sim::SoftBody>);
 static_assert(BuildsWithIntegratorAndDamping<sim::SoftBody>);
 
+// The same for a Strand.
+template <class Body>
+concept StrandBuildsWithoutIntegrator = requires {
+  Body{.points = {}, .place = {}, .damping = sim::NoDamping{}};
+};
+template <class Body>
+concept StrandBuildsWithoutDamping = requires {
+  Body{.points = {}, .place = {}, .integrator = sim::ForwardEuler{}};
+};
+template <class Body>
+concept StrandBuildsWithIntegratorAndDamping = requires {
+  Body{.points = {},
+       .place = {},
+       .integrator = sim::ForwardEuler{},
+       .damping = sim::NoDamping{}};
+};
+static_assert(!StrandBuildsWithoutIntegrator<sim::Strand>);
+static_assert(!StrandBuildsWithoutDamping<sim::Strand>);
+static_assert(StrandBuildsWithIntegratorAndDamping<sim::Strand>);
+
 TEST(World, CatalogScenesConstruct) {
   for (const auto &entry : sim::Catalog()) {
     const auto desc = entry.make();
@@ -137,7 +157,10 @@ auto Hair(const sim::Placement &place) -> sim::Strand {
   for (int ii = 0; ii < 6; ++ii) {
     points.row(ii) = Vec3<Real>(0.3 * ii, 0.1 * ii * ii, -0.2 * ii);
   }
-  return {.points = points, .place = place};
+  return {.points = points,
+          .place = place,
+          .integrator = sim::ForwardEuler{},
+          .damping = sim::NoDamping{}};
 }
 
 auto Placed(sim::Body body) -> sim::World {
@@ -268,6 +291,25 @@ TEST(World, NegativeDampingIsRejected) {
   }
   bunny.damping = sim::GreenDamping{.mu = 0};
   EXPECT_NO_THROW(Placed(bunny));
+}
+
+// A strand has no deformation gradient for GreenDamping, and the same
+// coefficient checks apply to its damping and to SetDamping's.
+TEST(World, StrandDampingIsRejectedWhenGreenOrNegative) {
+  auto strand = Hair({});
+  for (const sim::Damping &damping :
+       {sim::Damping(sim::GreenDamping{.mu = 1}),
+        sim::Damping(sim::Rayleigh{.mass = -1, .stiffness = 0})}) {
+    strand.damping = damping;
+    EXPECT_THROW(Placed(strand), std::invalid_argument);
+    strand.damping = sim::Rayleigh{.mass = 1, .stiffness = 0.1};
+    EXPECT_NO_THROW(Placed(strand));
+    sim::SceneDesc desc{.name = "set-damping", .dt = 1e-3, .bodies = {strand}};
+    desc.script = {
+        {.firstStep = 1,
+         .effect = sim::SetDamping{.strand = {0}, .damping = damping}}};
+    EXPECT_THROW(sim::World{desc}, std::invalid_argument);
+  }
 }
 
 TEST(World, PathActionWithoutLastStepIsRejected) {

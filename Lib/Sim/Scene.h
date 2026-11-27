@@ -38,6 +38,11 @@ struct Box {
 struct Strand {
   Mat<Real> points;
   Placement place;
+  // Required: Integrator has no default, so leaving this out does not compile.
+  Integrator integrator;
+  // Required, the same way: NoDamping{} or Rayleigh{.mass = ..., .stiffness =
+  // ...}. GreenDamping needs a deformation gradient, which a strand lacks.
+  Damping damping;
   std::vector<int> pinned;
   Real leftTwistRate = 0;  // rad/s applied to the first edge's material frame
   Real rightTwistRate = 0; // rad/s applied to the last edge's material frame
@@ -101,10 +106,10 @@ struct SetTwistRates {
   Real right;
 };
 
-// Velocity damping coefficient used by the strand integrator.
+// Replaces the strand's damping, starting with this step's forces.
 struct SetDamping {
   BodyId strand;
-  Real coefficient;
+  Damping damping;
 };
 
 struct Action {

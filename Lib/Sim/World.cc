@@ -1,8 +1,8 @@
 #include "World.h"
 
-#include <Integrator/ForwardEulerStrand.h>
 #include <Solid/ElasticSystem.h>
 #include <Solid/Integrators.h>
+#include <Strand/DerSystem.h>
 #include <igl/parallel_for.h>
 #include <igl/readOBJ.h>
 
@@ -109,6 +109,53 @@ void BoxMesh(const Box &box, Mat<Real> &v, Mat<int> &f) {
       4, 5, 7, 4, 7, 6;  // +z
 }
 
+// Damping coefficients must be non-negative, or they would pump energy in.
+void ValidateDamping(const Damping &damping) {
+  std::visit(Overloaded{[](const NoDamping &) {},
+                        [](const GreenDamping &green) {
+                          if (!(green.mu >= 0)) {
+                            Malformed("GreenDamping needs a non-negative mu");
+                          }
+                        },
+                        [](const Rayleigh &rayleigh) {
+                          if (!(rayleigh.mass >= 0 &&
+                                rayleigh.stiffness >= 0)) {
+                            Malformed("Rayleigh damping needs non-negative "
+                                      "mass and stiffness coefficients");
+                          }
+                        }},
+             static_cast<const DampingModel &>(damping));
+}
+
+void ValidateStrandDamping(const Damping &damping) {
+  ValidateDamping(damping);
+  if (std::holds_alternative<GreenDamping>(damping)) {
+    Malformed("a Strand takes NoDamping or Rayleigh damping");
+  }
+}
+
+// One strand: its rod, the system over it and the integrator that steps it.
+// The system refers to the rod, so it never moves.
+struct StrandSim {
+  std::unique_ptr<StrandMesh> mesh;
+  DerSystem system;
+  Integrator integrator;
+  IntegratorState state;
+  // Its index in SceneDesc::bodies.
+  int index;
+
+  StrandSim(std::unique_ptr<StrandMesh> strandMesh, const Strand &desc,
+            std::vector<int> pinned, int bodyIndex)
+      : mesh(std::move(strandMesh)),
+        system(*mesh->der, pinned, desc.damping, desc.collisionStiffness,
+               desc.collisionEpsilon),
+        integrator(desc.integrator),
+        state{.x = mesh->der->Positions(),
+              .v = Vec<Real>::Zero(mesh->der->DOFs())},
+        index(bodyIndex) {}
+  StrandSim(StrandSim &&) = delete;
+};
+
 // One soft body: its mesh, the assembly over it and the integrator that
 // steps it. The system refers to the mesh and the material, so it never
 // moves.
@@ -157,8 +204,7 @@ struct World::Impl {
   // Index into the per-kind vectors below, per body in desc.bodies.
   std::vector<int> slot;
 
-  std::vector<std::shared_ptr<StrandMesh>> strands;
-  std::vector<std::unique_ptr<ForwardEulerStrand>> strandIntegrators;
+  std::vector<std::unique_ptr<StrandSim>> strands;
   std::vector<std::unique_ptr<SoftBodySim>> softBodies;
   std::vector<std::unique_ptr<CollisionMesh>> colliders;
   // Per body, how its integrator did on the last step.
@@ -180,13 +226,18 @@ struct World::Impl {
 
   void Add(const Strand &strand) {
     ValidatePlacement(strand.place);
-    auto mesh = std::make_shared<StrandMesh>(
+    ValidateStrandDamping(strand.damping);
+    auto mesh = std::make_unique<StrandMesh>(
         Placed(strand.place,
                Recentered(strand.points,
                           strand.points.colwise().mean().transpose())));
+    std::vector<int> pinned;
     for (const int vertex : strand.pinned) {
       if (vertex < 0 || vertex >= mesh->pinned.rows()) {
         Malformed(std::format("pinned vertex {} is out of range", vertex));
+      }
+      if (mesh->pinned(vertex) == 0) {
+        pinned.push_back(vertex);
       }
       mesh->pinned(vertex) = 1;
     }
@@ -194,10 +245,9 @@ struct World::Impl {
     mesh->der->rightAngularVelocity = strand.rightTwistRate;
     slot.push_back(static_cast<int>(strands.size()));
     states.emplace_back(mesh.get());
-    strandIntegrators.push_back(std::make_unique<ForwardEulerStrand>(
-        mesh, nullptr, desc.dt, strand.collisionStiffness,
-        strand.collisionEpsilon));
-    strands.push_back(std::move(mesh));
+    strands.push_back(std::make_unique<StrandSim>(
+        std::move(mesh), strand, std::move(pinned),
+        static_cast<int>(states.size()) - 1));
   }
 
   void Add(const SoftBody &softBody) {
@@ -220,20 +270,7 @@ struct World::Impl {
       Malformed("a SoftBody needs a positive collisionEpsilon and "
                 "non-negative collision stiffness, damping and drag");
     }
-    std::visit(Overloaded{[](const NoDamping &) {},
-                          [](const GreenDamping &green) {
-                            if (!(green.mu >= 0)) {
-                              Malformed("GreenDamping needs a non-negative mu");
-                            }
-                          },
-                          [](const Rayleigh &rayleigh) {
-                            if (!(rayleigh.mass >= 0 &&
-                                  rayleigh.stiffness >= 0)) {
-                              Malformed("Rayleigh damping needs non-negative "
-                                        "mass and stiffness coefficients");
-                            }
-                          }},
-               static_cast<const DampingModel &>(softBody.damping));
+    ValidateDamping(softBody.damping);
     std::vector<int> surface(mesh->f.data(), mesh->f.data() + mesh->f.size());
     std::ranges::sort(surface);
     const auto [last, end] = std::ranges::unique(surface);
@@ -286,7 +323,8 @@ struct World::Impl {
     std::visit(Overloaded{
                    [&](const MovePinned &e) {
                      PathSamples(action);
-                     const auto &pinned = strands[SlotOf<Strand>(e.strand)]->pinned;
+                     const auto &pinned =
+                         strands[SlotOf<Strand>(e.strand)]->mesh->pinned;
                      if (e.vertex < 0 || e.vertex >= pinned.rows() ||
                          pinned(e.vertex) != 1) {
                        Malformed(std::format("MovePinned vertex {} is not pinned",
@@ -298,7 +336,10 @@ struct World::Impl {
                      SlotOf<Collider>(e.collider);
                    },
                    [&](const SetTwistRates &e) { SlotOf<Strand>(e.strand); },
-                   [&](const SetDamping &e) { SlotOf<Strand>(e.strand); },
+                   [&](const SetDamping &e) {
+                     SlotOf<Strand>(e.strand);
+                     ValidateStrandDamping(e.damping);
+                   },
                },
                action.effect);
   }
@@ -310,7 +351,12 @@ struct World::Impl {
             [&](const MovePinned &e) {
               const Real dx = Vec<Real>::LinSpaced(PathSamples(action), e.fromDx,
                                                    e.toDx)(sample);
-              strands[slot[e.strand.index]]->TranslatePinnedX(dx, e.vertex);
+              // A kinematic target: the vertex is pinned, so the integrator
+              // holds it where this puts it.
+              StrandSim &strand = *strands[slot[e.strand.index]];
+              DiscreteElasticRod &rod = *strand.mesh->der;
+              rod.vertices(e.vertex, 0) = rod.restVertices(e.vertex, 0) + dx;
+              strand.state.x(3 * e.vertex) = rod.vertices(e.vertex, 0);
             },
             [&](const MoveCollider &e) {
               const int n = PathSamples(action);
@@ -322,12 +368,12 @@ struct World::Impl {
               colliders[slot[e.collider.index]]->Translate(offset);
             },
             [&](const SetTwistRates &e) {
-              auto &der = *strands[slot[e.strand.index]]->der;
+              auto &der = *strands[slot[e.strand.index]]->mesh->der;
               der.leftAngularVelocity = e.left;
               der.rightAngularVelocity = e.right;
             },
             [&](const SetDamping &e) {
-              strandIntegrators[slot[e.strand.index]]->damping = e.coefficient;
+              strands[slot[e.strand.index]]->system.SetDamping(e.damping);
             },
         },
         action.effect);
@@ -364,28 +410,46 @@ struct World::Impl {
       }
     }
 
+    const Vec3<Real> gravity = desc.gravity + extraAcceleration;
+    // One strand per index, and each writes only its own slots, so the
+    // result does not depend on the thread count.
     igl::parallel_for(strands.size(), [&](int ii) {
+      StrandSim &strand = *strands[ii];
       auto &found = collisionsPerStrand[ii];
       found.clear();
       for (const auto &collider : colliders) {
         auto hits = collider->DetectFaceCollisions(desc.collisionEnvelope,
-                                                   strands[ii]->der->vertices);
+                                                   strand.mesh->der->vertices);
         found.insert(found.end(), std::make_move_iterator(hits.begin()),
                      std::make_move_iterator(hits.end()));
       }
+      std::vector<SoftContact> strandContacts;
+      strandContacts.reserve(found.size());
+      for (const auto &hit : found) {
+        strandContacts.push_back(
+            {.vertex = hit.vertexIndex,
+             .triangle = {hit.faceVertices[0], hit.faceVertices[1],
+                          hit.faceVertices[2]}});
+      }
+      strand.system.SetContacts(std::move(strandContacts));
+      // Gravity is a force per strand vertex, not an acceleration.
+      Vec<Real> external(strand.system.Dofs());
+      for (int vertex = 0; vertex < external.size() / 3; ++vertex) {
+        external.segment<3>(3 * vertex) = gravity;
+      }
+      reports[strand.index] = std::visit(
+          [&](const auto &method) {
+            return sim::Step(method, strand.system, strand.state, external,
+                             desc.dt);
+          },
+          static_cast<const IntegratorMethod &>(strand.integrator));
+      strand.mesh->der->Advance(strand.state.x, desc.dt);
     });
     contacts.clear();
     for (const auto &found : collisionsPerStrand) {
       contacts.insert(contacts.end(), found.begin(), found.end());
     }
 
-    const Vec3<Real> gravity = desc.gravity + extraAcceleration;
-    igl::parallel_for(strandIntegrators.size(), [&](int ii) {
-      auto &integrator = strandIntegrators[ii];
-      integrator->vertexFaceCollisions = collisionsPerStrand[ii];
-      integrator->AddGravity(gravity);
-      integrator->Step();
-    });
     // Contacts are found once, at the start of the step, and held fixed
     // through the integrator's solve.
     for (const auto &body : softBodies) {
