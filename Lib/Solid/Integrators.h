@@ -116,12 +116,21 @@ auto Newton(const S &system, const AffineStep &map, const Vec<Real> &external,
   const Constraints &constraints = system.Constraints();
   const SparseMat<Real> &mass = system.Mass();
   const SparseMat<Real> damping = system.DampingMatrix(guess);
-  const auto phi = [&](const Vec<Real> &y) -> Real {
+  // Phi, and the sum of its terms' magnitudes, which scales its round-off.
+  struct Potential {
+    Real value;
+    Real magnitude;
+  };
+  const auto phi = [&](const Vec<Real> &y) -> Potential {
     const Vec<Real> dA = y - map.xA;
     const Vec<Real> dV = y - map.xV;
-    return map.alphaA / 2 * dA.dot(mass * dA) +
-           map.alphaV / 2 * dV.dot(damping * dV) + system.Energy(y) -
-           external.dot(y);
+    const Real inertia = map.alphaA / 2 * dA.dot(mass * dA);
+    const Real dissipation = map.alphaV / 2 * dV.dot(damping * dV);
+    const Real energy = system.Energy(y);
+    const Real work = external.dot(y);
+    return {.value = inertia + dissipation + energy - work,
+            .magnitude =
+                inertia + dissipation + std::abs(energy) + std::abs(work)};
   };
   const auto residual = [&](const Vec<Real> &y) -> Vec<Real> {
     Vec<Real> g = map.alphaA * (mass * (y - map.xA)) -
@@ -133,9 +142,9 @@ auto Newton(const S &system, const AffineStep &map, const Vec<Real> &external,
   x = guess;
   StepReport report{.converged = false};
   Vec<Real> g = residual(x);
-  Real phiX = phi(x);
+  Potential phiX = phi(x);
   for (;; ++report.newtonIterations) {
-    if (!g.allFinite() || !std::isfinite(phiX)) {
+    if (!g.allFinite() || !std::isfinite(phiX.value)) {
       return report;
     }
     if (g.lpNorm<Eigen::Infinity>() <= tolerance) {
@@ -154,20 +163,22 @@ auto Newton(const S &system, const AffineStep &map, const Vec<Real> &external,
     if (!(slope < 0)) {
       return report;
     }
-    // A trial passes on a sufficient decrease of Phi or of |g|. Near the
-    // solution Phi's changes sink below its round-off, which the
-    // cancellation inside Psi makes far larger than eps |Phi|, and only |g|
-    // still ranks the trials.
+    // A trial passes on a sufficient decrease of Phi (Armijo). Near the
+    // solution Phi's changes sink below its round-off, which cancellation
+    // inside Psi makes far larger than eps |Phi|, so a trial also passes when
+    // Phi stays within a round-off band and |g| drops enough.
     const Real gNorm = g.norm();
+    const Real band = 1e-10 * phiX.magnitude;
     for (Real alpha = 1;; alpha /= 2) {
       if (alpha < 1e-9) {
         return report;
       }
       Vec<Real> trial = x + alpha * solve.dx;
       Vec<Real> gTrial = residual(trial);
-      const Real phiTrial = phi(trial);
-      if (phiTrial <= phiX + 1e-4 * alpha * slope ||
-          gTrial.norm() <= (1 - 1e-4 * alpha) * gNorm) {
+      const Potential phiTrial = phi(trial);
+      if (phiTrial.value <= phiX.value + 1e-4 * alpha * slope ||
+          (phiTrial.value <= phiX.value + band &&
+           gTrial.norm() <= (1 - 1e-4 * alpha) * gNorm)) {
         x = std::move(trial);
         g = std::move(gTrial);
         phiX = phiTrial;
