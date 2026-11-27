@@ -22,10 +22,9 @@ auto LineStrand(int nVertices) -> Mat<Real> {
   return points;
 }
 
-// The velocity filter v <- (I - dt c M^-1) v that the explicit strand
-// integrator applied after each step, as Rayleigh mass damping. A strand
-// vertex has mass m = 0.2, so the filter is an explicit step of the force
-// -c v = -(c / m) M v.
+// The velocity filter v <- (I - dt c M^-1) v as Rayleigh mass damping. A
+// strand vertex has mass m = 0.2, so the filter is an explicit step of the
+// force -c v = -(c / m) M v.
 auto StrandDamping(Real c) -> Damping { return Rayleigh{.mass = c / 0.2}; }
 
 // The bunny's material stiffness, E = 5 and nu = 0.45.
@@ -89,8 +88,8 @@ auto BunnyDropImplicit() -> SceneDesc {
 
 // bunny-drop-implicit with Green-strain damping. The undamped bunny keeps
 // jiggling as it slides, and its max vertex speed stays above 1e-3 until
-// step 370 (18.5 s). This one stays below it from step 275 (13.75 s), and
-// Newton's worst step takes 7 iterations instead of 14.
+// step 370 (18.5 s). This one stays below it from step 276 (13.8 s), and
+// Newton's worst step takes 6 iterations instead of 14.
 auto BunnyDropImplicitDamped() -> SceneDesc {
   return BunnyRamp("bunny-drop-implicit-damped", 1.0 / 20,
                    BackwardEuler{.maxNewtonIterations = 25},
@@ -156,7 +155,7 @@ auto BunnySnhBarrier() -> SceneDesc {
 // The SNH bunny with a fiber along the ramp's slope. The bunny is placed
 // unrotated, so its local axes are the world's. The fiber's E = 20 is four
 // times the bunny's. The bunny barely stretches along the slope, so each
-// fiber moves its vertices at most 0.023 from bunny-drop-implicit-damped's.
+// fiber moves its vertices at most 0.026 from bunny-drop-implicit-damped's.
 const Vec3<Real> kSlopeFiber(std::cos(kRampAngle), -std::sin(kRampAngle), 0);
 const Lame kFiberLame = Lame::FromYoungs(20.0, 0.45);
 
@@ -226,9 +225,8 @@ auto StrandTwist() -> SceneDesc {
 
 // Hair hangs from 80 pinned roots beside a comb, which sweeps down through it
 // from 20 s to 30 s, one sample per 50 ms, and damping drops to 0.45 one
-// sample later. The old velocity filter damped the velocity a step had just
-// made, and Rayleigh damping acts on the velocity a step starts from, so the
-// drop is set one step later than the filter's was.
+// sample later. Rayleigh damping acts on the velocity a step starts from, not
+// the one it ends with, so the drop is set one extra step after the sample.
 auto StrandDrop(std::string name, Real dt, const Integrator &integrator)
     -> SceneDesc {
   const auto step = [&](Real seconds) {

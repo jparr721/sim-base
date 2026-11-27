@@ -82,7 +82,6 @@ void TetMesh::InitializeDataStructures() {
   // Compute the one-ring areas
   ComputeVertexAreas();
 
-  // Construct the mass matrix
   BuildMassMatrix();
 }
 void TetMesh::Tetrahedralize() {

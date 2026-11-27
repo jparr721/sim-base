@@ -26,10 +26,7 @@ auto StableNeoHookean::Pk1(const Mat3<Real> &f) const -> Mat3<Real> {
   return mu * f - mu * g + lambda * (j - 1) * g;
 }
 
-// H = mu I + l vec(g) vec(g)^T + (l (J - 1) - mu) d^2J/dF^2. With f_i the
-// columns of F, the (a, b) 3x3 block of d^2J/dF^2 is the derivative of column a
-// of the cofactor in f_b: d(f1 x f2)/df1 = -[f2]x, d(f1 x f2)/df2 = [f1]x, and
-// so on around the cycle (Smith et al. 2018, Sec. 4.5).
+// H = mu I + l vec(g) vec(g)^T + (l (J - 1) - mu) d^2J/dF^2.
 auto StableNeoHookean::Hessian(const Mat3<Real> &f) const -> Mat9<Real> {
   const Real mu = lame.mu;
   const Real lambda = SnhLambda(lame);

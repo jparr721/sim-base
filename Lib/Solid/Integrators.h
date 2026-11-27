@@ -268,7 +268,6 @@ auto Step(const ForwardEuler & /*method*/, const S &system,
       ConstructDiagonalSparseMatrix<Real>(detail::LumpedInverse(system.Mass()));
   const SparseMat<Real> filter = system.Constraints().Filter();
   const Vec<Real> forces = system.Forces(state.x, state.v);
-  // dx = S (dt^2 M^-1 f + dt v), then v = S dx / dt.
   Vec<Real> dx = (dt * dt) * massInverse * (forces + external) + dt * state.v;
   dx = filter * dx;
   state.x = state.x + dx;

@@ -1,5 +1,5 @@
 // DerSystem against finite differences of its own forces and energy, the PSD
-// clamp of its stiffness, and the Rayleigh form of the old strand damping.
+// clamp of its stiffness, and the Rayleigh form of a strand velocity filter.
 
 #include <Solid/Integrators.h>
 #include <Strand/DerSystem.h>
@@ -287,8 +287,7 @@ TEST(DerSystem, RayleighDampingIsLinearInVelocity) {
   EXPECT_EQ(Dense(System(rod).DampingMatrix(x)).norm(), 0);
 }
 
-// The vertex mass inverts exactly, so an explicit step's M^-1 is the 5 the
-// old strand integrator stored.
+// The vertex mass inverts exactly, so an explicit step's M^-1 is exactly 5.
 TEST(DerSystem, MassIsTheOldInverseMassInverted) {
   const auto rod = Rod(100, 0);
   const auto system = System(rod);
@@ -296,7 +295,7 @@ TEST(DerSystem, MassIsTheOldInverseMassInverted) {
             Vec<Real>::Constant(system.Dofs(), 5));
 }
 
-// The old explicit strand step, x += dt^2 M^-1 f + dt w followed by the
+// The explicit strand step x += dt^2 M^-1 f + dt w, followed by the
 // velocity filter w = (I - dt c M^-1) dx / dt, is ForwardEuler under
 // Rayleigh mass damping c / m. Substituting w_n:
 //   dx_{n+1} = dt^2 M^-1 f + (I - dt c M^-1) dx_n

@@ -25,7 +25,6 @@ auto Arap::Psi(const Mat3<Real> &f) const -> Real {
   return lame.mu * (RotationVariantSvd(f).sigma.array() - 1).square().sum();
 }
 
-// P = 2 mu (F - R).
 auto Arap::Pk1(const Mat3<Real> &f) const -> Mat3<Real> {
   const Svd svd = RotationVariantSvd(f);
   return 2 * lame.mu * (f - svd.u * svd.v.transpose());

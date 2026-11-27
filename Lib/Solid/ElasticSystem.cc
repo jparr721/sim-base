@@ -6,7 +6,6 @@ namespace sim {
 
 namespace {
 
-// DOF of coordinate `axis` of corner `corner` of `tet`.
 auto Dof(const Mat<int> &t, int tet, int corner, int axis) -> int {
   return 3 * t(tet, corner) + axis;
 }

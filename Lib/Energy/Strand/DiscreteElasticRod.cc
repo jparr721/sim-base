@@ -129,8 +129,7 @@ auto DiscreteElasticRod::SpringAt(int edge) const -> MassSpring {
   return {.k = springStiffness, .restLength = restEdges.at(edge).length};
 }
 
-// Accumulated in the order the explicit strand integrator always used, so a
-// run's floating-point results are unchanged.
+// Keep this accumulation order: the strand-scene goldens pin its rounding.
 auto DiscreteElasticRod::Forces(const Vec<Real> &x) const -> Vec<Real> {
   Vec<Real> R = Vec<Real>::Zero(DOFs());
   std::vector<Vec3<Real>> holonomyGradients(nRods + 1, Vec3<Real>::Zero());

@@ -21,7 +21,6 @@ auto StVenantKirchhoff::Psi(const Mat3<Real> &f) const -> Real {
   return lame.mu * e.squaredNorm() + lame.lambda / 2 * trace * trace;
 }
 
-// P = F S.
 auto StVenantKirchhoff::Pk1(const Mat3<Real> &f) const -> Mat3<Real> {
   return f * Pk2(lame, GreenStrain(f));
 }

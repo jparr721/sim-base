@@ -207,14 +207,12 @@ auto VertexFaceSqrtCollision::Psi(const VecN<12> &x) const -> Real {
   return collisionStiffness * spring * spring;
 }
 
-// 2 k (phi - eps) dphi/dx.
 auto VertexFaceSqrtCollision::Gradient(const VecN<12> &x) const -> VecN<12> {
   const Derivatives phi = Phi(x, Order::Gradient);
   return 2.0 * collisionStiffness * (phi.value - collisionEpsilon) *
          phi.gradient;
 }
 
-// 2 k (dphi/dx dphi/dx^T + (phi - eps) d^2phi/dx^2).
 auto VertexFaceSqrtCollision::Hessian(const VecN<12> &x) const -> MatN<12> {
   const Derivatives phi = Phi(x, Order::Hessian);
   return 2.0 * collisionStiffness *
