@@ -2,7 +2,7 @@
 
 #include "LibMath.h"
 #include "Settings.h"
-#include <Energy/Volume/HyperelasticMaterial.h>
+#include <Sim/Scene.h>
 #include <igl/boundary_facets.h>
 #include <igl/copyleft/tetgen/tetrahedralize.h>
 #include <igl/per_vertex_normals.h>
@@ -67,9 +67,7 @@ public:
 
   void ComputeDeformationGradients();
 
-  auto
-  ComputeMaterialForces(const std::shared_ptr<HyperelasticMaterial> &material)
-      -> Vec<Real>;
+  auto ComputeMaterialForces(const Material &material) -> Vec<Real>;
 
   // Trivial Getters/Setters
   [[nodiscard]] SIM_INLINE auto Positions() const -> Vec<Real> {

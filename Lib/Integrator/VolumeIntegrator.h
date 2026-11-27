@@ -1,7 +1,6 @@
 #pragma once
 
 #include "TetMesh.h"
-#include <Energy/Volume/HyperelasticMaterial.h>
 #include <memory>
 #include <utility>
 
@@ -11,7 +10,7 @@ class VolumeIntegrator {
 public:
   virtual ~VolumeIntegrator() = default;
   VolumeIntegrator(std::shared_ptr<TetMesh> tetMesh,
-                 std::shared_ptr<HyperelasticMaterial> material,
+                 Material material,
                  Real dt = 1.0 / 300.0, Real rayleighAlpha = 0.0,
                  Real rayleighBeta = 0.0)
       : tetMesh(std::move(tetMesh)), material(std::move(material)), dt(dt),
@@ -29,7 +28,7 @@ public:
 
 protected:
   std::shared_ptr<TetMesh> tetMesh;
-  std::shared_ptr<HyperelasticMaterial> material;
+  Material material;
 
   Real dt;
   Real rayleighAlpha;

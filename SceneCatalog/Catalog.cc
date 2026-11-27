@@ -30,7 +30,7 @@ auto BunnyDrop() -> SceneDesc {
           .place = {.centroid = Vec3<Real>(-0.11954105949006674,
                                            0.46292674024111929,
                                            0.051522498745946617)},
-          .material = NeoHookean{.youngsModulus = 5.0, .poissonRatio = 0.45},
+          .material = StableNeoHookean{.lame = Lame::FromYoungs(5.0, 0.45)},
           .pinRegion = Eigen::AlignedBox<Real, 3>(
               Vec3<Real>(-inf, 0.43707325975888073, -inf),
               Vec3<Real>(inf, inf, inf)),

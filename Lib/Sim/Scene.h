@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Energy/Volume/StVenantKirchhoff.h>
+#include <Energy/Volume/StableNeoHookean.h>
 #include <LibMath.h>
 
 #include <optional>
@@ -42,11 +44,9 @@ struct Strand {
   Real collisionEpsilon = 0.2;
 };
 
-struct NeoHookean {
-  Real youngsModulus;
-  Real poissonRatio;
-};
-using Material = std::variant<NeoHookean>;
+// Each alternative is built from Lame parameters, e.g.
+// StableNeoHookean{.lame = Lame::FromYoungs(5.0, 0.45)}.
+using Material = std::variant<StableNeoHookean, StVenantKirchhoff>;
 
 // The tetrahedralized mesh is recentered on its volume-weighted centroid.
 struct SoftBody {

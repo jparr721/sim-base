@@ -42,9 +42,8 @@ package_add_test(TestElementEnergies TestElementEnergies.cc)
 # Only the energy module, so the test fails to link if the module needs sim.
 set_property(TARGET TestElementEnergies PROPERTY LINK_LIBRARIES sim_energy_mass_spring gmock gtest_main)
 package_add_test(TestEnergies TestEnergies.cc)
-# The energy modules plus sim for the legacy SNH bridge; sim drops out with SNH.
-set_property(TARGET TestEnergies PROPERTY LINK_LIBRARIES
-        sim_energy_stable_neo_hookean sim_energy_stvk sim gmock gtest_main)
+# sim for the legacy SNH bridge; it brings the energy modules too.
+set_property(TARGET TestEnergies PROPERTY LINK_LIBRARIES sim gmock gtest_main)
 package_add_test(TestSceneGolden TestSceneGolden.cc)
 set_property(TARGET TestSceneGolden PROPERTY LINK_LIBRARIES sim_scenes gmock gtest_main)
 package_add_test(TestWorld TestWorld.cc)

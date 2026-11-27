@@ -1,6 +1,5 @@
 #include "World.h"
 
-#include <Energy/Volume/SNH.h>
 #include <Integrator/ForwardEulerStrand.h>
 #include <Integrator/ForwardEulerVolume.h>
 #include <igl/parallel_for.h>
@@ -175,15 +174,10 @@ struct World::Impl {
         }
       }
     }
-    const auto material = std::visit(
-        [](const NeoHookean &m) -> std::shared_ptr<HyperelasticMaterial> {
-          return std::make_shared<SNH>(m.youngsModulus, m.poissonRatio);
-        },
-        softBody.material);
     slot.push_back(static_cast<int>(softBodies.size()));
     states.emplace_back(mesh.get());
     volumeIntegrators.push_back(
-        std::make_unique<ForwardEulerVolume>(mesh, material, desc.dt));
+        std::make_unique<ForwardEulerVolume>(mesh, softBody.material, desc.dt));
     softBodies.push_back(std::move(mesh));
   }
 

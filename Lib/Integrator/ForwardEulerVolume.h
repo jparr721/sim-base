@@ -1,14 +1,13 @@
 #pragma once
 
 #include "VolumeIntegrator.h"
-#include <Energy/Volume/HyperelasticMaterial.h>
 
 namespace sim {
 
 class ForwardEulerVolume : public VolumeIntegrator {
 public:
   ForwardEulerVolume(std::shared_ptr<TetMesh> tetMesh,
-                     std::shared_ptr<HyperelasticMaterial> material,
+                     Material material,
                      Real dt = 1.0 / 3000.0, Real rayleighAlpha = 0.0,
                      Real rayleighBeta = 0.0)
       : VolumeIntegrator(std::move(tetMesh), std::move(material), dt, rayleighAlpha,

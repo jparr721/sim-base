@@ -91,7 +91,7 @@ auto Bunny(const sim::Placement &place) -> sim::SoftBody {
   return {
       .mesh = {Meshes / "bunny.obj"},
       .place = place,
-      .material = sim::NeoHookean{.youngsModulus = 5, .poissonRatio = 0.45},
+      .material = sim::StableNeoHookean{.lame = sim::Lame::FromYoungs(5, 0.45)},
       .pinRegion = Eigen::AlignedBox<Real, 3>(Vec3<Real>(-1, 0.3, -1),
                                               Vec3<Real>(1, 1, 1)),
   };

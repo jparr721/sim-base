@@ -126,18 +126,21 @@ void TetMesh::ComputeDeformationGradients() {
 
   needsNewDeformationGradients = false;
 }
-auto TetMesh::ComputeMaterialForces(
-    const std::shared_ptr<HyperelasticMaterial> &material) -> Vec<Real> {
+auto TetMesh::ComputeMaterialForces(const Material &material) -> Vec<Real> {
   SIM_ASSERT(!needsNewDeformationGradients, "");
   std::vector<Vec12<Real>> perElementForces(t.rows());
-  for (int tt = 0; tt < t.rows(); ++tt) {
-    const Mat3<Real> &F = fs[tt];
-    const Mat3<Real> P = material->Pk1(F);
-    const Vec12<Real> forceDensity =
-        partialFPartialxs.at(tt).transpose() * ColwiseFlatten<Real>(P);
-    const Vec12<Real> force = -restVolumes.at(tt) * forceDensity;
-    perElementForces.at(tt) = force;
-  }
+  std::visit(
+      [&](const auto &energy) {
+        for (int tt = 0; tt < t.rows(); ++tt) {
+          const Mat3<Real> &F = fs[tt];
+          const Mat3<Real> P = energy.Pk1(F);
+          const Vec12<Real> forceDensity =
+              partialFPartialxs.at(tt).transpose() * ColwiseFlatten<Real>(P);
+          const Vec12<Real> force = -restVolumes.at(tt) * forceDensity;
+          perElementForces.at(tt) = force;
+        }
+      },
+      material);
 
   // Scatter global forces
   Vec<Real> forces = Vec<Real>::Zero(DOFs());

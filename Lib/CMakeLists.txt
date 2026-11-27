@@ -54,11 +54,14 @@ target_include_directories(sim PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_options(sim PRIVATE ${SIM_WARNINGS})
-install(TARGETS sim sim_energy_mass_spring EXPORT sim)
+install(TARGETS sim sim_energy_mass_spring sim_energy_stable_neo_hookean
+        sim_energy_stvk EXPORT sim)
 target_link_libraries(
         sim
         PUBLIC
         sim_energy_mass_spring
+        sim_energy_stable_neo_hookean
+        sim_energy_stvk
         igl::core
         igl_copyleft::tetgen
         Eigen3::Eigen
