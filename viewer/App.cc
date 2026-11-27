@@ -146,21 +146,13 @@ auto ParseOptions(int argc, char **argv) -> std::expected<Options, std::string> 
 auto Run(const Options &options) -> int {
   ViewerState state;
   state.catalog = sim::Catalog();
-  if (state.catalog.empty()) {
-    std::cerr << "the scene catalog is empty\n";
-    return 1;
-  }
-  std::size_t scene = 0;
-  if (options.scene) {
-    const auto found = FindScene(state.catalog, *options.scene);
-    if (!found) {
-      std::cerr << "unknown scene '" << *options.scene << "'. Scenes:\n";
-      for (const auto &entry : state.catalog) {
-        std::cerr << "  " << entry.name << '\n';
-      }
-      return 2;
+  const auto scene = FindScene(state.catalog, options.scene);
+  if (!scene) {
+    std::cerr << "unknown scene '" << options.scene << "'. Scenes:\n";
+    for (const auto &entry : state.catalog) {
+      std::cerr << "  " << entry.name << '\n';
     }
-    scene = *found;
+    return 2;
   }
   if (options.exportDirectory) {
     state.exporter.directory = *options.exportDirectory;
@@ -173,7 +165,7 @@ auto Run(const Options &options) -> int {
   Renderer renderer;
   ImGuiSession imgui(window);
 
-  LoadScene(state, scene);
+  LoadScene(state, *scene);
   Drag drag = Drag::None;
   FrameGeometry geometry;
   while (!window.ShouldClose()) {
@@ -191,9 +183,9 @@ auto Run(const Options &options) -> int {
       AppendGridAndAxes(geometry);
     }
     if (state.world) {
-      AppendWorld(geometry, *state.world);
+      AppendWorld(geometry, *state.world, state.render);
     }
-    renderer.Draw(geometry, state.camera.GetViewMatrix(),
+    renderer.Draw(geometry, state.render, state.camera.GetViewMatrix(),
                   state.camera.GetProjectionMatrix(), state.framebufferWidth,
                   state.framebufferHeight);
 

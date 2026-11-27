@@ -42,6 +42,11 @@ target_include_directories(imgui SYSTEM PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURC
 target_link_libraries(imgui PUBLIC glfw)
 target_compile_options(imgui PRIVATE -w)
 
+# GL-free, so Tests/TestAlbedoTexture links it without a window.
+add_library(sim_viewer_albedo STATIC AlbedoTexture.cc)
+target_include_directories(sim_viewer_albedo PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(sim_viewer_albedo PRIVATE ${SIM_WARNINGS})
+
 add_executable(sim_viewer
         main.cc
         App.cc
@@ -54,9 +59,10 @@ add_executable(sim_viewer
         ui/ScenePicker.cc
         ui/Playback.cc
         ui/Stats.cc
+        ui/Lighting.cc
         ui/Export.cc)
 target_include_directories(sim_viewer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(sim_viewer PRIVATE sim sim_scenes glfw glad imgui)
+target_link_libraries(sim_viewer PRIVATE sim sim_scenes sim_viewer_albedo glfw glad imgui)
 target_compile_options(sim_viewer PRIVATE ${SIM_WARNINGS})
 # sim and glfw also arrive transitively; let CMake drop the repeats Apple ld warns about.
 set_target_properties(sim_viewer PROPERTIES LINK_LIBRARIES_STRATEGY REORDER_FREELY)

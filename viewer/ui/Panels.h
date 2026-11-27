@@ -16,6 +16,7 @@ struct Panel {
 void ScenePicker(ViewerState &state);
 void Playback(ViewerState &state);
 void Stats(ViewerState &state);
+void Lighting(ViewerState &state);
 void Export(ViewerState &state);
 
 auto Panels() -> std::span<const Panel>;

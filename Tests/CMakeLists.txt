@@ -47,6 +47,9 @@ package_add_test(TestWorld TestWorld.cc)
 # sim_scenes brings sim; listing sim a second time makes ld64 warn.
 set_property(TARGET TestWorld PROPERTY LINK_LIBRARIES sim_scenes gmock gtest_main)
 
+package_add_test(TestAlbedoTexture TestAlbedoTexture.cc)
+set_property(TARGET TestAlbedoTexture PROPERTY LINK_LIBRARIES sim_viewer_albedo gmock gtest_main)
+
 add_executable(GenerateGolden Golden/GenerateGolden.cc)
 target_link_libraries(GenerateGolden sim_scenes)
 target_compile_options(GenerateGolden PRIVATE ${SIM_WARNINGS})

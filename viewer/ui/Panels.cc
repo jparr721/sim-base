@@ -11,6 +11,7 @@ auto Panels() -> std::span<const Panel> {
       Panel{"Scene", ScenePicker},
       Panel{"Playback", Playback},
       Panel{"Stats", Stats},
+      Panel{"Lighting", Lighting},
       Panel{"Export", Export},
   };
   return kPanels;

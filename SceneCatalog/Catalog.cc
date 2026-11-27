@@ -29,7 +29,10 @@ auto BunnyDrop() -> SceneDesc {
           .material = NeoHookean{.youngsModulus = 5.0, .poissonRatio = 0.45},
           .pinRegion = {Vec3<Real>(-inf, 0.9, -inf), Vec3<Real>(inf, inf, inf)},
       }},
-      .view = {.zoom = kZoom},
+      // Elevated three-quarter view of the bunny's face side. The camera
+      // orbits `displacement`, and `eye` is its offset from there.
+      .view = {.eye = Vec3<float>(-1.0f, 0.76f, 1.3f),
+               .displacement = Vec3<float>(-0.08f, 0.5f, 0.0f)},
   };
 }
 
