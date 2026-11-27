@@ -1,20 +1,15 @@
 file(GLOB HEADERS "*.h" "Sim/*.h")
 file(GLOB SOURCES "*.cc" "Sim/*.cc")
+# TetMesh is sim_solid's geometry.
+list(REMOVE_ITEM HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/TetMesh.h")
+list(REMOVE_ITEM SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/TetMesh.cc")
 
 file(GLOB COLLISION_HEADERS "Collision/*.h")
 file(GLOB COLLISION_SOURCES "Collision/*.cc")
 
-file(GLOB INTEGRATOR_HEADERS "Integrator/*.h")
-file(GLOB INTEGRATOR_SOURCES "Integrator/*.cc")
-
-file(GLOB ENERGY_STRAND_HEADERS "Energy/Strand/*.h")
-file(GLOB ENERGY_STRAND_SOURCES "Energy/Strand/*.cc")
-
-file(GLOB ENERGY_VOLUME_HEADERS "Energy/Volume/*.h")
-file(GLOB ENERGY_VOLUME_SOURCES "Energy/Volume/*.cc")
-
 file(GLOB ENERGY_COLLISION_HEADERS "Energy/Collision/*.h")
-file(GLOB ENERGY_COLLISION_SOURCES "Energy/Collision/*.cc")
+list(REMOVE_ITEM ENERGY_COLLISION_HEADERS
+        "${CMAKE_CURRENT_SOURCE_DIR}/Energy/Collision/VertexFaceSqrtCollision.h")
 
 include(GNUInstallDirs)
 
@@ -28,24 +23,128 @@ target_include_directories(sim_energy_mass_spring PUBLIC
 target_compile_options(sim_energy_mass_spring PRIVATE ${SIM_WARNINGS})
 target_link_libraries(sim_energy_mass_spring PUBLIC Eigen3::Eigen)
 
+add_library(sim_energy_vertex_face_collision STATIC
+        Energy/ElementEnergy.h
+        Energy/Collision/VertexFaceSqrtCollision.h
+        Energy/Collision/VertexFaceSqrtCollision.cc)
+target_include_directories(sim_energy_vertex_face_collision PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_compile_options(sim_energy_vertex_face_collision PRIVATE ${SIM_WARNINGS})
+target_link_libraries(sim_energy_vertex_face_collision PUBLIC Eigen3::Eigen)
+
+# A volume energy module: Energy/Volume/<file>.{h,cc} as sim_energy_<name>.
+# sim_volume_energies links every module, for sim_solid and TestEnergies.
+add_library(sim_volume_energies INTERFACE)
+function(sim_volume_energy name file)
+    add_library(sim_energy_${name} STATIC Energy/Volume/Energy.h
+            Energy/Volume/${file}.h Energy/Volume/${file}.cc)
+    target_include_directories(sim_energy_${name} PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+    target_compile_options(sim_energy_${name} PRIVATE ${SIM_WARNINGS})
+    target_link_libraries(sim_energy_${name} PUBLIC Eigen3::Eigen)
+    target_link_libraries(sim_volume_energies INTERFACE sim_energy_${name})
+    set_property(GLOBAL APPEND PROPERTY SIM_VOLUME_ENERGIES sim_energy_${name})
+endfunction()
+sim_volume_energy(stable_neo_hookean StableNeoHookean)
+sim_volume_energy(stvk StVenantKirchhoff)
+sim_volume_energy(linear_elasticity LinearElasticity)
+sim_volume_energy(neo_hookean_bonet_wood NeoHookeanBonetWood)
+sim_volume_energy(arap Arap)
+sim_volume_energy(symmetric_dirichlet SymmetricDirichlet)
+sim_volume_energy(anisotropic_stvk AnisotropicStVenantKirchhoff)
+sim_volume_energy(anisotropic_arap AnisotropicArap)
+sim_volume_energy(anisotropic_fung AnisotropicFung)
+sim_volume_energy(stable_neo_hookean_barrier StableNeoHookeanBarrier)
+get_property(SIM_VOLUME_ENERGY_TARGETS GLOBAL PROPERTY SIM_VOLUME_ENERGIES)
+
+# A damping module: a DampingEnergy over (F, Fdot). Links the core math only.
+add_library(sim_damping_green STATIC
+        Energy/Volume/Energy.h
+        Energy/Damping/GreenDamping.h Energy/Damping/GreenDamping.cc)
+target_include_directories(sim_damping_green PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_compile_options(sim_damping_green PRIVATE ${SIM_WARNINGS})
+target_link_libraries(sim_damping_green PUBLIC Eigen3::Eigen)
+
+# The System concept and its constraints: what integrators see of a body.
+add_library(sim_system STATIC
+        Solid/System.h
+        Solid/Constraints.h Solid/Constraints.cc)
+target_include_directories(sim_system PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_compile_options(sim_system PRIVATE ${SIM_WARNINGS})
+target_link_libraries(sim_system PUBLIC Eigen3::Eigen)
+
+# Time integrators, generic over System: link no energy and no mesh.
+add_library(sim_integrators STATIC
+        Solid/Integrators.h Solid/Integrators.cc)
+target_include_directories(sim_integrators PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_compile_options(sim_integrators PRIVATE ${SIM_WARNINGS})
+target_link_libraries(sim_integrators PUBLIC sim_system Eigen3::Eigen)
+
+# DER energies and the strand System: links no mesh, collider or integrator.
+file(GLOB STRAND_SOURCES "Energy/Strand/*.h" "Energy/Strand/*.cc"
+        "Strand/*.h" "Strand/*.cc")
+add_library(sim_strand STATIC ${STRAND_SOURCES}
+        Solid/Contact.h Energy/Damping/Damping.h)
+target_include_directories(sim_strand PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_compile_options(sim_strand PRIVATE ${SIM_WARNINGS})
+target_link_libraries(sim_strand PUBLIC
+        sim_system
+        sim_energy_mass_spring
+        sim_energy_vertex_face_collision
+        sim_damping_green
+        Eigen3::Eigen)
+
+# Tet geometry and its global assembly: links the volume energies, never sim.
+add_library(sim_solid STATIC
+        TetMesh.h TetMesh.cc
+        Solid/Contact.h
+        Solid/ElasticSystem.h Solid/ElasticSystem.cc
+        Energy/Volume/Material.h
+        Energy/Damping/Damping.h)
+target_include_directories(sim_solid PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_compile_options(sim_solid PRIVATE ${SIM_WARNINGS})
+target_link_libraries(sim_solid PUBLIC
+        sim_system
+        sim_energy_vertex_face_collision
+        sim_volume_energies
+        sim_damping_green
+        igl::core
+        igl_copyleft::tetgen
+        Eigen3::Eigen)
+
 add_library(sim STATIC
         ${HEADERS} ${SOURCES}
         ${COLLISION_HEADERS} ${COLLISION_SOURCES}
-        ${INTEGRATOR_HEADERS} ${INTEGRATOR_SOURCES}
-        ${ENERGY_STRAND_HEADERS} ${ENERGY_STRAND_SOURCES}
-        ${ENERGY_VOLUME_HEADERS} ${ENERGY_VOLUME_SOURCES}
-        ${ENERGY_COLLISION_HEADERS} ${ENERGY_COLLISION_SOURCES})
+        ${ENERGY_COLLISION_HEADERS})
 target_include_directories(sim PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_options(sim PRIVATE ${SIM_WARNINGS})
-install(TARGETS sim sim_energy_mass_spring EXPORT sim)
+install(TARGETS sim sim_solid sim_strand sim_system sim_integrators sim_energy_mass_spring
+        sim_damping_green
+        sim_energy_vertex_face_collision
+        sim_volume_energies ${SIM_VOLUME_ENERGY_TARGETS} EXPORT sim)
 target_link_libraries(
         sim
         PUBLIC
         sim_energy_mass_spring
+        sim_energy_vertex_face_collision
+        sim_strand
+        sim_solid
+        sim_integrators
         igl::core
-        igl_copyleft::tetgen
         Eigen3::Eigen
 )
 add_library(sim::sim ALIAS sim)

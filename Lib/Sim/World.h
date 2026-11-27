@@ -37,6 +37,10 @@ public:
   [[nodiscard]] auto Finished() const -> bool;
   [[nodiscard]] auto Desc() const -> const SceneDesc &;
   [[nodiscard]] auto Bodies() const -> std::span<const BodyState>;
+  // How each body's integrator did on the last step, in SceneDesc::bodies
+  // order. A step that did not converge reports so here. Colliders and
+  // explicit methods always report converged, with no iterations.
+  [[nodiscard]] auto StepReports() const -> std::span<const StepReport>;
   // Vertex-face contacts found on the last step, across all strands.
   [[nodiscard]] auto Contacts() const -> std::span<const VertexFaceCollision>;
 

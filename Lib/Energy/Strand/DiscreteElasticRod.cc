@@ -2,25 +2,65 @@
 
 namespace sim {
 
+namespace {
+
+auto CurvatureBinormal(const Vec3<Real> &e0, const Vec3<Real> &e1,
+                       Real restLength0, Real restLength1) -> Vec3<Real> {
+  return 2.0 * e0.cross(e1) / (restLength0 * restLength1 + e0.dot(e1));
+}
+
+auto CurvatureBinormalGradient(const Vec3<Real> &e0, const Vec3<Real> &e1,
+                               const Vec3<Real> &kb, Real restLength0,
+                               Real restLength1) -> KbGradient {
+  const Real denominator = restLength0 * restLength1 + e0.dot(e1);
+  KbGradient gradient;
+  gradient.prev =
+      (2 * CrossProductMatrix(e1) + kb * e1.transpose()) / denominator;
+  gradient.next =
+      (2 * CrossProductMatrix(e0) - kb * e0.transpose()) / denominator;
+  gradient.mid = -(gradient.prev + gradient.next);
+  return gradient;
+}
+
+// The stencil's two edges, its binormal and the binormal's gradient.
+struct Curvature {
+  Vec3<Real> e0;
+  Vec3<Real> e1;
+  Real denominator;
+  Vec3<Real> kb;
+  KbGradient gradient;
+};
+
+auto CurvatureOf(const VecN<9> &x, Real restLength0, Real restLength1)
+    -> Curvature {
+  Curvature c;
+  c.e0 = x.segment<3>(3) - x.segment<3>(0);
+  c.e1 = x.segment<3>(6) - x.segment<3>(3);
+  c.denominator = restLength0 * restLength1 + c.e0.dot(c.e1);
+  c.kb = CurvatureBinormal(c.e0, c.e1, restLength0, restLength1);
+  c.gradient =
+      CurvatureBinormalGradient(c.e0, c.e1, c.kb, restLength0, restLength1);
+  return c;
+}
+
+// Stacks the three 3x3 vertex blocks of a 3 x 9 Jacobian.
+auto Stacked(const KbGradient &g) -> Eigen::Matrix<Real, 3, 9> {
+  Eigen::Matrix<Real, 3, 9> out;
+  out << g.prev, g.mid, g.next;
+  return out;
+}
+
+} // namespace
+
 DiscreteElasticRod::DiscreteElasticRod(Mat<Real> vertices)
     : nRods(vertices.rows() - 1), vertices(std::move(vertices)) {
-  // At least 3 nodes is required
   SIM_ASSERT(this->vertices.rows() >= 3, "At least 3 nodes are required");
-
-  // initial position of centerline in rest state
   restVertices = this->vertices;
-
-  // Initialize the mass matrix - uniform mass right now.
-  Vec<Real> masses = Vec<Real>::Ones(DOFs()) * 5;
-  mInv = ConstructDiagonalSparseMatrix(masses);
-
   Initialize();
 }
 
 void DiscreteElasticRod::Initialize() {
-  // Compute edges
-  //  edges = ComputeEdges(vertices);
-  UpdateLengths();
+  edges = ComputeEdges(vertices);
   restEdges = edges;
   totalRestLength = 0.0;
   for (const auto &edge : restEdges) {
@@ -30,89 +70,29 @@ void DiscreteElasticRod::Initialize() {
   // Thetas are per bend frame
   thetas = Vec<Real>::Zero(nRods - 1);
 
-  // Material frames are per bend frame
-  m1s.resize(nRods - 1);
-  m2s.resize(nRods - 1);
-
-  // Make initial frames
   BishopFrame initialFrame;
-  // Get the normalized tangent vector
   initialFrame.t = vertices.row(1) - vertices.row(0);
   initialFrame.t.normalize();
-
-  // Get u0 as a random orthogonal vector
   initialFrame.u = OrthogonalVectorUnsafe(initialFrame.t);
-
-  // v0 is the cross product of t0 and u0
   initialFrame.v = initialFrame.t.cross(initialFrame.u);
-
-  // Insert the frame
   frames.resize(nRods);
   frames.at(0) = initialFrame;
 
-  // Compute the curvature binormals
-  Computekbs();
-
-  // Compute the bishop frames with the rotated parallel transport
-  UpdateBishopFrames();
-
-  // Compute the updated material frames before computing curvature
-  UpdateMaterialFrames();
-
-  // Get the curvature update - don't bother with the quasistatic update here
-  // since it's just 0 anyway.
-  UpdateMaterialCurvatures();
-  restCurvature = curvature;
-
-  // Update the material curvature gradients
-  UpdateKbGradients();
-
-  // Update material holonomy
-  UpdateHolonomyGradient();
+  Advance(Positions(), 0);
 }
 
-auto DiscreteElasticRod::ComputeCenterlineForcesStraight() -> Vec<Real> {
-  Vec<Real> R = Vec<Real>::Zero(DOFs());
-
-  // Bending E = sum_i alpha |kb_i|^2 / lbar_i, with lbar_i the rest lengths of
-  // the two edges meeting at kb_i (Bergou et al. 2008).
+void DiscreteElasticRod::Advance(const Vec<Real> &x, Real dt) {
+  vertices = RowwiseUnFlatten(x, vertices.rows(), vertices.cols());
+  thetas(0) += leftAngularVelocity * dt;
+  thetas(thetas.rows() - 1) += rightAngularVelocity * dt;
+  edges = ComputeEdges(vertices);
+  kbs.resize(nRods - 1);
   for (int ii = 0; ii < nRods - 1; ++ii) {
-    const Real outer =
-        -2 * gBendingModulus /
-        (restEdges.at(ii).length + restEdges.at(ii + 1).length);
-    const auto &kbGradient = kbGradients.at(ii);
-    const auto &kb = kbs.at(ii);
-    R.segment<3>(3 * ii) += outer * kbGradient.prev.transpose() * kb;
-    R.segment<3>(3 * (ii + 1)) += outer * kbGradient.mid.transpose() * kb;
-    R.segment<3>(3 * (ii + 2)) += outer * kbGradient.next.transpose() * kb;
+    kbs.at(ii) = CurvatureBinormal(edges.at(ii).e, edges.at(ii + 1).e,
+                                   restEdges.at(ii).length,
+                                   restEdges.at(ii + 1).length);
   }
-
-  const Real thetaDiff = thetas(thetas.rows() - 1) - thetas(0);
-  const Real twistContrib = 2 * gTwistingModulus * thetaDiff / totalRestLength;
-  for (int ii = 0; ii < nRods + 1; ++ii) {
-    R.segment<3>(3 * ii) += twistContrib * holonomyGradients.at(ii);
-  }
-
-#ifndef NDEBUG
-  std::cout << "forces: " << R.transpose() << std::endl;
-#endif
-
-  // Compute spring-mass forces
-  for (int ii = 0; ii < nRods; ++ii) {
-    Vec6<Real> x;
-    x.segment<3>(0) = vertices.row(ii);
-    x.segment<3>(3) = vertices.row(ii + 1);
-
-    const MassSpring spring{.k = springStiffness,
-                            .restLength = restEdges.at(ii).length};
-    const Vec6<Real> force = -spring.Gradient(x);
-
-    // Scatter the forces into the global vector
-    R.segment<3>(3 * ii) += force.segment<3>(0);
-    R.segment<3>(3 * (ii + 1)) += force.segment<3>(3);
-  }
-
-  return R;
+  UpdateBishopFrames();
 }
 
 void DiscreteElasticRod::UpdateBishopFrames() {
@@ -128,81 +108,158 @@ void DiscreteElasticRod::UpdateBishopFrames() {
   ParallelTransportModifiedBishopFrames(kbs, edges, frames);
 }
 
-void DiscreteElasticRod::UpdateMaterialFrames() {
-  for (int ii = 0; ii < nRods - 1; ++ii) {
-    const Real theta = thetas(ii);
-    const Real cosTheta = std::cos(theta);
-    const Real sinTheta = std::sin(theta);
-    const Vec3<Real> m1 =
-        cosTheta * frames.at(ii).u + sinTheta * frames.at(ii).v;
-    const Vec3<Real> m2 =
-        -sinTheta * frames.at(ii).u + cosTheta * frames.at(ii).v;
-    m1s.at(ii) = m1;
-    m2s.at(ii) = m2;
-  }
+auto DiscreteElasticRod::Stencil(const Vec<Real> &x, int vertex) -> VecN<9> {
+  return x.segment<9>(3 * vertex);
 }
 
-void DiscreteElasticRod::UpdateMaterialCurvatures() {
-  curvature.clear();
-  curvature.resize(nRods - 1);
-  for (int ii = 0; ii < nRods - 1; ++ii) {
-    const Vec3<Real> kb = kbs.at(ii);
-    const Vec3<Real> m1 = m1s.at(ii);
-    const Vec3<Real> m2 = m2s.at(ii);
-
-    curvature.at(ii) = ComputeOmega(kb, m1, m2);
-  }
+auto DiscreteElasticRod::BendingAt(int vertex) const -> Bending {
+  return {.modulus = gBendingModulus,
+          .restLength0 = restEdges.at(vertex).length,
+          .restLength1 = restEdges.at(vertex + 1).length};
 }
 
-void DiscreteElasticRod::UpdateKbGradients() {
-  kbGradients.resize(nRods - 1);
-  for (int ii = 0; ii < nRods - 1; ++ii) {
-    const Vec3<Real> &e0 = edges.at(ii).e;
-    const Vec3<Real> &e1 = edges.at(ii + 1).e;
-    const Vec3<Real> &kb = kbs.at(ii);
-    const Real denominator =
-        restEdges.at(ii).length * restEdges.at(ii + 1).length + e0.dot(e1);
-
-    auto &gradient = kbGradients.at(ii);
-    gradient.prev =
-        (2 * CrossProductMatrix(e1) + kb * e1.transpose()) / denominator;
-    gradient.next =
-        (2 * CrossProductMatrix(e0) - kb * e0.transpose()) / denominator;
-    gradient.mid = -(gradient.prev + gradient.next);
-  }
+auto DiscreteElasticRod::TwistAt(int vertex) const -> TwistForce {
+  const Real thetaDiff = thetas(thetas.rows() - 1) - thetas(0);
+  return {.scale = 2 * gTwistingModulus * thetaDiff / totalRestLength,
+          .restLength0 = restEdges.at(vertex).length,
+          .restLength1 = restEdges.at(vertex + 1).length};
 }
 
-void DiscreteElasticRod::UpdateHolonomyGradient() {
-  holonomyGradients.assign(nRods + 1, Vec3<Real>::Zero());
+auto DiscreteElasticRod::SpringAt(int edge) const -> MassSpring {
+  return {.k = springStiffness, .restLength = restEdges.at(edge).length};
+}
+
+// Keep this accumulation order: the strand-scene goldens pin its rounding.
+auto DiscreteElasticRod::Forces(const Vec<Real> &x) const -> Vec<Real> {
+  Vec<Real> R = Vec<Real>::Zero(DOFs());
+  std::vector<Vec3<Real>> holonomyGradients(nRods + 1, Vec3<Real>::Zero());
+
+  // Bending E = sum_i alpha |kb_i|^2 / lbar_i, with lbar_i the rest lengths of
+  // the two edges meeting at kb_i (Bergou et al. 2008).
   for (int ii = 0; ii < nRods - 1; ++ii) {
-    const Vec3<Real> prev = kbs.at(ii) / (2 * restEdges.at(ii).length);
-    const Vec3<Real> next = -kbs.at(ii) / (2 * restEdges.at(ii + 1).length);
+    const Real outer =
+        -2 * gBendingModulus /
+        (restEdges.at(ii).length + restEdges.at(ii + 1).length);
+    const Curvature c = CurvatureOf(Stencil(x, ii), restEdges.at(ii).length,
+                                    restEdges.at(ii + 1).length);
+    R.segment<3>(3 * ii) += outer * c.gradient.prev.transpose() * c.kb;
+    R.segment<3>(3 * (ii + 1)) += outer * c.gradient.mid.transpose() * c.kb;
+    R.segment<3>(3 * (ii + 2)) += outer * c.gradient.next.transpose() * c.kb;
+    const Vec3<Real> prev = c.kb / (2 * restEdges.at(ii).length);
+    const Vec3<Real> next = -c.kb / (2 * restEdges.at(ii + 1).length);
     holonomyGradients.at(ii) += prev;
     holonomyGradients.at(ii + 1) -= prev + next;
     holonomyGradients.at(ii + 2) += next;
   }
-}
 
-void DiscreteElasticRod::Computekbs() {
-  kbs.resize(nRods - 1);
-  for (int ii = 0; ii < nRods - 1; ++ii) {
-    // Get the edges on either side of the vertex
-    const Vec3<Real> e0 = vertices.row(ii + 1) - vertices.row(ii);
-    const Vec3<Real> e1 = vertices.row(ii + 2) - vertices.row(ii + 1);
-
-    // Discrete curvature binormal
-    kbs.at(ii) =
-        2.0 * e0.cross(e1) /
-        (restEdges.at(ii).length * restEdges.at(ii + 1).length + e0.dot(e1));
+  const Real thetaDiff = thetas(thetas.rows() - 1) - thetas(0);
+  const Real twistContrib = 2 * gTwistingModulus * thetaDiff / totalRestLength;
+  for (int ii = 0; ii < nRods + 1; ++ii) {
+    R.segment<3>(3 * ii) += twistContrib * holonomyGradients.at(ii);
   }
+
+  for (int ii = 0; ii < nRods; ++ii) {
+    const VecN<6> spring = -SpringAt(ii).Gradient(x.segment<6>(3 * ii));
+    R.segment<3>(3 * ii) += spring.segment<3>(0);
+    R.segment<3>(3 * (ii + 1)) += spring.segment<3>(3);
+  }
+  return R;
 }
 
-auto DiscreteElasticRod::ComputeOmega(const Vec3<Real> &kb,
-                                      const Vec3<Real> &m1,
-                                      const Vec3<Real> &m2) -> Vec2<Real> {
-  return {kb.dot(m2), -kb.dot(m1)};
+auto DiscreteElasticRod::Energy(const Vec<Real> &x) const -> Real {
+  Real energy = 0;
+  for (int ii = 0; ii < nRods - 1; ++ii) {
+    energy += BendingAt(ii).Psi(Stencil(x, ii));
+  }
+  for (int ii = 0; ii < nRods; ++ii) {
+    energy += SpringAt(ii).Psi(x.segment<6>(3 * ii));
+  }
+  const Real thetaDiff = thetas(thetas.rows() - 1) - thetas(0);
+  return energy + gTwistingModulus * thetaDiff * thetaDiff / totalRestLength;
 }
 
-void DiscreteElasticRod::UpdateLengths() { edges = ComputeEdges(vertices); }
+auto Bending::Psi(const VecN<9> &x) const -> Real {
+  const Curvature c = CurvatureOf(x, restLength0, restLength1);
+  return modulus * c.kb.squaredNorm() / (restLength0 + restLength1);
+}
+
+auto Bending::Gradient(const VecN<9> &x) const -> VecN<9> {
+  const Curvature c = CurvatureOf(x, restLength0, restLength1);
+  return 2 * modulus / (restLength0 + restLength1) *
+         (Stacked(c.gradient).transpose() * c.kb);
+}
+
+// In the edge variables e = (e0, e1), with J_k = dkb/de_k:
+// J_0 = -(2 [e1]x + kb e1^T) / D and J_1 = (2 [e0]x - kb e0^T) / D, with
+// D = lbar0 lbar1 + e0 . e1. The Hessian of |kb|^2 is 2 (J^T J + G), where G
+// differentiates A = J_0^T l and B = J_1^T l with l held at kb:
+//   dA/de0 = -(e1 A^T + A e1^T) / D
+//   dA/de1 = -(2 [l]x + e1 B^T + (kb . l) I + A e0^T) / D
+//   dB/de0 =  (2 [l]x - e0 A^T - (kb . l) I - B e1^T) / D
+//   dB/de1 = -(e0 B^T + B e0^T) / D
+// and dA/de1 = (dB/de0)^T. e0 = x1 - x0 and e1 = x2 - x1 carry it to x.
+auto Bending::Hessian(const VecN<9> &x) const -> MatN<9> {
+  const Curvature c = CurvatureOf(x, restLength0, restLength1);
+  const Real d = c.denominator;
+  const Mat3<Real> j0 = -c.gradient.prev;
+  const Mat3<Real> &j1 = c.gradient.next;
+  const Vec3<Real> a = j0.transpose() * c.kb;
+  const Vec3<Real> b = j1.transpose() * c.kb;
+  const Real mu = c.kb.squaredNorm();
+  const Mat3<Real> l = CrossProductMatrix(c.kb);
+  const Mat3<Real> identity = Mat3<Real>::Identity();
+
+  Eigen::Matrix<Real, 3, 6> j;
+  j << j0, j1;
+  MatN<6> g;
+  g.topLeftCorner<3, 3>() =
+      -(c.e1 * a.transpose() + a * c.e1.transpose()) / d;
+  g.topRightCorner<3, 3>() = -(2 * l + c.e1 * b.transpose() + mu * identity +
+                               a * c.e0.transpose()) / d;
+  g.bottomLeftCorner<3, 3>() = g.topRightCorner<3, 3>().transpose();
+  g.bottomRightCorner<3, 3>() =
+      -(c.e0 * b.transpose() + b * c.e0.transpose()) / d;
+  const MatN<6> hessianE =
+      2 * modulus / (restLength0 + restLength1) * (j.transpose() * j + g);
+
+  Eigen::Matrix<Real, 6, 9> edges = Eigen::Matrix<Real, 6, 9>::Zero();
+  edges.block<3, 3>(0, 0) = -identity;
+  edges.block<3, 3>(0, 3) = identity;
+  edges.block<3, 3>(3, 3) = -identity;
+  edges.block<3, 3>(3, 6) = identity;
+  return edges.transpose() * hessianE * edges;
+}
+
+auto Bending::ClampedHessian(const VecN<9> &x) const -> MatN<9> {
+  return ProjectToPsd<9>(Hessian(x));
+}
+
+namespace {
+
+// The holonomy gradient's weights on the stencil's vertices.
+auto HolonomyWeights(Real restLength0, Real restLength1)
+    -> Eigen::Matrix<Real, 9, 3> {
+  const Real prev = 1 / (2 * restLength0);
+  const Real next = -1 / (2 * restLength1);
+  Eigen::Matrix<Real, 9, 3> w;
+  w << prev * Mat3<Real>::Identity(), -(prev + next) * Mat3<Real>::Identity(),
+      next * Mat3<Real>::Identity();
+  return w;
+}
+
+} // namespace
+
+// The force is scale W kb, with W the holonomy weights, so its Jacobian is
+// scale W dkb/dx.
+auto TwistForce::Stiffness(const VecN<9> &x) const -> MatN<9> {
+  const Curvature c = CurvatureOf(x, restLength0, restLength1);
+  return -scale * HolonomyWeights(restLength0, restLength1) *
+         Stacked(c.gradient);
+}
+
+auto TwistForce::ClampedStiffness(const VecN<9> &x) const -> MatN<9> {
+  const MatN<9> k = Stiffness(x);
+  return ProjectToPsd<9>((k + k.transpose()) / 2);
+}
 
 } // namespace sim

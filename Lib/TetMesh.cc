@@ -4,25 +4,18 @@ namespace sim {
 
 void TetMesh::BuildMassMatrix() {
   m.resize(DOFs(), DOFs());
-  mInv.resize(DOFs(), DOFs());
   m.setZero();
-  mInv.setZero();
 
   std::vector<Eigen::Triplet<Real>> mTriplet;
-  std::vector<Eigen::Triplet<Real>> mInvTriplet;
   for (int ii = 0; ii < v.rows(); ++ii) {
     const auto &oneRing = oneRingAreas.at(ii);
     const int index = ii * 3;
     mTriplet.emplace_back(index, index, oneRing);
     mTriplet.emplace_back(index + 1, index + 1, oneRing);
     mTriplet.emplace_back(index + 2, index + 2, oneRing);
-    mInvTriplet.emplace_back(index, index, 1.0 / oneRing);
-    mInvTriplet.emplace_back(index + 1, index + 1, 1.0 / oneRing);
-    mInvTriplet.emplace_back(index + 2, index + 2, 1.0 / oneRing);
   }
 
   m.setFromTriplets(mTriplet.begin(), mTriplet.end());
-  mInv.setFromTriplets(mInvTriplet.begin(), mInvTriplet.end());
 }
 void TetMesh::ComputeTetRestVolumes() {
   for (int ii = 0; ii < t.rows(); ++ii) {
@@ -34,7 +27,7 @@ void TetMesh::ComputeTetRestVolumes() {
 }
 void TetMesh::ComputeVertexAreas() {
   // Fill the vector with zeroes
-  oneRingAreas.assign(t.rows(), 0.0);
+  oneRingAreas.assign(v.rows(), 0.0);
 
   for (int ii = 0; ii < t.rows(); ++ii) {
     const Vec4<int> tet = t.row(ii);
@@ -76,7 +69,6 @@ void TetMesh::InitializeDataStructures() {
   partialFPartialxs.resize(t.rows());
   restVolumes.resize(t.rows());
   oneRingAreas.resize(v.rows());
-  fs.resize(t.rows());
 
   // Precompute the Dm Inverses
   ComputeDmInverses();
@@ -90,10 +82,7 @@ void TetMesh::InitializeDataStructures() {
   // Compute the one-ring areas
   ComputeVertexAreas();
 
-  // Construct the mass matrix and inverse mass matrix
   BuildMassMatrix();
-
-  needsNewDeformationGradients = true;
 }
 void TetMesh::Tetrahedralize() {
   static const std::string switches = "zpQ";
@@ -105,55 +94,6 @@ void TetMesh::Tetrahedralize() {
   // The faces come out of this function in the wrong winding order. So
   // this fixes that.
   f.rowwise().reverseInPlace();
-}
-void TetMesh::ComputeDeformationGradients() {
-  SIM_ASSERT(!dmInvs.empty(), "");
-  SIM_ASSERT(!partialFPartialxs.empty(), "");
-
-  // Compute Ds values for each tet
-  for (int ii = 0; ii < t.rows(); ++ii) {
-    const Vec4<int> tet = t.row(ii);
-    const Vec3<Real> a = v.row(tet(0));
-    const Vec3<Real> b = v.row(tet(1));
-    const Vec3<Real> c = v.row(tet(2));
-    const Vec3<Real> d = v.row(tet(3));
-    Mat<Real> ds(3, 3);
-    ds.col(0) = b - a;
-    ds.col(1) = c - a;
-    ds.col(2) = d - a;
-    fs.at(ii) = ds * dmInvs[ii];
-  }
-
-  needsNewDeformationGradients = false;
-}
-auto TetMesh::ComputeMaterialForces(
-    const std::shared_ptr<HyperelasticMaterial> &material) -> Vec<Real> {
-  SIM_ASSERT(!needsNewDeformationGradients, "");
-  std::vector<Vec12<Real>> perElementForces(t.rows());
-  for (int tt = 0; tt < t.rows(); ++tt) {
-    const Mat3<Real> &F = fs[tt];
-    const Mat3<Real> P = material->Pk1(F);
-    const Vec12<Real> forceDensity =
-        partialFPartialxs.at(tt).transpose() * ColwiseFlatten<Real>(P);
-    const Vec12<Real> force = -restVolumes.at(tt) * forceDensity;
-    perElementForces.at(tt) = force;
-  }
-
-  // Scatter global forces
-  Vec<Real> forces = Vec<Real>::Zero(DOFs());
-  for (int tt = 0; tt < t.rows(); ++tt) {
-    const Vec4<int> tet = t.row(tt);
-    const Vec12<Real> force = perElementForces.at(tt);
-
-    for (int ii = 0; ii < 4; ++ii) {
-      int index = 3 * tet(ii);
-      forces(index) += force(3 * ii);
-      forces(index + 1) += force(3 * ii + 1);
-      forces(index + 2) += force(3 * ii + 2);
-    }
-  }
-
-  return forces;
 }
 auto TetMesh::EvalPartialFPartialx(int index, const Mat3<Real> &dmInv)
     -> Mat3<Real> {

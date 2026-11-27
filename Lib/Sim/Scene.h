@@ -1,6 +1,10 @@
 #pragma once
 
+#include <Energy/Damping/Damping.h>
+#include <Energy/Volume/FiberMaterial.h>
+#include <Energy/Volume/Material.h>
 #include <LibMath.h>
+#include <Solid/Integrators.h>
 
 #include <optional>
 #include <string>
@@ -14,8 +18,32 @@ struct BodyId {
   int index;
 };
 
+// Where a body sits in the world. World recenters the body's rest shape on
+// its centroid, then scales, rotates and moves it so the centroid lands here.
+struct Placement {
+  Vec3<Real> centroid = Vec3<Real>::Zero();
+  Eigen::Quaternion<Real> rotation = Eigen::Quaternion<Real>::Identity();
+  Real scale = 1;
+};
+
+struct MeshFile {
+  fs::path path;
+};
+
+// A closed box centered on its body's centroid.
+struct Box {
+  Vec3<Real> halfExtents;
+};
+
+// Points are body-local. Their vertex mean is the centroid.
 struct Strand {
   Mat<Real> points;
+  Placement place;
+  // Required: Integrator has no default, so leaving this out does not compile.
+  Integrator integrator;
+  // Required, the same way: NoDamping{} or Rayleigh{.mass = ..., .stiffness =
+  // ...}. GreenDamping needs a deformation gradient, which a strand lacks.
+  Damping damping;
   std::vector<int> pinned;
   Real leftTwistRate = 0;  // rad/s applied to the first edge's material frame
   Real rightTwistRate = 0; // rad/s applied to the last edge's material frame
@@ -23,23 +51,39 @@ struct Strand {
   Real collisionEpsilon = 0.2;
 };
 
-struct NeoHookean {
-  Real youngsModulus;
-  Real poissonRatio;
-};
-using Material = std::variant<NeoHookean>;
-
+// The tetrahedralized mesh is recentered on its volume-weighted centroid.
+// Its surface vertices collide with every Collider, frictionlessly.
 struct SoftBody {
-  fs::path mesh;
+  MeshFile mesh;
+  Placement place;
   Material material;
-  // Vertices strictly inside this box are pinned.
-  Eigen::AlignedBox<Real, 3> pinRegion;
+  // Added to `material` in every tet. Its fiber direction is uniform,
+  // body-local and unit length, and Placement's rotation turns it with the
+  // body.
+  std::optional<FiberMaterial> fiber;
+  // Required: Integrator has no default, so leaving this out does not compile.
+  Integrator integrator;
+  // Required, the same way: NoDamping{}, GreenDamping{.mu = ...} or
+  // Rayleigh{.mass = ..., .stiffness = ...}.
+  Damping damping;
+  // Vertices strictly inside this body-local box (recentered, before scale
+  // and rotation) are pinned.
+  std::optional<Eigen::AlignedBox<Real, 3>> pinRegion;
+  // Per unit vertex mass: 1/s^2 for stiffness and 1/s for damping. A vertex
+  // within collisionEpsilon of a collider triangle is pushed back out to
+  // collisionEpsilon, and its velocity along the triangle normal is damped.
+  Real collisionStiffness = 1e4;
+  Real collisionEpsilon = 0.02;
+  Real collisionDamping = 50;
+  // 1/s: mass-proportional damping, -drag M v.
+  Real drag = 0;
 };
 
-// Static triangle mesh strands collide against.
+// Static triangle mesh that strands and soft bodies collide against,
+// recentered on its area-weighted centroid.
 struct Collider {
-  fs::path mesh;
-  Vec3<Real> offset = Vec3<Real>::Zero();
+  std::variant<MeshFile, Box> shape;
+  Placement place;
 };
 
 using Body = std::variant<Strand, SoftBody, Collider>;
@@ -54,6 +98,7 @@ struct MovePinned {
   Real toDx;
 };
 
+// Moves the collider's centroid along a path of offsets from place.centroid.
 struct MoveCollider {
   BodyId collider;
   Vec3<Real> from;
@@ -66,10 +111,10 @@ struct SetTwistRates {
   Real right;
 };
 
-// Velocity damping coefficient used by the strand integrator.
+// Replaces the strand's damping, starting with this step's forces.
 struct SetDamping {
   BodyId strand;
-  Real coefficient;
+  Damping damping;
 };
 
 struct Action {

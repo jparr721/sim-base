@@ -34,13 +34,32 @@ macro(package_add_test TESTNAME)
     set_target_properties(${TESTNAME} PROPERTIES FOLDER tests)
 endmacro()
 
-package_add_test(TestSNH TestSNH.cc)
 package_add_test(TestTetMesh TestTetMesh.cc)
 package_add_test(TestLibMath TestLibMath.cc)
 package_add_test(TestStrandForces TestStrandForces.cc)
 package_add_test(TestElementEnergies TestElementEnergies.cc)
 # Only the energy module, so the test fails to link if the module needs sim.
-set_property(TARGET TestElementEnergies PROPERTY LINK_LIBRARIES sim_energy_mass_spring gmock gtest_main)
+set_property(TARGET TestElementEnergies PROPERTY LINK_LIBRARIES
+        sim_energy_mass_spring sim_energy_vertex_face_collision gmock gtest_main)
+package_add_test(TestEnergies TestEnergies.cc)
+# Only the energy modules, so the test fails to link if a module needs sim.
+set_property(TARGET TestEnergies PROPERTY LINK_LIBRARIES
+        sim_volume_energies gmock gtest_main)
+package_add_test(TestDamping TestDamping.cc)
+# Only the damping module, so the test fails to link if the module needs more.
+set_property(TARGET TestDamping PROPERTY LINK_LIBRARIES
+        sim_damping_green gmock gtest_main)
+package_add_test(TestElasticSystem TestElasticSystem.cc)
+# Only sim_solid, so the test fails to link if assembly needs sim.
+set_property(TARGET TestElasticSystem PROPERTY LINK_LIBRARIES sim_solid gmock gtest_main)
+package_add_test(TestIntegrators TestIntegrators.cc)
+# sim_solid for the bodies, sim_integrators for the methods, and never sim.
+set_property(TARGET TestIntegrators PROPERTY LINK_LIBRARIES
+        sim_integrators sim_solid gmock gtest_main)
+package_add_test(TestDerSystem TestDerSystem.cc)
+# sim_strand for the system, sim_integrators for a step, and never sim.
+set_property(TARGET TestDerSystem PROPERTY LINK_LIBRARIES
+        sim_integrators sim_strand gmock gtest_main)
 package_add_test(TestSceneGolden TestSceneGolden.cc)
 set_property(TARGET TestSceneGolden PROPERTY LINK_LIBRARIES sim_scenes gmock gtest_main)
 package_add_test(TestWorld TestWorld.cc)
@@ -57,7 +76,7 @@ target_compile_options(GenerateGolden PRIVATE ${SIM_WARNINGS})
 add_library(PublicHeadersCxx20 OBJECT PublicHeadersCxx20.cc)
 target_link_libraries(PublicHeadersCxx20 PRIVATE sim)
 set_target_properties(PublicHeadersCxx20 PROPERTIES CXX_STANDARD 20 CXX_EXTENSIONS ON)
-target_compile_options(PublicHeadersCxx20 PRIVATE ${SIM_WARNINGS})
+target_compile_options(PublicHeadersCxx20 PRIVATE ${SIM_WARNINGS} -Werror)
 
 # A game with its own global PI, E, ASSERT, VERSION and Real includes the core.
 add_library(EmbedNoCollisions OBJECT EmbedNoCollisions.cc)

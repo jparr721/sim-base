@@ -4,10 +4,6 @@ namespace sim {
 
 StrandMesh::StrandMesh(const Mat<Real> &points)
     : pinned(Vec<int>::Zero(points.rows())),
-      der(new DiscreteElasticRod(points)) {}
-
-auto StrandMesh::ComputeMaterialForces() -> Vec<Real> {
-  return der->ComputeCenterlineForcesStraight();
-}
+      der(std::make_shared<DiscreteElasticRod>(points)) {}
 
 } // namespace sim

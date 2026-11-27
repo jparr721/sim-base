@@ -26,10 +26,22 @@ struct Run {
 };
 
 inline const std::vector<Run> kRuns = {
-    {"bunny-drop", 600, 100},
+    {"bunny-drop", 14000, 1000},
+    {"bunny-drop-implicit", 280, 20},
+    {"bunny-drop-implicit-damped", 280, 20},
+    {"bunny-stvk", 280, 20},
+    {"bunny-linear-elasticity", 280, 20},
+    {"bunny-neo-hookean", 280, 20},
+    {"bunny-arap", 280, 20},
+    {"bunny-symmetric-dirichlet", 280, 20},
+    {"bunny-snh-barrier", 280, 20},
+    {"bunny-fiber-stvk", 280, 20},
+    {"bunny-fiber-arap", 280, 20},
+    {"bunny-fiber-fung", 280, 20},
     {"strand-bend", 7000, 500},
     {"strand-twist", 3000, 250},
     {"strand-drop", 20500, 2500},
+    {"strand-drop-implicit", 600, 50},
 };
 
 using Snapshot = std::vector<Mat<Real>>;

@@ -1,0 +1,574 @@
+// Checks every volume Energy must pass. A new energy joins by adding its type
+// to Energies and a HandDerived specialization, plus a Traits specialization
+// when it is not isotropic or not defined for every F.
+
+#include <Energy/Volume/AnisotropicArap.h>
+#include <Energy/Volume/AnisotropicFung.h>
+#include <Energy/Volume/AnisotropicStVenantKirchhoff.h>
+#include <Energy/Volume/Arap.h>
+#include <Energy/Volume/LinearElasticity.h>
+#include <Energy/Volume/NeoHookeanBonetWood.h>
+#include <Energy/Volume/StVenantKirchhoff.h>
+#include <Energy/Volume/StableNeoHookean.h>
+#include <Energy/Volume/StableNeoHookeanBarrier.h>
+#include <Energy/Volume/SymmetricDirichlet.h>
+
+#include <gtest/gtest.h>
+#include <iomanip>
+#include <limits>
+#include <numbers>
+#include <random>
+#include <sstream>
+
+using namespace sim;
+
+namespace {
+
+// The bunny-drop material.
+constexpr Real kYoungs = 5.0;
+constexpr Real kPoisson = 0.45;
+const Lame kLame = Lame::FromYoungs(kYoungs, kPoisson);
+
+// Even draws are near rest. Odd draws have entries in [-1.5, 1.5], and about
+// half of them are inverted.
+auto DrawF(std::mt19937 &rng, int n) -> Mat3<Real> {
+  std::uniform_real_distribution<Real> small(-0.5, 0.5);
+  std::uniform_real_distribution<Real> large(-1.5, 1.5);
+  Mat3<Real> f;
+  for (int k = 0; k < 9; ++k)
+    f(k) = n % 2 == 0 ? small(rng) : large(rng);
+  if (n % 2 == 0)
+    f += Mat3<Real>::Identity();
+  return f;
+}
+
+// The first 1,000 draws that satisfy inDomain.
+auto SampleFsWhere(bool (*inDomain)(const Mat3<Real> &))
+    -> std::vector<Mat3<Real>> {
+  std::mt19937 rng(7);
+  std::vector<Mat3<Real>> out;
+  for (int n = 0; out.size() < 1000; ++n) {
+    const Mat3<Real> f = DrawF(rng, n);
+    if (inDomain(f))
+      out.push_back(f);
+  }
+  return out;
+}
+
+auto AnyF(const Mat3<Real> & /*f*/) -> bool { return true; }
+
+auto SampleFs() -> const std::vector<Mat3<Real>> & {
+  static const std::vector<Mat3<Real>> fs = SampleFsWhere(AnyF);
+  return fs;
+}
+
+auto RandomRotation(std::mt19937 &rng) -> Mat3<Real> {
+  std::normal_distribution<Real> normal;
+  return Eigen::Quaternion<Real>(normal(rng), normal(rng), normal(rng),
+                                 normal(rng))
+      .normalized()
+      .toRotationMatrix();
+}
+
+template <typename A, typename B>
+auto RelErr(const A &got, const B &want) -> Real {
+  return (got - want).norm() / std::max(got.norm(), want.norm());
+}
+
+// Shown in --gtest_output=xml, so the margins under each bound can be read.
+void RecordWorst(Real worst) {
+  std::ostringstream text;
+  text << std::scientific << std::setprecision(2) << worst;
+  testing::Test::RecordProperty("worst", text.str());
+}
+
+constexpr Real kFdStep = 1e-6;
+
+// Central differences of Psi in each entry of F.
+template <typename E> auto FdPk1(const E &e, const Mat3<Real> &f) -> Mat3<Real> {
+  Mat3<Real> out;
+  for (int k = 0; k < 9; ++k) {
+    Mat3<Real> plus = f;
+    Mat3<Real> minus = f;
+    plus(k) += kFdStep;
+    minus(k) -= kFdStep;
+    out(k) = (e.Psi(plus) - e.Psi(minus)) / (2 * kFdStep);
+  }
+  return out;
+}
+
+// Column k is the central difference of vec(P) in vec(F)(k).
+template <typename E>
+auto FdHessian(const E &e, const Mat3<Real> &f) -> Mat9<Real> {
+  Mat9<Real> out;
+  for (int k = 0; k < 9; ++k) {
+    Mat3<Real> plus = f;
+    Mat3<Real> minus = f;
+    plus(k) += kFdStep;
+    minus(k) -= kFdStep;
+    out.col(k) = Vectorize(e.Pk1(plus) - e.Pk1(minus)) / (2 * kFdStep);
+  }
+  return out;
+}
+
+// The PSD-cone projection of h, computed numerically.
+auto ProjectPsd(const Mat9<Real> &h) -> Mat9<Real> {
+  const Eigen::SelfAdjointEigenSolver<Mat9<Real>> eig(h);
+  return eig.eigenvectors() *
+         eig.eigenvalues().cwiseMax(0).asDiagonal() *
+         eig.eigenvectors().transpose();
+}
+
+// What the suite asserts about an energy's symmetry.
+//  kIsotropic: Psi(R F) = Psi(F R) = Psi(F) for every rotation R, and every
+//    rotation is at rest.
+//  kAboutFiber: Psi(R F) = Psi(F) for every rotation R and Psi(F Q) = Psi(F)
+//    for every rotation Q about the fiber, and every rotation is at rest.
+//    Psi(F R) for an arbitrary R must differ from Psi(F), as the control.
+//  kNone: only F = I is at rest. Rotations are strained and Psi(R F) differs
+//    from Psi(F), and the suite checks both so the trait is proven.
+enum class Symmetry { kIsotropic, kAboutFiber, kNone };
+
+// How the suite builds an energy and where it samples F. An energy that is
+// singular somewhere samples only the part of its domain kept away from the
+// singularity, so finite differences stay meaningful.
+// A specialization derives from DefaultTraits and states only what differs.
+template <typename E> struct DefaultTraits {
+  static constexpr Symmetry symmetry = Symmetry::kIsotropic;
+  static auto Make(const Lame &lame) -> E { return E{lame}; }
+  static auto InDomain(const Mat3<Real> &f) -> bool { return AnyF(f); }
+};
+template <typename E> struct Traits : DefaultTraits<E> {};
+
+// Fiber energies sample a fiber off every axis.
+const Vec3<Real> kSampleFiber = Vec3<Real>(1, 2, 3).normalized();
+
+template <typename E> struct FiberTraits : DefaultTraits<E> {
+  static constexpr Symmetry symmetry = Symmetry::kAboutFiber;
+  static auto Make(const Lame &lame) -> E {
+    return {.lame = lame, .fiber = kSampleFiber};
+  }
+};
+
+template <typename E> auto DomainFs() -> const std::vector<Mat3<Real>> & {
+  static const std::vector<Mat3<Real>> fs = SampleFsWhere(Traits<E>::InDomain);
+  return fs;
+}
+
+// One F worked out by hand per energy. Unless a specialization says
+// otherwise, F = diag(2, 1, 1), mu = 1 and lambda = 2.
+template <typename E> struct HandDerivedInput {
+  static auto Make() -> E { return Traits<E>::Make({.mu = 1, .lambda = 2}); }
+  static auto F() -> Mat3<Real> { return Vec3<Real>(2, 1, 1).asDiagonal(); }
+};
+template <typename E> struct HandDerived;
+
+// Fiber energies' hand derivations use the fiber a = (1, 1, 0) / sqrt2, so
+// F a = (2, 1, 0) / sqrt2, I5 = 5/2 and (F a) a^T = 1/2 [2 2 0; 1 1 0; 0 0 0].
+template <typename E> struct FiberHandDerivedInput : HandDerivedInput<E> {
+  static auto Make() -> E {
+    return {.lame = {.mu = 1, .lambda = 2},
+            .fiber = Vec3<Real>(1, 1, 0).normalized()};
+  }
+  static auto FaAt() -> Mat3<Real> {
+    Mat3<Real> m;
+    m << 2, 2, 0, 1, 1, 0, 0, 0, 0;
+    return m / 2;
+  }
+};
+
+template <>
+struct Traits<LinearElasticity> : DefaultTraits<LinearElasticity> {
+  static constexpr Symmetry symmetry = Symmetry::kNone;
+};
+
+// l = lambda + mu = 3. |F|^2 = 6 and J = 2:
+// Psi = 1/2 (6 - 3) - (2 - 1) + 3/2 (2 - 1)^2 = 2.
+// dJ/dF = cof F = diag(1, 2, 2) and l (J - 1) - mu = 2:
+// P = diag(2, 1, 1) + 2 diag(1, 2, 2) = diag(4, 5, 5).
+template <>
+struct HandDerived<StableNeoHookean> : HandDerivedInput<StableNeoHookean> {
+  static auto Psi() -> Real { return 2; }
+  static auto Pk1() -> Mat3<Real> { return Vec3<Real>(4, 5, 5).asDiagonal(); }
+};
+
+// E = diag(3/2, 0, 0), |E|^2 = 9/4 and tr E = 3/2: Psi = 9/4 + 9/4 = 9/2.
+// S = 2 E + 2 (3/2) I = diag(6, 3, 3): P = F S = diag(12, 3, 3).
+template <>
+struct HandDerived<StVenantKirchhoff> : HandDerivedInput<StVenantKirchhoff> {
+  static auto Psi() -> Real { return 4.5; }
+  static auto Pk1() -> Mat3<Real> { return Vec3<Real>(12, 3, 3).asDiagonal(); }
+};
+
+// eps = diag(1, 0, 0): Psi = 1 + 2/2 (1)^2 = 2.
+// P = 2 eps + 2 tr(eps) I = diag(4, 2, 2).
+template <>
+struct HandDerived<LinearElasticity> : HandDerivedInput<LinearElasticity> {
+  static auto Psi() -> Real { return 2; }
+  static auto Pk1() -> Mat3<Real> { return Vec3<Real>(4, 2, 2).asDiagonal(); }
+};
+
+// J = 2 >= kGuardJ, so log J is exact. |F|^2 = 6, F^-T = diag(1/2, 1, 1):
+// Psi = 1/2 (6 - 3) - log 2 + 2/2 (log 2)^2 = 3/2 - log 2 + (log 2)^2.
+// P = (F - F^-T) + 2 log 2 F^-T = diag(3/2 + log 2, 2 log 2, 2 log 2).
+template <>
+struct HandDerived<NeoHookeanBonetWood>
+    : HandDerivedInput<NeoHookeanBonetWood> {
+  static auto Psi() -> Real {
+    return Real(1.5) - std::log(Real(2)) + std::pow(std::log(Real(2)), 2);
+  }
+  static auto Pk1() -> Mat3<Real> {
+    const Real ln2 = std::log(Real(2));
+    return Vec3<Real>(Real(1.5) + ln2, 2 * ln2, 2 * ln2).asDiagonal();
+  }
+};
+
+// ARAP's R jumps where a pair of singular values sums to 0, so samples keep
+// every pair sum at least 0.1 from it.
+template <> struct Traits<Arap> : DefaultTraits<Arap> {
+  static auto InDomain(const Mat3<Real> &f) -> bool {
+    const Vec3<Real> s = RotationVariantSvd(f).sigma;
+    return s(1) + s(2) >= 0.1;
+  }
+};
+
+// R = I and F - R = diag(1, 0, 0): Psi = 1 and P = 2 (F - R) = diag(2, 0, 0).
+template <> struct HandDerived<Arap> : HandDerivedInput<Arap> {
+  static auto Psi() -> Real { return 1; }
+  static auto Pk1() -> Mat3<Real> { return Vec3<Real>(2, 0, 0).asDiagonal(); }
+};
+
+// Symmetric Dirichlet is singular at s = 0, so samples keep every singular
+// value at least 0.1 from it. Inverted F stay in.
+template <>
+struct Traits<SymmetricDirichlet> : DefaultTraits<SymmetricDirichlet> {
+  static auto InDomain(const Mat3<Real> &f) -> bool {
+    return std::abs(RotationVariantSvd(f).sigma(2)) >= 0.1;
+  }
+};
+
+// |F|^2 = 6 and |F^-1|^2 = 1/4 + 2 = 9/4: Psi = 1/4 (6 + 9/4 - 6) = 9/16.
+// F^-T F^-1 F^-T = diag(1/8, 1, 1): P = 1/2 (F - diag(1/8, 1, 1))
+// = diag(15/16, 0, 0).
+template <>
+struct HandDerived<SymmetricDirichlet> : HandDerivedInput<SymmetricDirichlet> {
+  static auto Psi() -> Real { return Real(9) / 16; }
+  static auto Pk1() -> Mat3<Real> {
+    return Vec3<Real>(Real(15) / 16, 0, 0).asDiagonal();
+  }
+};
+
+template <>
+struct Traits<AnisotropicStVenantKirchhoff>
+    : FiberTraits<AnisotropicStVenantKirchhoff> {};
+
+// E_a = (5/2 - 1) / 2 = 3/4: Psi = 1/2 (3/4)^2 = 9/32.
+// P = mu E_a (F a) a^T = 3/4 (F a) a^T.
+template <>
+struct HandDerived<AnisotropicStVenantKirchhoff>
+    : FiberHandDerivedInput<AnisotropicStVenantKirchhoff> {
+  static auto Psi() -> Real { return Real(9) / 32; }
+  static auto Pk1() -> Mat3<Real> { return Real(3) / 4 * FaAt(); }
+};
+
+// Anisotropic ARAP jumps where I4 = a^T S a crosses 0, so samples keep
+// |I4| >= 0.1, which also keeps I5 >= I4^2 away from 0.
+template <> struct Traits<AnisotropicArap> : FiberTraits<AnisotropicArap> {
+  static auto InDomain(const Mat3<Real> &f) -> bool {
+    const Svd svd = RotationVariantSvd(f);
+    const Vec3<Real> va = svd.v.transpose() * kSampleFiber;
+    return std::abs(va.dot(svd.sigma.cwiseProduct(va))) >= 0.1;
+  }
+};
+
+// S = F, so I4 = a^T F a = 3/2 > 0 and S(I4) = 1:
+// Psi = 1/2 (sqrt(5/2) - 1)^2.
+// P = 2 Psi'(I5) (F a) a^T = (1 - 1 / sqrt(5/2)) (F a) a^T.
+template <>
+struct HandDerived<AnisotropicArap> : FiberHandDerivedInput<AnisotropicArap> {
+  static auto Psi() -> Real {
+    return std::pow(std::sqrt(Real(2.5)) - 1, 2) / 2;
+  }
+  static auto Pk1() -> Mat3<Real> {
+    return (1 - 1 / std::sqrt(Real(2.5))) * FaAt();
+  }
+};
+
+template <> struct Traits<AnisotropicFung> : FiberTraits<AnisotropicFung> {};
+
+// stiffening k = 1 and E_a = 3/4, so k E_a^2 = 9/16:
+// Psi = 1/2 (exp(9/16) - 1).
+// P = 2 Psi'(I5) (F a) a^T = E_a exp(9/16) (F a) a^T.
+template <>
+struct HandDerived<AnisotropicFung> : FiberHandDerivedInput<AnisotropicFung> {
+  static auto Psi() -> Real { return (std::exp(Real(9) / 16) - 1) / 2; }
+  static auto Pk1() -> Mat3<Real> {
+    return Real(3) / 4 * std::exp(Real(9) / 16) * FaAt();
+  }
+};
+
+// The barrier's domain is J > 0. Samples keep J >= 0.01 so finite
+// differences of its 1 / J^2 Hessian stay meaningful.
+template <>
+struct Traits<StableNeoHookeanBarrier>
+    : DefaultTraits<StableNeoHookeanBarrier> {
+  static auto InDomain(const Mat3<Real> &f) -> bool {
+    return f.determinant() >= 0.01;
+  }
+};
+
+// F = diag(1, 1, 1/8), so J = 1/8 is inside the barrier g = 1/4, and
+// l = 3 = kappa. J - g = -1/8 and log(J / g) = -log 2.
+// Psi_SNH = 1/2 (2 + 1/64 - 3) - (1/8 - 1) + 3/2 (7/8)^2 = 49/32.
+// b = -3 (1/64)(-log 2) = 3 log 2 / 64.
+// b' = -3 (2 (-1/8)(-log 2) + (1/64) / (1/8)) = -3 log 2 / 4 - 3/8, and
+// h' = 3 (-7/8) - 1 + b' = -4 - 3 log 2 / 4. cof F = diag(1/8, 1/8, 1):
+// P = F + h' cof F
+//   = diag(1/2 - 3 log 2 / 32, 1/2 - 3 log 2 / 32, -31/8 - 3 log 2 / 4).
+template <>
+struct HandDerived<StableNeoHookeanBarrier>
+    : HandDerivedInput<StableNeoHookeanBarrier> {
+  static auto F() -> Mat3<Real> {
+    return Vec3<Real>(1, 1, Real(1) / 8).asDiagonal();
+  }
+  static auto Psi() -> Real {
+    return Real(49) / 32 + 3 * std::log(Real(2)) / 64;
+  }
+  static auto Pk1() -> Mat3<Real> {
+    const Real ln2 = std::log(Real(2));
+    const Real side = Real(0.5) - 3 * ln2 / 32;
+    return Vec3<Real>(side, side, Real(-31) / 8 - 3 * ln2 / 4).asDiagonal();
+  }
+};
+
+template <typename E> class EnergyTest : public testing::Test {};
+
+using Energies =
+    testing::Types<StableNeoHookean,
+                   StVenantKirchhoff,
+                   LinearElasticity,
+                   NeoHookeanBonetWood,
+                   Arap,
+                   SymmetricDirichlet,
+                   AnisotropicStVenantKirchhoff,
+                   AnisotropicArap,
+                   AnisotropicFung,
+                   StableNeoHookeanBarrier>;
+TYPED_TEST_SUITE(EnergyTest, Energies);
+
+TEST(EnergySamples, IncludeInvertedF) {
+  int inverted = 0;
+  for (const Mat3<Real> &f : SampleFs())
+    inverted += f.determinant() < 0;
+  EXPECT_GE(inverted, 200);
+}
+
+TYPED_TEST(EnergyTest, Pk1MatchesFdOfPsi) {
+  const TypeParam e = Traits<TypeParam>::Make(kLame);
+  const std::vector<Mat3<Real>> &fs = DomainFs<TypeParam>();
+  Real worst = 0;
+  std::size_t worstAt = 0;
+  for (std::size_t n = 0; n < fs.size(); ++n) {
+    const Real err = RelErr(e.Pk1(fs[n]), FdPk1(e, fs[n]));
+    if (err > worst) {
+      worst = err;
+      worstAt = n;
+    }
+  }
+  RecordWorst(worst);
+  EXPECT_LE(worst, 1e-6) << "sample " << worstAt;
+}
+
+TYPED_TEST(EnergyTest, HessianMatchesFdOfPk1) {
+  const TypeParam e = Traits<TypeParam>::Make(kLame);
+  const std::vector<Mat3<Real>> &fs = DomainFs<TypeParam>();
+  Real worst = 0;
+  std::size_t worstAt = 0;
+  for (std::size_t n = 0; n < fs.size(); ++n) {
+    const Real err = RelErr(e.Hessian(fs[n]), FdHessian(e, fs[n]));
+    if (err > worst) {
+      worst = err;
+      worstAt = n;
+    }
+  }
+  RecordWorst(worst);
+  EXPECT_LE(worst, 1e-6) << "sample " << worstAt;
+}
+
+TYPED_TEST(EnergyTest, ClampedHessianIsPsd) {
+  const TypeParam e = Traits<TypeParam>::Make(kLame);
+  const std::vector<Mat3<Real>> &fs = DomainFs<TypeParam>();
+  Real worst = 0;
+  for (std::size_t n = 0; n < fs.size(); ++n) {
+    const Mat9<Real> h = e.ClampedHessian(fs[n], RotationVariantSvd(fs[n]));
+    const Real minEigenvalue =
+        Eigen::SelfAdjointEigenSolver<Mat9<Real>>(h).eigenvalues().minCoeff();
+    ASSERT_GE(minEigenvalue, -1e-10 * h.norm()) << "sample " << n;
+    worst = std::min(worst, minEigenvalue / h.norm());
+  }
+  RecordWorst(worst);
+}
+
+// PSD alone passes for a zero matrix. The analytic eigensystem must give the
+// same projection as an eigendecomposition of the exact Hessian. The error is
+// relative to the Hessian too, because a projection can be exactly 0 (every
+// eigenvalue negative), where the numerical one is rounding noise.
+TYPED_TEST(EnergyTest, ClampedHessianIsPsdProjectionOfHessian) {
+  const TypeParam e = Traits<TypeParam>::Make(kLame);
+  const std::vector<Mat3<Real>> &fs = DomainFs<TypeParam>();
+  Real worst = 0;
+  std::size_t worstAt = 0;
+  for (std::size_t n = 0; n < fs.size(); ++n) {
+    const Mat9<Real> h = e.Hessian(fs[n]);
+    const Mat9<Real> clamped =
+        e.ClampedHessian(fs[n], RotationVariantSvd(fs[n]));
+    const Mat9<Real> projected = ProjectPsd(h);
+    const Real err = (clamped - projected).norm() /
+                     std::max({clamped.norm(), projected.norm(), h.norm()});
+    if (err > worst) {
+      worst = err;
+      worstAt = n;
+    }
+  }
+  RecordWorst(worst);
+  EXPECT_LE(worst, 1e-9) << "sample " << worstAt;
+}
+
+TYPED_TEST(EnergyTest, RestStatesMatchSymmetry) {
+  const TypeParam e = Traits<TypeParam>::Make(kLame);
+  const Real scale = kLame.mu + kLame.lambda;
+  const Mat3<Real> identity = Mat3<Real>::Identity();
+  EXPECT_LE(std::abs(e.Psi(identity)), 1e-12 * scale);
+  EXPECT_LE(e.Pk1(identity).norm(), 1e-12 * scale);
+  std::mt19937 rng(8);
+  for (int n = 0; n < 100; ++n) {
+    const Mat3<Real> r = RandomRotation(rng);
+    if constexpr (Traits<TypeParam>::symmetry == Symmetry::kNone) {
+      EXPECT_GT(e.Psi(r), 1e-12 * scale) << "rotation " << n;
+    } else {
+      EXPECT_LE(std::abs(e.Psi(r)), 1e-12 * scale) << "rotation " << n;
+      EXPECT_LE(e.Pk1(r).norm(), 1e-12 * scale) << "rotation " << n;
+    }
+  }
+}
+
+TYPED_TEST(EnergyTest, PsiHasItsSymmetry) {
+  const TypeParam e = Traits<TypeParam>::Make(kLame);
+  const Real scale = kLame.mu + kLame.lambda;
+  const std::vector<Mat3<Real>> &fs = DomainFs<TypeParam>();
+  std::mt19937 rng(9);
+  int changed = 0;
+  for (std::size_t n = 0; n < fs.size(); ++n) {
+    const Mat3<Real> &f = fs[n];
+    const Mat3<Real> r = RandomRotation(rng);
+    const Real psi = e.Psi(f);
+    // The absolute floor covers Psi near 0, where a difference such as
+    // sqrt(I5) - 1 cancels.
+    const auto same = [&](const Mat3<Real> &g) {
+      return std::abs(e.Psi(g) - psi) <= 1e-12 * std::abs(psi) + 1e-15 * scale;
+    };
+    if constexpr (Traits<TypeParam>::symmetry == Symmetry::kNone) {
+      changed += !same(r * f);
+    } else if constexpr (Traits<TypeParam>::symmetry ==
+                         Symmetry::kAboutFiber) {
+      const Mat3<Real> aboutFiber =
+          Eigen::AngleAxis<Real>(std::uniform_real_distribution<Real>(
+                                     -std::numbers::pi, std::numbers::pi)(rng),
+                                 e.fiber)
+              .toRotationMatrix();
+      EXPECT_TRUE(same(r * f)) << "sample " << n;
+      EXPECT_TRUE(same(f * aboutFiber)) << "sample " << n;
+      changed += !same(f * r);
+    } else {
+      EXPECT_TRUE(same(r * f)) << "sample " << n;
+      EXPECT_TRUE(same(f * r)) << "sample " << n;
+    }
+  }
+  if constexpr (Traits<TypeParam>::symmetry != Symmetry::kIsotropic)
+    EXPECT_GE(changed, 900);
+}
+
+TYPED_TEST(EnergyTest, MatchesHandDerivedValue) {
+  using Hand = HandDerived<TypeParam>;
+  const TypeParam e = Hand::Make();
+  EXPECT_NEAR(e.Psi(Hand::F()), Hand::Psi(), 1e-14);
+  EXPECT_LE((e.Pk1(Hand::F()) - Hand::Pk1()).norm(), 1e-14);
+}
+
+// F = diag(1, 1, t) as t falls from 1 through the guard at t = kGuardJ, to 0
+// and into inversion: Psi, P and the Hessian stay finite, Psi keeps growing,
+// and Psi and P are continuous across the guard.
+TEST(NeoHookeanBonetWood, GuardIsFiniteAndGrowsAsJShrinks) {
+  const NeoHookeanBonetWood e{kLame};
+  const auto at = [](Real t) -> Mat3<Real> {
+    return Vec3<Real>(1, 1, t).asDiagonal();
+  };
+  Real previous = e.Psi(at(1));
+  for (const Real t : {0.5, 0.2, 0.11, 0.1, 0.09, 0.05, 1e-2, 1e-4, 1e-8, 0.0,
+                       -1e-8, -0.1, -1.0}) {
+    const Real psi = e.Psi(at(t));
+    EXPECT_TRUE(std::isfinite(psi)) << "t = " << t;
+    EXPECT_TRUE(e.Pk1(at(t)).allFinite()) << "t = " << t;
+    EXPECT_TRUE(e.Hessian(at(t)).allFinite()) << "t = " << t;
+    EXPECT_GT(psi, previous) << "t = " << t;
+    previous = psi;
+  }
+
+  // A step of 2 dt across the guard changes Psi and P by no more than their
+  // slopes allow, so neither jumps there.
+  constexpr Real g = NeoHookeanBonetWood::kGuardJ;
+  constexpr Real dt = 1e-9;
+  const Real slack = 2 * dt * 1.01;
+  EXPECT_LE(std::abs(e.Psi(at(g - dt)) - e.Psi(at(g + dt))),
+            slack * e.Pk1(at(g)).norm());
+  EXPECT_LE((e.Pk1(at(g - dt)) - e.Pk1(at(g + dt))).norm(),
+            slack * e.Hessian(at(g)).norm());
+}
+
+// F = diag(1, 1, t). At and above the barrier it is SNH exactly. Inside it,
+// the barrier term Psi - Psi_SNH is positive and grows as t -> 0+, and Psi is
+// infinite for t <= 0, where the derivatives fall back to SNH's.
+TEST(StableNeoHookeanBarrier, BarrierGrowsAsJShrinksAndBlocksInversion) {
+  const StableNeoHookeanBarrier e{kLame};
+  const StableNeoHookean snh{kLame};
+  const auto at = [](Real t) -> Mat3<Real> {
+    return Vec3<Real>(1, 1, t).asDiagonal();
+  };
+  for (const Real t : {2.0, 1.0, 0.5, StableNeoHookeanBarrier::kBarrierJ}) {
+    EXPECT_NEAR(e.Psi(at(t)), snh.Psi(at(t)), 1e-14) << "t = " << t;
+    EXPECT_LE((e.Pk1(at(t)) - snh.Pk1(at(t))).norm(), 1e-13) << "t = " << t;
+  }
+  Real previous = 0;
+  for (const Real t : {0.2, 0.1, 1e-2, 1e-4, 1e-8, 1e-16}) {
+    const Real barrier = e.Psi(at(t)) - snh.Psi(at(t));
+    EXPECT_TRUE(std::isfinite(e.Psi(at(t)))) << "t = " << t;
+    EXPECT_GT(barrier, previous) << "t = " << t;
+    previous = barrier;
+  }
+  for (const Real t : {0.0, -0.5}) {
+    EXPECT_EQ(e.Psi(at(t)), std::numeric_limits<Real>::infinity());
+    EXPECT_LE((e.Pk1(at(t)) - snh.Pk1(at(t))).norm(), 1e-13) << "t = " << t;
+    EXPECT_LE((e.Hessian(at(t)) - snh.Hessian(at(t))).norm(), 1e-12)
+        << "t = " << t;
+  }
+
+  constexpr Real g = StableNeoHookeanBarrier::kBarrierJ;
+  constexpr Real dt = 1e-9;
+  const Real slack = 2 * dt * 1.01;
+  EXPECT_LE((e.Pk1(at(g - dt)) - e.Pk1(at(g + dt))).norm(),
+            slack * e.Hessian(at(g)).norm());
+}
+
+TEST(RotationVariantSvd, ReconstructsWithRotations) {
+  for (std::size_t n = 0; n < SampleFs().size(); ++n) {
+    const Mat3<Real> &f = SampleFs()[n];
+    const Svd svd = RotationVariantSvd(f);
+    const Mat3<Real> back = svd.u * svd.sigma.asDiagonal() * svd.v.transpose();
+    EXPECT_LE((back - f).norm(), 1e-12 * f.norm()) << "sample " << n;
+    EXPECT_NEAR(svd.u.determinant(), 1, 1e-12) << "sample " << n;
+    EXPECT_NEAR(svd.v.determinant(), 1, 1e-12) << "sample " << n;
+    EXPECT_EQ(svd.sigma(2) < 0, f.determinant() < 0) << "sample " << n;
+  }
+}
+
+} // namespace

@@ -2,11 +2,12 @@
 
 #include "LibMath.h"
 #include "Settings.h"
-#include <Energy/Volume/HyperelasticMaterial.h>
 #include <igl/boundary_facets.h>
 #include <igl/copyleft/tetgen/tetrahedralize.h>
 #include <igl/per_vertex_normals.h>
 #include <igl/read_triangle_mesh.h>
+
+#include <functional>
 
 namespace sim {
 
@@ -25,25 +26,23 @@ public:
   // Vertex normals
   Mat<Real> n;
 
-  // Mass Matrix
+  // Lumped mass matrix: each vertex carries a quarter of its tets' volume.
   SparseMat<Real> m;
-  SparseMat<Real> mInv;
-
-  // Rayleigh Damping
-  SparseMat<Real> rayleighDamping;
 
   // N x 1 boolean vector indicating whether a vertex is pinned. This matches
   // the dimension of v.
   Vec<int> pinned;
 
-  // Per-element deformation gradients
-  std::vector<Mat<Real>> fs;
-
   TetMesh() = default;
 
-  explicit TetMesh(const fs::path &file) {
+  // Tetrahedralizes `file` in its own coordinates, then rests the mesh at
+  // place(v, t), so a placement cannot change the tetrahedralization.
+  using Placer =
+      std::function<Mat<Real>(const Mat<Real> &v, const Mat<int> &t)>;
+  TetMesh(const fs::path &file, const Placer &place) {
     igl::read_triangle_mesh(file.string(), v, f);
     Tetrahedralize();
+    v = place(v, t);
     igl::per_vertex_normals(v, f, n);
     InitializeDataStructures();
   }
@@ -58,12 +57,6 @@ public:
     InitializeDataStructures();
   }
 
-  void ComputeDeformationGradients();
-
-  auto
-  ComputeMaterialForces(const std::shared_ptr<HyperelasticMaterial> &material)
-      -> Vec<Real>;
-
   // Trivial Getters/Setters
   [[nodiscard]] SIM_INLINE auto Positions() const -> Vec<Real> {
     return RowwiseFlatten(v);
@@ -73,15 +66,12 @@ public:
   }
   SIM_INLINE void SetPositions(const Vec<Real> &x) {
     v = RowwiseUnFlatten(x, v.rows(), v.cols());
-    needsNewDeformationGradients = true;
   }
   SIM_INLINE void SetDisplacement(const Vec<Real> &u) {
     v = rv + RowwiseUnFlatten(u, v.rows(), v.cols());
-    needsNewDeformationGradients = true;
   }
   SIM_INLINE void AddDisplacement(const Vec<Real> &u) {
     v += RowwiseUnFlatten(u, v.rows(), v.cols());
-    needsNewDeformationGradients = true;
   }
   SIM_INLINE void PinVertex(int index) { pinned(index) = 1; }
   SIM_INLINE void UnPinVertex(int index) { pinned(index) = 0; }
@@ -94,9 +84,19 @@ public:
   auto TetVolume(const Vec3<Real> &a, const Vec3<Real> &b, const Vec3<Real> &c,
                  const Vec3<Real> &d) -> Real;
 
-private:
-  bool needsNewDeformationGradients = false;
+  // Per-tet rest geometry, indexed like the rows of t.
+  [[nodiscard]] auto DmInverses() const -> const std::vector<Mat<Real>> & {
+    return dmInvs;
+  }
+  [[nodiscard]] auto PartialFPartialxs() const
+      -> const std::vector<Mat9x12<Real>> & {
+    return partialFPartialxs;
+  }
+  [[nodiscard]] auto RestVolumes() const -> const std::vector<Real> & {
+    return restVolumes;
+  }
 
+private:
   // Per-element dm-inverses (for computing the deformation gradients)
   std::vector<Mat<Real>> dmInvs;
   std::vector<Mat9x12<Real>> partialFPartialxs;
@@ -118,11 +118,6 @@ private:
    * @brief Build the mass matrix for the tetrahedral mesh.
    */
   void BuildMassMatrix();
-
-  /**
-   * @brief Build the damping matrix for the tetrahedral mesh.
-   */
-  void BuildRayleighDampingMatrix() {}
 
   /**
    * @brief Compute the rest volume for each tetrahedron.
