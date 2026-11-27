@@ -111,11 +111,13 @@ enum class Symmetry { kIsotropic, kNone };
 // How the suite builds an energy and where it samples F. An energy that is
 // singular somewhere samples only the part of its domain kept away from the
 // singularity, so finite differences stay meaningful.
-template <typename E> struct Traits {
+// A specialization derives from DefaultTraits and states only what differs.
+template <typename E> struct DefaultTraits {
   static constexpr Symmetry symmetry = Symmetry::kIsotropic;
   static auto Make(const Lame &lame) -> E { return E{lame}; }
   static auto InDomain(const Mat3<Real> &f) -> bool { return AnyF(f); }
 };
+template <typename E> struct Traits : DefaultTraits<E> {};
 
 template <typename E> auto DomainFs() -> const std::vector<Mat3<Real>> & {
   static const std::vector<Mat3<Real>> fs = SampleFsWhere(Traits<E>::InDomain);
@@ -130,10 +132,9 @@ template <typename E> struct HandDerivedInput {
 };
 template <typename E> struct HandDerived;
 
-template <> struct Traits<LinearElasticity> {
+template <>
+struct Traits<LinearElasticity> : DefaultTraits<LinearElasticity> {
   static constexpr Symmetry symmetry = Symmetry::kNone;
-  static auto Make(const Lame &lame) -> LinearElasticity { return {lame}; }
-  static auto InDomain(const Mat3<Real> &f) -> bool { return AnyF(f); }
 };
 
 // l = lambda + mu = 3. |F|^2 = 6 and J = 2:
