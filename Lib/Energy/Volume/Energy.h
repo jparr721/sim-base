@@ -35,20 +35,21 @@ struct Lame {
   }
 };
 
-// The clamped Hessian of an isotropic energy Psi(sigma) from its eigensystem
+// The Hessian of an isotropic energy Psi(sigma) from its eigensystem
 // (Smith et al. 2019, "Analytic Eigensystems for Isotropic Distortion
 // Energies"; Dynamic Deformables, "Eigenanalysis"). For the pair (i, j) left
 // when index k is removed, the twist matrix U (e_i e_j^T - e_j e_i^T) V^T / sqrt2
 // has eigenvalue twist(k) and the flip matrix U (e_i e_j^T + e_j e_i^T) V^T /
 // sqrt2 has eigenvalue flip(k). The three scaling modes are U diag(a) V^T for
-// each eigenvector a of scaling = d^2 Psi / d sigma^2.
-SIM_INLINE auto ClampedIsotropicHessian(const Svd &svd,
-                                        const Mat3<Real> &scaling,
-                                        const Vec3<Real> &twist,
-                                        const Vec3<Real> &flip) -> Mat9<Real> {
+// each eigenvector a of scaling = d^2 Psi / d sigma^2. clamped drops every
+// mode whose eigenvalue is not positive.
+SIM_INLINE auto IsotropicHessian(const Svd &svd, const Mat3<Real> &scaling,
+                                 const Vec3<Real> &twist,
+                                 const Vec3<Real> &flip, bool clamped)
+    -> Mat9<Real> {
   Mat9<Real> h = Mat9<Real>::Zero();
   const auto add = [&](Real eigenvalue, const Mat3<Real> &mode) {
-    if (eigenvalue <= 0)
+    if (clamped && eigenvalue <= 0)
       return;
     const Vec9<Real> q = Vectorize(svd.u * mode * svd.v.transpose());
     h += eigenvalue * q * q.transpose();
@@ -73,6 +74,13 @@ SIM_INLINE auto ClampedIsotropicHessian(const Svd &svd,
     add(flip(k), symmetric);
   }
   return h;
+}
+
+SIM_INLINE auto ClampedIsotropicHessian(const Svd &svd,
+                                        const Mat3<Real> &scaling,
+                                        const Vec3<Real> &twist,
+                                        const Vec3<Real> &flip) -> Mat9<Real> {
+  return IsotropicHessian(svd, scaling, twist, flip, true);
 }
 
 // dJ/dF for J = det F: the cofactor matrix, column i is the cross product of

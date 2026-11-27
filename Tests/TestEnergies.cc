@@ -2,6 +2,7 @@
 // to Energies and a HandDerived specialization, plus a Traits specialization
 // when it is not isotropic or not defined for every F.
 
+#include <Energy/Volume/Arap.h>
 #include <Energy/Volume/LinearElasticity.h>
 #include <Energy/Volume/NeoHookeanBonetWood.h>
 #include <Energy/Volume/StVenantKirchhoff.h>
@@ -179,13 +180,29 @@ struct HandDerived<NeoHookeanBonetWood>
   }
 };
 
+// ARAP's R jumps where a pair of singular values sums to 0, so samples keep
+// every pair sum at least 0.1 from it.
+template <> struct Traits<Arap> : DefaultTraits<Arap> {
+  static auto InDomain(const Mat3<Real> &f) -> bool {
+    const Vec3<Real> s = RotationVariantSvd(f).sigma;
+    return s(1) + s(2) >= 0.1;
+  }
+};
+
+// R = I and F - R = diag(1, 0, 0): Psi = 1 and P = 2 (F - R) = diag(2, 0, 0).
+template <> struct HandDerived<Arap> : HandDerivedInput<Arap> {
+  static auto Psi() -> Real { return 1; }
+  static auto Pk1() -> Mat3<Real> { return Vec3<Real>(2, 0, 0).asDiagonal(); }
+};
+
 template <typename E> class EnergyTest : public testing::Test {};
 
 using Energies =
     testing::Types<StableNeoHookean,
                    StVenantKirchhoff,
                    LinearElasticity,
-                   NeoHookeanBonetWood>;
+                   NeoHookeanBonetWood,
+                   Arap>;
 TYPED_TEST_SUITE(EnergyTest, Energies);
 
 TEST(EnergySamples, IncludeInvertedF) {

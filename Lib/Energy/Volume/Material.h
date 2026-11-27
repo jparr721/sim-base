@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Energy/Volume/Arap.h>
 #include <Energy/Volume/LinearElasticity.h>
 #include <Energy/Volume/NeoHookeanBonetWood.h>
 #include <Energy/Volume/StVenantKirchhoff.h>
@@ -15,6 +16,7 @@ using Material =
     std::variant<StableNeoHookean,
                  StVenantKirchhoff,
                  LinearElasticity,
-                 NeoHookeanBonetWood>;
+                 NeoHookeanBonetWood,
+                 Arap>;
 
 } // namespace sim
