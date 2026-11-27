@@ -69,10 +69,11 @@ struct Body {
   Vec<Real> external;
 
   Body(std::string bodyName, std::unique_ptr<TetMesh> tetMesh,
-       const Material &bodyMaterial, const Vec3<Real> &gravity)
+       const Material &bodyMaterial, const Vec3<Real> &gravity,
+       const Damping &damping = NoDamping{})
       : name(std::move(bodyName)), mesh(std::move(tetMesh)),
         material(std::make_unique<Material>(bodyMaterial)),
-        system(std::make_unique<ElasticSystem>(*mesh, *material, NoDamping{})),
+        system(std::make_unique<ElasticSystem>(*mesh, *material, damping)),
         state{.x = mesh->Positions(),
               .v = Vec<Real>::Zero(mesh->DOFs())},
         external(system->Mass() * gravity.replicate(mesh->v.rows(), 1)) {}
@@ -305,9 +306,147 @@ TEST_P(Integrators, UnconvergedStepReportsFailure) {
   EXPECT_TRUE(body.state.v.allFinite());
 }
 
+// The free tet or bunny stretched 5% in y about its centroid, at rest, with
+// no gravity and no contacts.
+auto Stretched(const std::string &name, const Damping &damping) -> Body {
+  Body body(name, name == "tet" ? FreeTet() : Bunny(false), kSoft,
+            Vec3<Real>::Zero(), damping);
+  const Vec3<Real> centroid = body.mesh->v.colwise().mean();
+  for (int ii = 0; ii < body.mesh->v.rows(); ++ii) {
+    body.state.x(3 * ii + 1) =
+        centroid.y() + 1.05 * (body.state.x(3 * ii + 1) - centroid.y());
+  }
+  return body;
+}
+
+const GreenDamping kGreen{.mu = 0.5};
+
+// Damping brings a body near rest, where Psi is a small difference of terms
+// as large as (mu + lambda) V. There Newton's line search cannot certify a
+// step to a 1e-10 residual, and drag alone stalls the same way, so these runs
+// stop Newton at 1e-8.
+constexpr Real kNearRest = 1e-8;
+
+// Green damping under BackwardEuler: kinetic plus elastic energy never rises
+// by more than round-off, and the damped run ends with less energy than the
+// undamped one, which BackwardEuler already dissipates.
+TEST_P(Integrators, GreenDampedBackwardEulerEnergyDecays) {
+  constexpr Real dt = 1.0 / 60;
+  const BackwardEuler method{.maxNewtonIterations = kIterations,
+                             .tolerance = kNearRest};
+  Body damped = Stretched(GetParam(), kGreen);
+  Body undamped = Stretched(GetParam(), NoDamping{});
+  const Real initial = damped.TotalEnergy();
+  Real energy = initial;
+  Real worstRise = -std::numeric_limits<Real>::infinity();
+  int maxNewton = 0;
+  for (int step = 1; step <= 120; ++step) {
+    const StepReport report = damped.Step(method, dt);
+    ASSERT_TRUE(report.converged) << "step " << step;
+    ASSERT_TRUE(undamped.Step(method, dt).converged) << "step " << step;
+    maxNewton = std::max(maxNewton, report.newtonIterations);
+    const Real next = damped.TotalEnergy();
+    worstRise = std::max(worstRise, next - energy);
+    energy = next;
+  }
+  std::cout << "[ measured ] " << GetParam() << " energy " << initial
+            << " -> " << energy << " damped, " << undamped.TotalEnergy()
+            << " undamped; worst one-step change " << worstRise
+            << " (round-off bound " << damped.EnergyRoundOff()
+            << "), max Newton " << maxNewton << "\n";
+  EXPECT_LE(worstRise, damped.EnergyRoundOff());
+  EXPECT_LT(energy, 0.5 * undamped.TotalEnergy());
+}
+
+// Newmark and Bdf2 converge every step under Green damping, and end with less
+// energy than without it. Newmark conserves energy undamped, so the gap is
+// the damping's alone.
+TEST_P(Integrators, GreenDampingDissipatesUnderNewmarkAndBdf2) {
+  constexpr Real dt = 1.0 / 60;
+  const auto run = [&](const auto &method) {
+    Body damped = Stretched(GetParam(), kGreen);
+    Body undamped = Stretched(GetParam(), NoDamping{});
+    const Real initial = damped.TotalEnergy();
+    for (int step = 1; step <= 120; ++step) {
+      EXPECT_TRUE(damped.Step(method, dt).converged) << "step " << step;
+      EXPECT_TRUE(undamped.Step(method, dt).converged) << "step " << step;
+    }
+    std::cout << "[ measured ] " << GetParam() << " energy " << initial
+              << " -> " << damped.TotalEnergy() << " damped, "
+              << undamped.TotalEnergy() << " undamped\n";
+    EXPECT_LT(damped.TotalEnergy(), 0.5 * undamped.TotalEnergy());
+  };
+  run(Newmark{.maxNewtonIterations = kIterations, .tolerance = kNearRest});
+  run(Bdf2{.maxNewtonIterations = kIterations, .tolerance = kNearRest});
+}
+
+// Damping changes how a body comes to rest, not where: Quasistatic lands on
+// the same equilibrium with and without it.
+TEST_P(Integrators, QuasistaticIgnoresDamping) {
+  Body undamped = Hanging(GetParam());
+  Body damped(undamped.name, GetParam() == "tet" ? HangingTet() : Bunny(true),
+              kSoft, kGravity, kGreen);
+  ASSERT_TRUE(undamped.Step(Quasistatic{}, 0).converged);
+  ASSERT_TRUE(damped.Step(Quasistatic{}, 0).converged);
+  EXPECT_LE((damped.state.x - undamped.state.x).lpNorm<Eigen::Infinity>(),
+            1e-12);
+}
+
 INSTANTIATE_TEST_SUITE_P(TetAndBunny, Integrators,
                          testing::Values("tet", "bunny"),
                          [](const auto &info) { return info.param; });
+
+// A free tet translating at v0 under Rayleigh{.mass = alpha} feels
+// -alpha M v and nothing else, so each method's velocity follows its own
+// recurrence for v' = -alpha v. That checks the damping matrix enters each
+// method's residual with the right weight. The problem is linear, so Newton
+// with alphaV D in its Jacobian converges in one step, two with CG's
+// tolerance; without it each iteration would only cut the residual by
+// alpha dt / (1 + alpha dt).
+TEST(DampedIntegrators, MassDampingDecaysTranslationAtEachMethodsRate) {
+  constexpr Real alpha = 2;
+  constexpr Real dt = 1.0 / 20;
+  constexpr int steps = 40;
+  const Vec3<Real> v0(1, 0.5, -0.25);
+  const auto run = [&](const auto &method, auto next) {
+    Body body("tet", FreeTet(), kSoft, Vec3<Real>::Zero(),
+              Rayleigh{.mass = alpha});
+    body.state.v = v0.replicate(4, 1);
+    Real previous = 1;
+    Real speed = 1;
+    int maxNewton = 0;
+    for (int step = 1; step <= steps; ++step) {
+      const StepReport report = body.Step(method, dt);
+      EXPECT_TRUE(report.converged) << "step " << step;
+      maxNewton = std::max(maxNewton, report.newtonIterations);
+      const Real expected = next(step, speed, previous);
+      previous = speed;
+      speed = expected;
+    }
+    const Real error =
+        (body.state.v - speed * v0.replicate(4, 1)).norm() / (speed * v0.norm() * 2);
+    std::cout << "[ measured ] speed ratio " << speed << " (exact e^-alpha t "
+              << std::exp(-alpha * dt * steps) << "), relative error " << error
+              << ", max Newton " << maxNewton << "\n";
+    EXPECT_LE(error, 1e-6);
+    return maxNewton;
+  };
+  const Real a = alpha * dt;
+  run(ForwardEuler{}, [&](int, Real v, Real) { return (1 - a) * v; });
+  EXPECT_LE(run(BackwardEuler{.maxNewtonIterations = kIterations,
+                              .tolerance = kTight},
+                [&](int, Real v, Real) { return v / (1 + a); }),
+            2);
+  EXPECT_LE(run(Newmark{.maxNewtonIterations = kIterations, .tolerance = kTight},
+                [&](int, Real v, Real) { return v * (1 - a / 2) / (1 + a / 2); }),
+            2);
+  EXPECT_LE(run(Bdf2{.maxNewtonIterations = kIterations, .tolerance = kTight},
+                [&](int step, Real v, Real previous) {
+                  return step == 1 ? v / (1 + a)
+                                   : (4 * v - previous) / (3 + 2 * a);
+                }),
+            2);
+}
 
 static_assert(!std::is_default_constructible_v<Integrator>);
 static_assert(std::is_constructible_v<Integrator, BackwardEuler>);

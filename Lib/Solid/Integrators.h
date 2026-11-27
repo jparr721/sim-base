@@ -103,34 +103,43 @@ void Project(const Constraints &constraints, Vec<Real> &y);
 
 auto LumpedInverse(const SparseMat<Real> &mass) -> Vec<Real>;
 
-// Minimizes Phi(x) = alphaA/2 |x - xA|^2_M + alphaV/2 |x - xV|^2_D + E(x)
-// - external . x by Newton from `guess`, with D the system's damping matrix
-// at the start of the step. D is constant over a step, since contacts are
-// held fixed, so grad Phi = M a(x) - Forces(x, v(x)) - external, the force
-// residual of the method. Each Newton step solves (alphaA M + K + alphaV D)
-// dx = -grad Phi with the clamped K, then backtracks on Phi (Armijo).
+// Solves the method's force residual g(x) = M a(x) - Forces(x, v(x)) -
+// external = 0 by Newton from `guess`. Iterate x_k minimizes along its step
+// Phi_k(y) = alphaA/2 |y - xA|^2_M + alphaV/2 |y - xV|^2_{D_k} + E(y) -
+// external . y, with D_k = DampingMatrix(x_k). The D_k term is the Rayleigh
+// dissipation potential 1/2 v^T D v scaled to the method. Every damping force
+// is linear in v, Forces(x, v) = Forces(x, 0) - D(x) v, so
+// grad Phi_k(x_k) = g(x_k), and a decrease of Phi_k is progress on g. Each
+// Newton step solves (alphaA M + K + alphaV D_k) dx = -g with the clamped K,
+// then backtracks on Phi_k (Armijo). The Jacobian leaves out how D(x) v
+// changes with x, which is zero for contact damping and drag, so Newton is
+// exact for them and converges linearly under material damping.
 template <System S>
 auto Newton(const S &system, const AffineStep &map, const Vec<Real> &external,
             const Vec<Real> &guess, int maxIterations, Real tolerance,
             Vec<Real> &x) -> StepReport {
   const Constraints &constraints = system.Constraints();
   const SparseMat<Real> &mass = system.Mass();
-  const SparseMat<Real> damping = system.DampingMatrix(guess);
-  // Phi, and the sum of its terms' magnitudes, which scales its round-off.
+  SparseMat<Real> damping = system.DampingMatrix(guess);
+  // Phi_k, and the sum of its terms' magnitudes, which scales its round-off.
   struct Potential {
     Real value;
     Real magnitude;
+    Real energy;
   };
-  const auto phi = [&](const Vec<Real> &y) -> Potential {
+  const auto phiWith = [&](const Vec<Real> &y, Real energy) -> Potential {
     const Vec<Real> dA = y - map.xA;
     const Vec<Real> dV = y - map.xV;
     const Real inertia = map.alphaA / 2 * dA.dot(mass * dA);
     const Real dissipation = map.alphaV / 2 * dV.dot(damping * dV);
-    const Real energy = system.Energy(y);
     const Real work = external.dot(y);
     return {.value = inertia + dissipation + energy - work,
             .magnitude =
-                inertia + dissipation + std::abs(energy) + std::abs(work)};
+                inertia + dissipation + std::abs(energy) + std::abs(work),
+            .energy = energy};
+  };
+  const auto phi = [&](const Vec<Real> &y) -> Potential {
+    return phiWith(y, system.Energy(y));
   };
   const auto residual = [&](const Vec<Real> &y) -> Vec<Real> {
     Vec<Real> g = map.alphaA * (mass * (y - map.xA)) -
@@ -153,6 +162,10 @@ auto Newton(const S &system, const AffineStep &map, const Vec<Real> &external,
     }
     if (report.newtonIterations == maxIterations) {
       return report;
+    }
+    if (report.newtonIterations > 0 && map.alphaV != 0) {
+      damping = system.DampingMatrix(x);
+      phiX = phiWith(x, phiX.energy);
     }
     const SparseMat<Real> jacobian = map.alphaA * mass +
                                      system.Stiffness(x, true) +
