@@ -593,4 +593,13 @@ INSTANTIATE_TEST_SUITE_P(Scenes, BunnyRamp,
                          testing::Values("bunny-drop", "bunny-drop-implicit"),
                          SceneName);
 
+// Each catalog energy on the same ramp.
+INSTANTIATE_TEST_SUITE_P(
+    Energies, BunnyRamp,
+    testing::Values("bunny-stvk", "bunny-linear-elasticity",
+                    "bunny-neo-hookean", "bunny-arap",
+                    "bunny-symmetric-dirichlet", "bunny-snh-barrier",
+                    "bunny-fiber-stvk", "bunny-fiber-arap", "bunny-fiber-fung"),
+    SceneName);
+
 } // namespace

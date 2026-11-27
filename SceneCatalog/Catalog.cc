@@ -28,6 +28,9 @@ auto LineStrand(int nVertices) -> Mat<Real> {
 // -c v = -(c / m) M v.
 auto StrandDamping(Real c) -> Damping { return Rayleigh{.mass = c / 0.2}; }
 
+// The bunny's material stiffness, E = 5 and nu = 0.45.
+const Lame kBunnyLame = Lame::FromYoungs(5.0, 0.45);
+
 // The bunny falls onto a frictionless 30 degree ramp, slides down it and comes
 // to rest on the floor, over 14 simulated seconds. Only drag can stop it on a
 // frictionless floor.
@@ -49,8 +52,7 @@ auto BunnyRamp(std::string name, Real dt, const Integrator &integrator,
                .mesh = {Meshes / "bunny.obj"},
                .place = {.centroid = rampTop - 0.8 * downhill +
                                      Vec3<Real>(0, 0.66, 0)},
-               .material =
-                   StableNeoHookean{.lame = Lame::FromYoungs(5.0, 0.45)},
+               .material = StableNeoHookean{kBunnyLame},
                .integrator = integrator,
                .damping = damping,
                .collisionEpsilon = collisionEpsilon,
@@ -92,6 +94,94 @@ auto BunnyDropImplicitDamped() -> SceneDesc {
   return BunnyRamp("bunny-drop-implicit-damped", 1.0 / 20,
                    BackwardEuler{.maxNewtonIterations = 25},
                    GreenDamping{.mu = 2}, 0.02);
+}
+
+// The catalog's energies, each demonstrated on bunny-drop-implicit-damped
+// with its material swapped. Every isotropic energy uses the bunny's Lame
+// parameters.
+auto BunnyEnergy(std::string name, Material material,
+                 std::optional<FiberMaterial> fiber = {}) -> SceneDesc {
+  SceneDesc desc = BunnyDropImplicitDamped();
+  desc.name = std::move(name);
+  auto &bunny = std::get<SoftBody>(desc.bodies[0]);
+  bunny.material = std::move(material);
+  bunny.fiber = std::move(fiber);
+  return desc;
+}
+
+// StVK's energy is zero at every reflection, so an inverted tet can rest
+// inverted. Under the base bunny's Green damping (mu = 2), about 30 tets
+// invert on impact and stay inverted near J = -1, and Newton cycles without
+// converging on step 180. Green damping with mu = 8 holds every tet
+// uninverted through the run, and Newton takes 6 iterations at worst.
+auto BunnyStVenantKirchhoff() -> SceneDesc {
+  SceneDesc desc = BunnyEnergy("bunny-stvk", StVenantKirchhoff{kBunnyLame});
+  std::get<SoftBody>(desc.bodies[0]).damping = GreenDamping{.mu = 8};
+  return desc;
+}
+
+// The reference energy. It is not rotation invariant: turning a tet strains
+// it, so the bunny resists turning as if it were stretched. It turns at most
+// 11 degrees from rest on the way down, where the SNH bunny turns 26, and it
+// still comes to rest past the ramp's foot.
+auto BunnyLinearElasticity() -> SceneDesc {
+  return BunnyEnergy("bunny-linear-elasticity", LinearElasticity{kBunnyLame});
+}
+
+auto BunnyNeoHookean() -> SceneDesc {
+  return BunnyEnergy("bunny-neo-hookean", NeoHookeanBonetWood{kBunnyLame});
+}
+
+// ARAP has no volume term, so nothing resists a sliver tet flipping. Under
+// the base bunny's Green damping (mu = 2), tets invert at steps 116 and 280
+// and the bunny still moves 5.0e-3 over the last second. Green damping with
+// mu = 4 keeps every tet uninverted, and the bunny settles to 1.6e-3.
+auto BunnyArap() -> SceneDesc {
+  SceneDesc desc = BunnyEnergy("bunny-arap", Arap{kBunnyLame});
+  std::get<SoftBody>(desc.bodies[0]).damping = GreenDamping{.mu = 4};
+  return desc;
+}
+
+auto BunnySymmetricDirichlet() -> SceneDesc {
+  return BunnyEnergy("bunny-symmetric-dirichlet",
+                     SymmetricDirichlet{kBunnyLame});
+}
+
+// The barrier acts only where J < 0.25. No tet comes below J = 0.55 on this
+// ramp, so the run matches bunny-drop-implicit-damped to 2e-11. Where the
+// barrier is not needed, it changes nothing.
+auto BunnySnhBarrier() -> SceneDesc {
+  return BunnyEnergy("bunny-snh-barrier", StableNeoHookeanBarrier{kBunnyLame});
+}
+
+// The SNH bunny with a fiber along the ramp's slope. The bunny is placed
+// unrotated, so its local axes are the world's. The fiber's E = 20 is four
+// times the bunny's. The bunny barely stretches along the slope, so each
+// fiber moves its vertices at most 0.023 from bunny-drop-implicit-damped's.
+const Vec3<Real> kSlopeFiber =
+    Vec3<Real>(std::cos(std::numbers::pi / 6), -std::sin(std::numbers::pi / 6),
+               0);
+const Lame kFiberLame = Lame::FromYoungs(20.0, 0.45);
+
+auto BunnyFiber(std::string name, FiberMaterial fiber) -> SceneDesc {
+  return BunnyEnergy(std::move(name), StableNeoHookean{kBunnyLame},
+                     std::move(fiber));
+}
+
+auto BunnyFiberStVenantKirchhoff() -> SceneDesc {
+  return BunnyFiber("bunny-fiber-stvk",
+                    AnisotropicStVenantKirchhoff{.lame = kFiberLame,
+                                                 .fiber = kSlopeFiber});
+}
+
+auto BunnyFiberArap() -> SceneDesc {
+  return BunnyFiber("bunny-fiber-arap",
+                    AnisotropicArap{.lame = kFiberLame, .fiber = kSlopeFiber});
+}
+
+auto BunnyFiberFung() -> SceneDesc {
+  return BunnyFiber("bunny-fiber-fung",
+                    AnisotropicFung{.lame = kFiberLame, .fiber = kSlopeFiber});
 }
 
 auto StrandBend() -> SceneDesc {
@@ -215,6 +305,15 @@ constexpr std::array kCatalog = {
     SceneEntry{"bunny-drop", BunnyDrop},
     SceneEntry{"bunny-drop-implicit", BunnyDropImplicit},
     SceneEntry{"bunny-drop-implicit-damped", BunnyDropImplicitDamped},
+    SceneEntry{"bunny-stvk", BunnyStVenantKirchhoff},
+    SceneEntry{"bunny-linear-elasticity", BunnyLinearElasticity},
+    SceneEntry{"bunny-neo-hookean", BunnyNeoHookean},
+    SceneEntry{"bunny-arap", BunnyArap},
+    SceneEntry{"bunny-symmetric-dirichlet", BunnySymmetricDirichlet},
+    SceneEntry{"bunny-snh-barrier", BunnySnhBarrier},
+    SceneEntry{"bunny-fiber-stvk", BunnyFiberStVenantKirchhoff},
+    SceneEntry{"bunny-fiber-arap", BunnyFiberArap},
+    SceneEntry{"bunny-fiber-fung", BunnyFiberFung},
     SceneEntry{"strand-bend", StrandBend},
     SceneEntry{"strand-twist", StrandTwist},
     SceneEntry{"strand-drop", StrandDropExplicit},
