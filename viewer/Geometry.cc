@@ -1,6 +1,8 @@
 #include <Geometry.h>
 #include <Sim/World.h>
 
+#include <igl/per_vertex_normals.h>
+
 namespace viewer {
 namespace {
 
@@ -39,6 +41,14 @@ void Point(FrameGeometry &g, const Vec3<Real> &p, Color color, float size) {
   g.points.push_back({ToFloat(p), color, size});
 }
 
+void Wireframe(FrameGeometry &g, const Mat<Real> &v, const Mat<int> &f) {
+  for (int ii = 0; ii < f.rows(); ++ii) {
+    for (int jj = 0; jj < 3; ++jj) {
+      Line(g, v.row(f(ii, jj)), v.row(f(ii, (jj + 1) % 3)), kBlack);
+    }
+  }
+}
+
 // Lit flat-shaded surface plus a black wireframe.
 void Surface(FrameGeometry &g, const Mat<Real> &v, const Mat<int> &f) {
   for (int ii = 0; ii < f.rows(); ++ii) {
@@ -49,9 +59,51 @@ void Surface(FrameGeometry &g, const Mat<Real> &v, const Mat<int> &f) {
     g.triangles.push_back({ToFloat(a), normal, kSurfaceGray});
     g.triangles.push_back({ToFloat(b), normal, kSurfaceGray});
     g.triangles.push_back({ToFloat(c), normal, kSurfaceGray});
-    Line(g, a, b, kBlack);
-    Line(g, b, c, kBlack);
-    Line(g, c, a, kBlack);
+  }
+  Wireframe(g, v, f);
+}
+
+auto AreaWeightedNormals(const Mat<Real> &v, const Mat<int> &f) -> Mat<Real> {
+  Mat<Real> n;
+  igl::per_vertex_normals(v, f, igl::PER_VERTEX_NORMALS_WEIGHTING_TYPE_AREA, n);
+  return n;
+}
+
+auto SignedVolume(const Mat<Real> &v, const Mat<int> &f) -> Real {
+  Real volume = 0;
+  for (int ii = 0; ii < f.rows(); ++ii) {
+    const Vec3<Real> a = v.row(f(ii, 0));
+    volume += a.dot(Vec3<Real>(v.row(f(ii, 1))).cross(Vec3<Real>(v.row(f(ii, 2)))));
+  }
+  return volume / 6;
+}
+
+// TetMesh::f may wind inward; the renderer culls back faces, so wind the
+// surface outward, judged on the rest pose.
+auto OutwardFaces(const TetMesh &mesh) -> Mat<int> {
+  Mat<int> faces = mesh.f;
+  if (SignedVolume(mesh.rv, faces) < 0) {
+    faces.rowwise().reverseInPlace();
+  }
+  return faces;
+}
+
+// Every mesh vertex goes into the buffer; the indices reference only the
+// surface ones, so interior vertices are uploaded but never drawn.
+void SmoothSurface(FrameGeometry &g, const TetMesh &mesh) {
+  const Mat<int> faces = OutwardFaces(mesh);
+  const Mat<Real> normals = AreaWeightedNormals(mesh.v, faces);
+  const Mat<Real> restNormals = AreaWeightedNormals(mesh.rv, faces);
+  const auto base = static_cast<unsigned int>(g.surfaceVertices.size());
+  for (int ii = 0; ii < mesh.v.rows(); ++ii) {
+    g.surfaceVertices.push_back(
+        {ToFloat(mesh.v.row(ii)), ToFloat(normals.row(ii)),
+         ToFloat(mesh.rv.row(ii)), ToFloat(restNormals.row(ii))});
+  }
+  for (int ii = 0; ii < faces.rows(); ++ii) {
+    for (int jj = 0; jj < 3; ++jj) {
+      g.surfaceIndices.push_back(base + static_cast<unsigned int>(faces(ii, jj)));
+    }
   }
 }
 
@@ -74,8 +126,15 @@ void AppendStrand(FrameGeometry &g, const StrandMesh &strand,
   }
 }
 
-void AppendSoftBody(FrameGeometry &g, const TetMesh &mesh) {
-  Surface(g, mesh.v, mesh.f);
+void AppendSoftBody(FrameGeometry &g, const TetMesh &mesh,
+                    const RenderSettings &settings) {
+  SmoothSurface(g, mesh);
+  if (settings.wireframe) {
+    Wireframe(g, mesh.v, mesh.f);
+  }
+  if (!settings.pins) {
+    return;
+  }
   for (int ii = 0; ii < mesh.pinned.size(); ++ii) {
     if (mesh.pinned(ii) == 1) {
       Point(g, mesh.v.row(ii), kRed, kPinnedPointSize);
@@ -89,9 +148,12 @@ void FrameGeometry::Clear() {
   lines.clear();
   points.clear();
   triangles.clear();
+  surfaceVertices.clear();
+  surfaceIndices.clear();
 }
 
-void AppendWorld(FrameGeometry &geometry, const sim::World &world) {
+void AppendWorld(FrameGeometry &geometry, const sim::World &world,
+                 const RenderSettings &settings) {
   const bool frames = world.Desc().view.showMaterialFrames;
   for (const auto &body : world.Bodies()) {
     std::visit(
@@ -100,7 +162,7 @@ void AppendWorld(FrameGeometry &geometry, const sim::World &world) {
           if constexpr (std::is_same_v<T, StrandMesh>) {
             AppendStrand(geometry, *mesh, frames);
           } else if constexpr (std::is_same_v<T, TetMesh>) {
-            AppendSoftBody(geometry, *mesh);
+            AppendSoftBody(geometry, *mesh, settings);
           } else {
             Surface(geometry, mesh->v, mesh->f);
           }

@@ -11,7 +11,7 @@ using Rgb8 = std::array<std::uint8_t, 3>;
 // The two ends of the albedo palette, sRGB encoded. Every generated pixel
 // lies between them channel by channel.
 inline constexpr Rgb8 kPorcelain{238, 229, 216};
-inline constexpr Rgb8 kClay{196, 158, 136};
+inline constexpr Rgb8 kClay{206, 174, 152};
 
 // A square sRGB8 image, row-major, with no padding between rows.
 struct Albedo {

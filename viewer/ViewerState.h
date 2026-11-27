@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Camera.h"
+#include <RenderSettings.h>
 #include <SceneCatalog/Catalog.h>
 #include <Sim/World.h>
 
@@ -34,6 +35,7 @@ struct ViewerState {
   int framebufferHeight = 1;
   Playback playback;
   ExportSettings exporter;
+  RenderSettings render;
   sim::Vec3<sim::Real> pull = sim::Vec3<sim::Real>::Zero(); // extra acceleration for one step
   bool showGrid = true;
 };

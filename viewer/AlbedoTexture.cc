@@ -75,7 +75,7 @@ auto GenerateAlbedo(std::uint32_t seed, int size) -> Albedo {
   for (int y = 0; y < size; ++y) {
     for (int x = 0; x < size; ++x) {
       // fBm clusters around 0.5; widen it so both palette ends show.
-      const float t = Smoothstep(0.3f, 0.7f, Fbm(x * inverse, y * inverse, seed));
+      const float t = Smoothstep(0.2f, 0.8f, Fbm(x * inverse, y * inverse, seed));
       albedo.pixels[static_cast<std::size_t>(y) * size + x] = Palette(t);
     }
   }

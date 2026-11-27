@@ -191,9 +191,9 @@ auto Run(const Options &options) -> int {
       AppendGridAndAxes(geometry);
     }
     if (state.world) {
-      AppendWorld(geometry, *state.world);
+      AppendWorld(geometry, *state.world, state.render);
     }
-    renderer.Draw(geometry, state.camera.GetViewMatrix(),
+    renderer.Draw(geometry, state.render, state.camera.GetViewMatrix(),
                   state.camera.GetProjectionMatrix(), state.framebufferWidth,
                   state.framebufferHeight);
 
