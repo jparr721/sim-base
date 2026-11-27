@@ -52,11 +52,28 @@ endfunction()
 sim_volume_energy(stable_neo_hookean StableNeoHookean)
 sim_volume_energy(stvk StVenantKirchhoff)
 
+# The System concept and its constraints: what integrators see of a body.
+add_library(sim_system STATIC
+        Solid/System.h
+        Solid/Constraints.h Solid/Constraints.cc)
+target_include_directories(sim_system PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_compile_options(sim_system PRIVATE ${SIM_WARNINGS})
+target_link_libraries(sim_system PUBLIC Eigen3::Eigen)
+
+# Time integrators, generic over System: link no energy and no mesh.
+add_library(sim_integrators STATIC
+        Solid/Integrators.h Solid/Integrators.cc)
+target_include_directories(sim_integrators PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+target_compile_options(sim_integrators PRIVATE ${SIM_WARNINGS})
+target_link_libraries(sim_integrators PUBLIC sim_system Eigen3::Eigen)
+
 # Tet geometry and its global assembly: links the volume energies, never sim.
 add_library(sim_solid STATIC
         TetMesh.h TetMesh.cc
-        Solid/System.h
-        Solid/Constraints.h Solid/Constraints.cc
         Solid/Contact.h
         Solid/ElasticSystem.h Solid/ElasticSystem.cc
         Energy/Volume/Material.h)
@@ -65,6 +82,7 @@ target_include_directories(sim_solid PUBLIC
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_options(sim_solid PRIVATE ${SIM_WARNINGS})
 target_link_libraries(sim_solid PUBLIC
+        sim_system
         sim_energy_vertex_face_collision
         sim_energy_stable_neo_hookean
         sim_energy_stvk
@@ -82,7 +100,7 @@ target_include_directories(sim PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_options(sim PRIVATE ${SIM_WARNINGS})
-install(TARGETS sim sim_solid sim_energy_mass_spring
+install(TARGETS sim sim_solid sim_system sim_integrators sim_energy_mass_spring
         sim_energy_vertex_face_collision
         sim_energy_stable_neo_hookean sim_energy_stvk EXPORT sim)
 target_link_libraries(
@@ -91,6 +109,7 @@ target_link_libraries(
         sim_energy_mass_spring
         sim_energy_vertex_face_collision
         sim_solid
+        sim_integrators
         igl::core
         Eigen3::Eigen
 )

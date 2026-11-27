@@ -48,6 +48,10 @@ set_property(TARGET TestEnergies PROPERTY LINK_LIBRARIES
 package_add_test(TestElasticSystem TestElasticSystem.cc)
 # Only sim_solid, so the test fails to link if assembly needs sim.
 set_property(TARGET TestElasticSystem PROPERTY LINK_LIBRARIES sim_solid gmock gtest_main)
+package_add_test(TestIntegrators TestIntegrators.cc)
+# sim_solid for the bodies, sim_integrators for the methods, and never sim.
+set_property(TARGET TestIntegrators PROPERTY LINK_LIBRARIES
+        sim_integrators sim_solid gmock gtest_main)
 package_add_test(TestSceneGolden TestSceneGolden.cc)
 set_property(TARGET TestSceneGolden PROPERTY LINK_LIBRARIES sim_scenes gmock gtest_main)
 package_add_test(TestWorld TestWorld.cc)
