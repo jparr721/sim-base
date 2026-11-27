@@ -16,6 +16,21 @@ HOBAK's `COPYING` is GPLv3, and every source header adds "permission is granted 
 
 **Rule for every PR below: no HOBAK code, comments or file layout is copied.** We adopt the architecture, meaning which functions exist and how responsibilities split, which isn't copyrightable. Each energy is derived fresh from the published math: the course notes, Smith et al. 2018 "Stable Neo-Hookean Flesh Simulation", Smith et al. 2019 "Analytic Eigensystems for Isotropic Distortion Energies", and Kim et al. 2019 "Anisotropic Elasticity for Inversion-Safety and Element Rehabilitation". Reviewers check each PR for copied code.
 
+**Confirmed 2026-11-26 (operator):** derive from *Dynamic Deformables* and the cited papers. No HOBAK code goes into the repo, adapted or not. Workers don't open HOBAK source at all.
+
+## Run order (2026-11-26)
+
+Write sets decide the waves. One shared file puts two tasks in different waves.
+
+1. **Wave 1, in parallel:**
+   - S1 (Scene.h, World, TetMesh construction, Catalog).
+   - H1a (new energy files, `Energy.h`, the SVD, `TestEnergies`). H1a is the new-files half of H1.
+2. **Wave 2:** H1b wires `Material` into TetMesh, deletes `HyperelasticMaterial`, `SNH.*`, `STVK.*` and `TestSNH`, and pins the bunny golden.
+3. **Then, one at a time:** H2, C1, H3.
+4. **After H3:**
+   - H4 and H5 run in parallel, since their write sets are disjoint.
+   - E1 to E6 energies fan out as one swarm, since each is its own module plus one type in the typed suite.
+
 ## Modules (operator decision, 2026-11-26)
 
 Every energy and every integrator is its own module: a directory plus a CMake static library. The link graph enforces the decoupling, so a stray include fails the build.
