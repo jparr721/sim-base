@@ -132,6 +132,10 @@ const sim::Placement kTilted{
     .scale = 1.7,
 };
 
+auto Centroid(const Mat<Real> &v) -> Vec3<Real> {
+  return v.colwise().mean().transpose();
+}
+
 auto SignedTetVolume(const Mat<Real> &v, const Vec4<int> &tet) -> Real {
   const Vec3<Real> a = v.row(tet(0));
   return (Vec3<Real>(v.row(tet(1))) - a)
@@ -192,8 +196,7 @@ TEST(World, PlacedTetMeshRestsOnItsCentroid) {
 TEST(World, PlacedStrandRestsOnItsCentroid) {
   const auto world = Placed(Hair(kTilted));
   const Mat<Real> &v = Only<StrandMesh>(world).der->vertices;
-  EXPECT_LT((Vec3<Real>(v.colwise().mean()) - kTilted.centroid).norm(),
-            1e-12);
+  EXPECT_LT((Centroid(v) - kTilted.centroid).norm(), 1e-12);
 }
 
 TEST(World, PlacedBoxRestsOnItsCentroid) {
@@ -203,8 +206,7 @@ TEST(World, PlacedBoxRestsOnItsCentroid) {
   const auto &mesh = Only<CollisionMesh>(world);
   ASSERT_EQ(mesh.v.rows(), 8);
   ASSERT_EQ(mesh.f.rows(), 12);
-  EXPECT_LT((Vec3<Real>(mesh.v.colwise().mean()) - kTilted.centroid).norm(),
-            1e-12);
+  EXPECT_LT((Centroid(mesh.v) - kTilted.centroid).norm(), 1e-12);
 }
 
 TEST(World, RotationAndScaleKeepTetShape) {
@@ -253,7 +255,7 @@ TEST(World, BoxFacesWindOutward) {
   const auto world = Placed(sim::Collider{
       .shape = sim::Box{.halfExtents = h}, .place = kTilted});
   const auto &mesh = Only<CollisionMesh>(world);
-  const Vec3<Real> center = mesh.v.colwise().mean();
+  const Vec3<Real> center = Centroid(mesh.v);
   Real volume = 0;
   for (int ii = 0; ii < mesh.f.rows(); ++ii) {
     const Vec3<Real> a = mesh.v.row(mesh.f(ii, 0));
@@ -406,10 +408,6 @@ auto Slab(const Vec3<Real> &top, Real angle, const Vec3<Real> &halfExtents)
           .place = {.centroid = top - halfExtents.y() *
                                           (rotation * Vec3<Real>::UnitY()),
                     .rotation = rotation}};
-}
-
-auto Centroid(const Mat<Real> &v) -> Vec3<Real> {
-  return v.colwise().mean().transpose();
 }
 
 auto MaxSpeed(const Mat<Real> &now, const Mat<Real> &before, Real dt) -> Real {
