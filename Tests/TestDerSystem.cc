@@ -168,6 +168,19 @@ TEST(DerSystem, StiffnessWithSpringsTwistAndContactsIsMinusFdOfForces) {
   }
 }
 
+// Collider triangles are wound counterclockwise seen from outside, so a
+// vertex 0.1 above one, inside the 0.3 envelope, is pushed up and out.
+TEST(DerSystem, ContactPushesOutOfACounterclockwiseTriangle) {
+  const auto rod = Rod(100, 0);
+  const Vec<Real> x = Cases()[1].x;
+  auto system = System(rod);
+  const Vec<Real> free = Forces(system)(x);
+  system.SetContacts({Contacts(x)[0]});
+  const Vec<Real> push = Forces(system)(x) - free;
+  EXPECT_GT(push(3 * 3 + 1), 0);
+  EXPECT_LE(push.norm(), std::abs(push(3 * 3 + 1)) * (1 + 1e-12));
+}
+
 // With the twist off, every force is conservative.
 TEST(DerSystem, ForcesAreMinusFdOfEnergyWithoutTwist) {
   const auto rod = Rod(100, 0);

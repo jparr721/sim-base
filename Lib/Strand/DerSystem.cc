@@ -6,11 +6,12 @@ namespace sim {
 
 namespace {
 
-// The vertex, then the triangle.
+// The vertex, then the triangle with its winding reversed, since the
+// collision energy's front is the side the clockwise normal faces.
 auto ContactDofs(const Vec<Real> &x, const SoftContact &c) -> VecN<12> {
   VecN<12> stacked;
-  stacked << x.segment<3>(3 * c.vertex), c.triangle[0], c.triangle[1],
-      c.triangle[2];
+  stacked << x.segment<3>(3 * c.vertex), c.triangle[0], c.triangle[2],
+      c.triangle[1];
   return stacked;
 }
 
