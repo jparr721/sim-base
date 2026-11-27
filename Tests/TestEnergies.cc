@@ -2,6 +2,7 @@
 // to Energies and a HandDerived specialization, plus a Traits specialization
 // when it is not isotropic or not defined for every F.
 
+#include <Energy/Volume/AnisotropicArap.h>
 #include <Energy/Volume/AnisotropicStVenantKirchhoff.h>
 #include <Energy/Volume/Arap.h>
 #include <Energy/Volume/LinearElasticity.h>
@@ -128,10 +129,12 @@ template <typename E> struct DefaultTraits {
 template <typename E> struct Traits : DefaultTraits<E> {};
 
 // Fiber energies sample a fiber off every axis.
+const Vec3<Real> kSampleFiber = Vec3<Real>(1, 2, 3).normalized();
+
 template <typename E> struct FiberTraits : DefaultTraits<E> {
   static constexpr Symmetry symmetry = Symmetry::kAboutFiber;
   static auto Make(const Lame &lame) -> E {
-    return {.lame = lame, .fiber = Vec3<Real>(1, 2, 3).normalized()};
+    return {.lame = lame, .fiber = kSampleFiber};
   }
 };
 
@@ -256,6 +259,29 @@ struct HandDerived<AnisotropicStVenantKirchhoff>
   static auto Pk1() -> Mat3<Real> { return Real(3) / 4 * FaAt(); }
 };
 
+// Anisotropic ARAP jumps where I4 = a^T S a crosses 0, so samples keep
+// |I4| >= 0.1, which also keeps I5 >= I4^2 away from 0.
+template <> struct Traits<AnisotropicArap> : FiberTraits<AnisotropicArap> {
+  static auto InDomain(const Mat3<Real> &f) -> bool {
+    const Svd svd = RotationVariantSvd(f);
+    const Vec3<Real> va = svd.v.transpose() * kSampleFiber;
+    return std::abs(va.dot(svd.sigma.cwiseProduct(va))) >= 0.1;
+  }
+};
+
+// S = F, so I4 = a^T F a = 3/2 > 0 and S(I4) = 1:
+// Psi = 1/2 (sqrt(5/2) - 1)^2.
+// P = 2 Psi'(I5) (F a) a^T = (1 - 1 / sqrt(5/2)) (F a) a^T.
+template <>
+struct HandDerived<AnisotropicArap> : FiberHandDerivedInput<AnisotropicArap> {
+  static auto Psi() -> Real {
+    return std::pow(std::sqrt(Real(2.5)) - 1, 2) / 2;
+  }
+  static auto Pk1() -> Mat3<Real> {
+    return (1 - 1 / std::sqrt(Real(2.5))) * FaAt();
+  }
+};
+
 template <typename E> class EnergyTest : public testing::Test {};
 
 using Energies =
@@ -265,7 +291,8 @@ using Energies =
                    NeoHookeanBonetWood,
                    Arap,
                    SymmetricDirichlet,
-                   AnisotropicStVenantKirchhoff>;
+                   AnisotropicStVenantKirchhoff,
+                   AnisotropicArap>;
 TYPED_TEST_SUITE(EnergyTest, Energies);
 
 TEST(EnergySamples, IncludeInvertedF) {
@@ -360,6 +387,7 @@ TYPED_TEST(EnergyTest, RestStatesMatchSymmetry) {
 
 TYPED_TEST(EnergyTest, PsiHasItsSymmetry) {
   const TypeParam e = Traits<TypeParam>::Make(kLame);
+  const Real scale = kLame.mu + kLame.lambda;
   const std::vector<Mat3<Real>> &fs = DomainFs<TypeParam>();
   std::mt19937 rng(9);
   int changed = 0;
@@ -367,8 +395,10 @@ TYPED_TEST(EnergyTest, PsiHasItsSymmetry) {
     const Mat3<Real> &f = fs[n];
     const Mat3<Real> r = RandomRotation(rng);
     const Real psi = e.Psi(f);
+    // The absolute floor covers Psi near 0, where a difference such as
+    // sqrt(I5) - 1 cancels.
     const auto same = [&](const Mat3<Real> &g) {
-      return std::abs(e.Psi(g) - psi) <= 1e-12 * std::abs(psi);
+      return std::abs(e.Psi(g) - psi) <= 1e-12 * std::abs(psi) + 1e-15 * scale;
     };
     if constexpr (Traits<TypeParam>::symmetry == Symmetry::kNone) {
       changed += !same(r * f);
