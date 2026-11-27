@@ -14,6 +14,23 @@ namespace {
 using golden::MakeScene;
 using golden::TakeSnapshot;
 
+// A SoftBody that leaves out its integrator does not compile. The same body
+// naming one does, so the check fails if the expression is broken some other
+// way.
+template <class Body>
+concept BuildsWithoutIntegrator = requires {
+  Body{.mesh = {}, .place = {}, .material = sim::Material{}};
+};
+template <class Body>
+concept BuildsWithIntegrator = requires {
+  Body{.mesh = {},
+       .place = {},
+       .material = sim::Material{},
+       .integrator = sim::ForwardEuler{}};
+};
+static_assert(!BuildsWithoutIntegrator<sim::SoftBody>);
+static_assert(BuildsWithIntegrator<sim::SoftBody>);
+
 TEST(World, CatalogScenesConstruct) {
   for (const auto &entry : sim::Catalog()) {
     const auto desc = entry.make();
@@ -96,6 +113,7 @@ auto Bunny(const sim::Placement &place) -> sim::SoftBody {
       .mesh = {Meshes / "bunny.obj"},
       .place = place,
       .material = sim::StableNeoHookean{.lame = sim::Lame::FromYoungs(5, 0.45)},
+      .integrator = sim::ForwardEuler{},
       .pinRegion = Eigen::AlignedBox<Real, 3>(Vec3<Real>(-1, 0.3, -1),
                                               Vec3<Real>(1, 1, 1)),
   };
@@ -244,7 +262,8 @@ auto RegularTetFile() -> sim::fs::path {
 auto Tet(const sim::Placement &place) -> sim::SoftBody {
   return {.mesh = {RegularTetFile()},
           .place = place,
-          .material = sim::StableNeoHookean{.lame = sim::Lame::FromYoungs(50, 0.3)}};
+          .material = sim::StableNeoHookean{.lame = sim::Lame::FromYoungs(50, 0.3)},
+          .integrator = sim::ForwardEuler{}};
 }
 
 // A Box whose top face is the plane through `top` with unit normal `normal`

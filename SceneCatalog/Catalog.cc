@@ -42,6 +42,7 @@ auto BunnyDrop() -> SceneDesc {
                                      Vec3<Real>(0, 0.66, 0)},
                .material =
                    StableNeoHookean{.lame = Lame::FromYoungs(5.0, 0.45)},
+               .integrator = ForwardEuler{},
                .drag = 0.75,
            },
            Collider{.shape = Box{rampHalf},

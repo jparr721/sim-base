@@ -2,6 +2,7 @@
 
 #include <Energy/Volume/Material.h>
 #include <LibMath.h>
+#include <Solid/Integrators.h>
 
 #include <optional>
 #include <string>
@@ -49,6 +50,8 @@ struct SoftBody {
   MeshFile mesh;
   Placement place;
   Material material;
+  // Required: Integrator has no default, so leaving this out does not compile.
+  Integrator integrator;
   // Vertices strictly inside this body-local box (recentered, before scale
   // and rotation) are pinned.
   std::optional<Eigen::AlignedBox<Real, 3>> pinRegion;

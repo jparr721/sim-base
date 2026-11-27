@@ -1,7 +1,8 @@
 #include "World.h"
 
 #include <Integrator/ForwardEulerStrand.h>
-#include <Integrator/ForwardEulerVolume.h>
+#include <Solid/ElasticSystem.h>
+#include <Solid/Integrators.h>
 #include <igl/parallel_for.h>
 #include <igl/readOBJ.h>
 
@@ -108,6 +109,43 @@ void BoxMesh(const Box &box, Mat<Real> &v, Mat<int> &f) {
       4, 5, 7, 4, 7, 6;  // +z
 }
 
+// One soft body: its mesh, the assembly over it and the integrator that
+// steps it. The system refers to the mesh and the material, so it never
+// moves.
+struct SoftBodySim {
+  std::unique_ptr<TetMesh> mesh;
+  Material material;
+  ElasticSystem system;
+  Integrator integrator;
+  IntegratorState state;
+  // Each vertex's share of the body's volume, which gravity scales.
+  std::vector<Real> vertexAreas;
+  // Surface vertex indices, and how near a collider triangle one has to be
+  // to touch it.
+  std::vector<int> surface;
+  Real contactRadius;
+  // Its index in SceneDesc::bodies.
+  int index;
+
+  SoftBodySim(std::unique_ptr<TetMesh> tetMesh, const SoftBody &desc,
+              std::vector<int> surfaceVertices, int bodyIndex)
+      : mesh(std::move(tetMesh)), material(desc.material),
+        system(*mesh, material,
+               ContactModel{.stiffness = desc.collisionStiffness,
+                            .epsilon = desc.collisionEpsilon,
+                            .damping = desc.collisionDamping},
+               desc.drag),
+        integrator(desc.integrator),
+        state{.x = mesh->Positions(), .v = Vec<Real>::Zero(mesh->DOFs())},
+        surface(std::move(surfaceVertices)),
+        contactRadius(desc.collisionEpsilon), index(bodyIndex) {
+    for (int ii = 0; ii < mesh->v.rows(); ++ii) {
+      vertexAreas.push_back(mesh->OneRingArea(ii));
+    }
+  }
+  SoftBodySim(SoftBodySim &&) = delete;
+};
+
 } // namespace
 
 struct World::Impl {
@@ -121,13 +159,10 @@ struct World::Impl {
 
   std::vector<std::shared_ptr<StrandMesh>> strands;
   std::vector<std::unique_ptr<ForwardEulerStrand>> strandIntegrators;
-  std::vector<std::shared_ptr<TetMesh>> softBodies;
-  std::vector<std::unique_ptr<ForwardEulerVolume>> volumeIntegrators;
-  // Per soft body: its surface vertex indices, and how near a collider
-  // triangle one has to be to touch it.
-  std::vector<std::vector<int>> surfaceVertices;
-  std::vector<Real> softContactRadius;
+  std::vector<std::unique_ptr<SoftBodySim>> softBodies;
   std::vector<std::unique_ptr<CollisionMesh>> colliders;
+  // Per body, how its integrator did on the last step.
+  std::vector<StepReport> reports;
 
   std::vector<std::vector<VertexFaceCollision>> collisionsPerStrand;
   std::vector<VertexFaceCollision> contacts;
@@ -140,6 +175,7 @@ struct World::Impl {
       Validate(action);
     }
     collisionsPerStrand.resize(strands.size());
+    reports.resize(desc.bodies.size());
   }
 
   void Add(const Strand &strand) {
@@ -167,7 +203,7 @@ struct World::Impl {
   void Add(const SoftBody &softBody) {
     ValidatePlacement(softBody.place);
     Mat<Real> local;
-    auto mesh = std::make_shared<TetMesh>(
+    auto mesh = std::make_unique<TetMesh>(
         softBody.mesh.path, [&](const Mat<Real> &v, const Mat<int> &t) {
           local = Recentered(v, VolumeCentroid(v, t));
           return Placed(softBody.place, local);
@@ -188,17 +224,12 @@ struct World::Impl {
     std::ranges::sort(surface);
     const auto [last, end] = std::ranges::unique(surface);
     surface.erase(last, end);
-    surfaceVertices.push_back(std::move(surface));
-    softContactRadius.push_back(softBody.collisionEpsilon);
 
     slot.push_back(static_cast<int>(softBodies.size()));
     states.emplace_back(mesh.get());
-    volumeIntegrators.push_back(std::make_unique<ForwardEulerVolume>(
-        mesh, softBody.material, desc.dt, softBody.drag, 0,
-        ContactModel{.stiffness = softBody.collisionStiffness,
-                     .epsilon = softBody.collisionEpsilon,
-                     .damping = softBody.collisionDamping}));
-    softBodies.push_back(std::move(mesh));
+    softBodies.push_back(std::make_unique<SoftBodySim>(
+        std::move(mesh), softBody, std::move(surface),
+        static_cast<int>(states.size()) - 1));
   }
 
   void Add(const Collider &collider) {
@@ -288,11 +319,12 @@ struct World::Impl {
         action.effect);
   }
 
-  // Soft body ii's surface vertices within its contact radius of a collider
+  // The body's surface vertices within its contact radius of a collider
   // triangle, one contact per vertex and triangle.
-  auto SoftContacts(int ii) const -> std::vector<SoftContact> {
-    const TetMesh &mesh = *softBodies[ii];
-    const std::vector<int> &surface = surfaceVertices[ii];
+  auto SoftContacts(const SoftBodySim &body) const
+      -> std::vector<SoftContact> {
+    const TetMesh &mesh = *body.mesh;
+    const std::vector<int> &surface = body.surface;
     Mat<Real> positions(std::ssize(surface), 3);
     for (int row = 0; row < std::ssize(surface); ++row) {
       positions.row(row) = mesh.v.row(surface[row]);
@@ -300,7 +332,7 @@ struct World::Impl {
     std::vector<SoftContact> found;
     for (const auto &collider : colliders) {
       for (const auto &hit :
-           collider->DetectFaceCollisions(softContactRadius[ii], positions)) {
+           collider->DetectFaceCollisions(body.contactRadius, positions)) {
         found.push_back({.vertex = surface[hit.vertexIndex],
                          .triangle = {hit.faceVertices[0], hit.faceVertices[1],
                                       hit.faceVertices[2]}});
@@ -340,11 +372,21 @@ struct World::Impl {
       integrator->AddGravity(gravity);
       integrator->Step();
     });
-    for (int ii = 0; ii < std::ssize(volumeIntegrators); ++ii) {
-      auto &integrator = volumeIntegrators[ii];
-      integrator->SetContacts(SoftContacts(ii));
-      integrator->AddGravity(gravity);
-      integrator->Step();
+    // Contacts are found once, at the start of the step, and held fixed
+    // through the integrator's solve.
+    for (const auto &body : softBodies) {
+      body->system.SetContacts(SoftContacts(*body));
+      Vec<Real> external(body->mesh->DOFs());
+      for (int ii = 0; ii < std::ssize(body->vertexAreas); ++ii) {
+        external.segment<3>(3 * ii) = body->vertexAreas[ii] * gravity;
+      }
+      reports[body->index] = std::visit(
+          [&](const auto &method) {
+            return sim::Step(method, body->system, body->state, external,
+                             desc.dt);
+          },
+          static_cast<const IntegratorMethod &>(body->integrator));
+      body->mesh->SetPositions(body->state.x);
     }
     steps = step;
   }
@@ -375,6 +417,10 @@ auto World::Desc() const -> const SceneDesc & { return impl->desc; }
 
 auto World::Bodies() const -> std::span<const BodyState> {
   return impl->states;
+}
+
+auto World::StepReports() const -> std::span<const StepReport> {
+  return impl->reports;
 }
 
 auto World::Contacts() const -> std::span<const VertexFaceCollision> {

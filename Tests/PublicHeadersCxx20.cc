@@ -9,4 +9,5 @@
 #include <Solid/Constraints.h>
 #include <Solid/Contact.h>
 #include <Solid/ElasticSystem.h>
+#include <Solid/Integrators.h>
 #include <Solid/System.h>
