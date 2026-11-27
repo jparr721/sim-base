@@ -288,7 +288,7 @@ TEST(DerSystem, RayleighDampingIsLinearInVelocity) {
 }
 
 // The vertex mass inverts exactly, so an explicit step's M^-1 is exactly 5.
-TEST(DerSystem, MassIsTheOldInverseMassInverted) {
+TEST(DerSystem, InverseMassIsExactlyFive) {
   const auto rod = Rod(100, 0);
   const auto system = System(rod);
   EXPECT_EQ(Vec<Real>(system.Mass().diagonal()).cwiseInverse(),
