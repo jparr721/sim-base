@@ -32,6 +32,7 @@ inline const std::vector<Run> kRuns = {
     {"strand-bend", 7000, 500},
     {"strand-twist", 3000, 250},
     {"strand-drop", 20500, 2500},
+    {"strand-drop-implicit", 600, 50},
 };
 
 using Snapshot = std::vector<Mat<Real>>;

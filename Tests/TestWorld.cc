@@ -312,6 +312,18 @@ TEST(World, StrandDampingIsRejectedWhenGreenOrNegative) {
   }
 }
 
+// At a 60 Hz tick, Newton converges on every strand in every step of the
+// first 10 s.
+TEST(World, StrandDropImplicitConvergesEveryStep) {
+  sim::World world(MakeScene("strand-drop-implicit"));
+  for (int step = 1; step <= 600; ++step) {
+    world.Step();
+    for (const auto &report : world.StepReports()) {
+      ASSERT_TRUE(report.converged) << "step " << step;
+    }
+  }
+}
+
 TEST(World, PathActionWithoutLastStepIsRejected) {
   auto desc = MakeScene("strand-bend");
   desc.script.front().lastStep.reset();
