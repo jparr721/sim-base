@@ -16,7 +16,9 @@
 namespace sim {
 
 // Each alternative is built from Lame parameters, e.g.
-// StableNeoHookean{.lame = Lame::FromYoungs(5.0, 0.45)}.
+// StableNeoHookean{.lame = Lame::FromYoungs(5.0, 0.45)}. The fiber energies
+// (AnisotropicArap, AnisotropicStVenantKirchhoff, AnisotropicFung) also take a
+// uniform unit fiber direction.
 using Material =
     std::variant<StableNeoHookean,
                  StVenantKirchhoff,
