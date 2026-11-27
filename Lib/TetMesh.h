@@ -2,7 +2,6 @@
 
 #include "LibMath.h"
 #include "Settings.h"
-#include <Energy/Volume/Material.h>
 #include <igl/boundary_facets.h>
 #include <igl/copyleft/tetgen/tetrahedralize.h>
 #include <igl/per_vertex_normals.h>
@@ -27,19 +26,12 @@ public:
   // Vertex normals
   Mat<Real> n;
 
-  // Mass Matrix
+  // Lumped mass matrix: each vertex carries a quarter of its tets' volume.
   SparseMat<Real> m;
-  SparseMat<Real> mInv;
-
-  // Rayleigh Damping
-  SparseMat<Real> rayleighDamping;
 
   // N x 1 boolean vector indicating whether a vertex is pinned. This matches
   // the dimension of v.
   Vec<int> pinned;
-
-  // Per-element deformation gradients
-  std::vector<Mat<Real>> fs;
 
   TetMesh() = default;
 
@@ -65,10 +57,6 @@ public:
     InitializeDataStructures();
   }
 
-  void ComputeDeformationGradients();
-
-  auto ComputeMaterialForces(const Material &material) -> Vec<Real>;
-
   // Trivial Getters/Setters
   [[nodiscard]] SIM_INLINE auto Positions() const -> Vec<Real> {
     return RowwiseFlatten(v);
@@ -78,15 +66,12 @@ public:
   }
   SIM_INLINE void SetPositions(const Vec<Real> &x) {
     v = RowwiseUnFlatten(x, v.rows(), v.cols());
-    needsNewDeformationGradients = true;
   }
   SIM_INLINE void SetDisplacement(const Vec<Real> &u) {
     v = rv + RowwiseUnFlatten(u, v.rows(), v.cols());
-    needsNewDeformationGradients = true;
   }
   SIM_INLINE void AddDisplacement(const Vec<Real> &u) {
     v += RowwiseUnFlatten(u, v.rows(), v.cols());
-    needsNewDeformationGradients = true;
   }
   SIM_INLINE void PinVertex(int index) { pinned(index) = 1; }
   SIM_INLINE void UnPinVertex(int index) { pinned(index) = 0; }
@@ -100,7 +85,7 @@ public:
                  const Vec3<Real> &d) -> Real;
 
   // Per-tet rest geometry, indexed like the rows of t.
-  [[nodiscard]] auto DmInverses() const -> const std::vector<Mat3<Real>> & {
+  [[nodiscard]] auto DmInverses() const -> const std::vector<Mat<Real>> & {
     return dmInvs;
   }
   [[nodiscard]] auto PartialFPartialxs() const
@@ -112,10 +97,8 @@ public:
   }
 
 private:
-  bool needsNewDeformationGradients = false;
-
   // Per-element dm-inverses (for computing the deformation gradients)
-  std::vector<Mat3<Real>> dmInvs;
+  std::vector<Mat<Real>> dmInvs;
   std::vector<Mat9x12<Real>> partialFPartialxs;
 
   std::vector<Real> restVolumes;
@@ -135,11 +118,6 @@ private:
    * @brief Build the mass matrix for the tetrahedral mesh.
    */
   void BuildMassMatrix();
-
-  /**
-   * @brief Build the damping matrix for the tetrahedral mesh.
-   */
-  void BuildRayleighDampingMatrix() {}
 
   /**
    * @brief Compute the rest volume for each tetrahedron.

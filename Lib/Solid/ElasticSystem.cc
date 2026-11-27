@@ -21,11 +21,13 @@ ElasticSystem::ElasticSystem(const TetMesh &mesh, const Material &material)
 }
 
 // F = Ds Dm^-1, with Ds the deformed edge vectors from corner 0
-// (Dynamic Deformables, "Computing the Deformation Gradient").
+// (Dynamic Deformables, "Computing the Deformation Gradient"). The product is
+// dynamic-size on purpose: Eigen's fixed-size 3x3 product rounds differently
+// and moves the bunny-drop trajectory off its recorded bits.
 auto ElasticSystem::DeformationGradient(const Vec<Real> &x, int tet) const
     -> Mat3<Real> {
   const Vec3<Real> a = x.segment<3>(3 * mesh.t(tet, 0));
-  Mat3<Real> ds;
+  Mat<Real> ds(3, 3);
   for (int corner = 1; corner < 4; ++corner) {
     ds.col(corner - 1) = x.segment<3>(3 * mesh.t(tet, corner)) - a;
   }

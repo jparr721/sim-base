@@ -1,6 +1,7 @@
 #pragma once
 
 #include "TetMesh.h"
+#include <Energy/Volume/Material.h>
 #include <memory>
 #include <utility>
 
