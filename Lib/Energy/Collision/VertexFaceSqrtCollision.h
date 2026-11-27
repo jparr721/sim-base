@@ -8,8 +8,10 @@ namespace sim {
 // collision chapter's vertex-face energy). x stacks the colliding vertex, then
 // the triangle's three vertices. With d the distance from the vertex to its
 // closest point on the triangle and sigma = -1 when the vertex is behind the
-// triangle's normal, Psi = k (d - sigma eps)^2: it pushes the vertex to eps in
-// front of the face.
+// face, Psi = k (d - sigma eps)^2: it pushes the vertex to eps in front of the
+// face. The front is the side (x1 - x2) x (x3 - x2) points to, with x1..x3 the
+// triangle's vertices in order, so it is the back of a counterclockwise
+// triangle.
 //
 // d is a minimum over the triangle's barycentric coordinates, so the gradient
 // holds them fixed (the envelope theorem). The Hessian adds how the closest

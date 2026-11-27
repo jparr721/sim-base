@@ -6,8 +6,9 @@
 
 namespace sim {
 
-// A body vertex near a static triangle. The triangle never moves in response,
-// so only the vertex's DOFs see the contact.
+// A body vertex near a static triangle, wound counterclockwise seen from the
+// side the vertex belongs on. The triangle never moves in response, so only
+// the vertex's DOFs see the contact.
 struct SoftContact {
   int vertex;
   std::array<Vec3<Real>, 3> triangle;
