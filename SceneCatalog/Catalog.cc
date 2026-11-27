@@ -31,12 +31,14 @@ auto StrandDamping(Real c) -> Damping { return Rayleigh{.mass = c / 0.2}; }
 // The bunny's material stiffness, E = 5 and nu = 0.45.
 const Lame kBunnyLame = Lame::FromYoungs(5.0, 0.45);
 
+constexpr Real kRampAngle = std::numbers::pi / 6;
+
 // The bunny falls onto a frictionless 30 degree ramp, slides down it and comes
 // to rest on the floor, over 14 simulated seconds. Only drag can stop it on a
 // frictionless floor.
 auto BunnyRamp(std::string name, Real dt, const Integrator &integrator,
                const Damping &damping) -> SceneDesc {
-  constexpr Real theta = std::numbers::pi / 6;
+  constexpr Real theta = kRampAngle;
   const Vec3<Real> downhill(std::cos(theta), -std::sin(theta), 0);
   const Vec3<Real> rampNormal(std::sin(theta), std::cos(theta), 0);
   const Vec3<Real> rampHalf(1.5, 0.1, 1);
@@ -155,9 +157,7 @@ auto BunnySnhBarrier() -> SceneDesc {
 // unrotated, so its local axes are the world's. The fiber's E = 20 is four
 // times the bunny's. The bunny barely stretches along the slope, so each
 // fiber moves its vertices at most 0.023 from bunny-drop-implicit-damped's.
-const Vec3<Real> kSlopeFiber =
-    Vec3<Real>(std::cos(std::numbers::pi / 6), -std::sin(std::numbers::pi / 6),
-               0);
+const Vec3<Real> kSlopeFiber(std::cos(kRampAngle), -std::sin(kRampAngle), 0);
 const Lame kFiberLame = Lame::FromYoungs(20.0, 0.45);
 
 auto BunnyFiber(std::string name, FiberMaterial fiber) -> SceneDesc {
