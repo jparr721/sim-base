@@ -10,11 +10,6 @@ file(GLOB INTEGRATOR_SOURCES "Integrator/*.cc")
 file(GLOB ENERGY_STRAND_HEADERS "Energy/Strand/*.h")
 file(GLOB ENERGY_STRAND_SOURCES "Energy/Strand/*.cc")
 
-# Listed by name: the other Energy/Volume files build as their own modules below.
-set(ENERGY_VOLUME_HEADERS Energy/Volume/HyperelasticMaterial.h
-        Energy/Volume/SNH.h Energy/Volume/STVK.h)
-set(ENERGY_VOLUME_SOURCES Energy/Volume/SNH.cc Energy/Volume/STVK.cc)
-
 file(GLOB ENERGY_COLLISION_HEADERS "Energy/Collision/*.h")
 file(GLOB ENERGY_COLLISION_SOURCES "Energy/Collision/*.cc")
 
@@ -48,7 +43,6 @@ add_library(sim STATIC
         ${COLLISION_HEADERS} ${COLLISION_SOURCES}
         ${INTEGRATOR_HEADERS} ${INTEGRATOR_SOURCES}
         ${ENERGY_STRAND_HEADERS} ${ENERGY_STRAND_SOURCES}
-        ${ENERGY_VOLUME_HEADERS} ${ENERGY_VOLUME_SOURCES}
         ${ENERGY_COLLISION_HEADERS} ${ENERGY_COLLISION_SOURCES})
 target_include_directories(sim PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>

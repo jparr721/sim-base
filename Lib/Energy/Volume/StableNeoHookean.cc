@@ -25,8 +25,8 @@ auto StableNeoHookean::Psi(const Mat3<Real> &f) const -> Real {
          lambda / 2 * jMinus1 * jMinus1;
 }
 
-// P = mu F + (l (J - 1) - mu) dJ/dF. Written term by term like the SNH it
-// replaces so the forces agree bit for bit.
+// P = mu F + (l (J - 1) - mu) dJ/dF. Written term by term, not factored,
+// because the bunny-drop golden pins this rounding bit for bit.
 auto StableNeoHookean::Pk1(const Mat3<Real> &f) const -> Mat3<Real> {
   const Real mu = lame.mu;
   const Real lambda = SnhLambda(lame);

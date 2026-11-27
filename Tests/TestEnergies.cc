@@ -4,9 +4,6 @@
 #include <Energy/Volume/StVenantKirchhoff.h>
 #include <Energy/Volume/StableNeoHookean.h>
 
-// The energy StableNeoHookean replaces, kept until TetMesh moves over.
-#include <Energy/Volume/SNH.h>
-
 #include <gtest/gtest.h>
 #include <random>
 
@@ -93,7 +90,7 @@ auto ProjectPsd(const Mat9<Real> &h) -> Mat9<Real> {
 // One F worked out by hand per energy.
 template <typename E> struct HandDerived;
 
-// F = diag(2, 1, 1), mu = 1, lambda = 2, so the SNH lambda is l = 3.
+// F = diag(2, 1, 1), mu = 1, lambda = 2, so l = lambda + mu = 3.
 // |F|^2 = 6 and J = 2: Psi = 1/2 (6 - 3) - (2 - 1) + 3/2 (2 - 1)^2 = 2.
 // dJ/dF = cof F = diag(1, 2, 2) and l (J - 1) - mu = 2:
 // P = diag(2, 1, 1) + 2 diag(1, 2, 2) = diag(4, 5, 5).
@@ -220,24 +217,6 @@ TEST(RotationVariantSvd, ReconstructsWithRotations) {
     EXPECT_NEAR(svd.u.determinant(), 1, 1e-12) << "sample " << n;
     EXPECT_NEAR(svd.v.determinant(), 1, 1e-12) << "sample " << n;
     EXPECT_EQ(svd.sigma(2) < 0, f.determinant() < 0) << "sample " << n;
-  }
-}
-
-// H1b moves TetMesh to StableNeoHookean and keeps the bunny golden, so the
-// forces must match SNH. SNH::Psi carries the constant mu^2 / (2 l) because
-// it writes l/2 (J - 1)^2 - mu (J - 1) as l/2 (J - 1 - mu/l)^2.
-TEST(StableNeoHookean, MatchesLegacySnh) {
-  const SNH legacy(kYoungs, kPoisson);
-  const StableNeoHookean snh{kLame};
-  const Real l = kLame.lambda + kLame.mu;
-  const Real offset = kLame.mu * kLame.mu / (2 * l);
-  for (std::size_t n = 0; n < SampleFs().size(); ++n) {
-    const Mat3<Real> &f = SampleFs()[n];
-    const Real want = legacy.Psi(f);
-    EXPECT_NEAR(snh.Psi(f) + offset, want, 1e-14 * std::abs(want))
-        << "sample " << n;
-    EXPECT_LE(RelErr(snh.Pk1(f), Mat3<Real>(legacy.Pk1(f))), 1e-14)
-        << "sample " << n;
   }
 }
 

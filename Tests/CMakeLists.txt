@@ -34,7 +34,6 @@ macro(package_add_test TESTNAME)
     set_target_properties(${TESTNAME} PROPERTIES FOLDER tests)
 endmacro()
 
-package_add_test(TestSNH TestSNH.cc)
 package_add_test(TestTetMesh TestTetMesh.cc)
 package_add_test(TestLibMath TestLibMath.cc)
 package_add_test(TestStrandForces TestStrandForces.cc)
@@ -42,8 +41,9 @@ package_add_test(TestElementEnergies TestElementEnergies.cc)
 # Only the energy module, so the test fails to link if the module needs sim.
 set_property(TARGET TestElementEnergies PROPERTY LINK_LIBRARIES sim_energy_mass_spring gmock gtest_main)
 package_add_test(TestEnergies TestEnergies.cc)
-# sim for the legacy SNH bridge; it brings the energy modules too.
-set_property(TARGET TestEnergies PROPERTY LINK_LIBRARIES sim gmock gtest_main)
+# Only the energy modules, so the test fails to link if a module needs sim.
+set_property(TARGET TestEnergies PROPERTY LINK_LIBRARIES
+        sim_energy_stable_neo_hookean sim_energy_stvk gmock gtest_main)
 package_add_test(TestSceneGolden TestSceneGolden.cc)
 set_property(TARGET TestSceneGolden PROPERTY LINK_LIBRARIES sim_scenes gmock gtest_main)
 package_add_test(TestWorld TestWorld.cc)
