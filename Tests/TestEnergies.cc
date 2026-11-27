@@ -1,5 +1,6 @@
 // Checks every volume Energy must pass. A new energy joins by adding its type
-// to Energies and a HandDerived specialization.
+// to Energies and a HandDerived specialization, plus a Traits specialization
+// when it is not isotropic or not defined for every F.
 
 #include <Energy/Volume/StVenantKirchhoff.h>
 #include <Energy/Volume/StableNeoHookean.h>
@@ -16,24 +17,36 @@ constexpr Real kYoungs = 5.0;
 constexpr Real kPoisson = 0.45;
 const Lame kLame = Lame::FromYoungs(kYoungs, kPoisson);
 
-// 1,000 deformation gradients: half near rest, half with entries in
-// [-1.5, 1.5], about half of which are inverted.
-auto SampleFs() -> const std::vector<Mat3<Real>> & {
-  static const std::vector<Mat3<Real>> fs = [] {
-    std::mt19937 rng(7);
-    std::uniform_real_distribution<Real> small(-0.5, 0.5);
-    std::uniform_real_distribution<Real> large(-1.5, 1.5);
-    std::vector<Mat3<Real>> out;
-    for (int n = 0; n < 1000; ++n) {
-      Mat3<Real> f;
-      for (int k = 0; k < 9; ++k)
-        f(k) = n % 2 == 0 ? small(rng) : large(rng);
-      if (n % 2 == 0)
-        f += Mat3<Real>::Identity();
+// Even draws are near rest. Odd draws have entries in [-1.5, 1.5], and about
+// half of them are inverted.
+auto DrawF(std::mt19937 &rng, int n) -> Mat3<Real> {
+  std::uniform_real_distribution<Real> small(-0.5, 0.5);
+  std::uniform_real_distribution<Real> large(-1.5, 1.5);
+  Mat3<Real> f;
+  for (int k = 0; k < 9; ++k)
+    f(k) = n % 2 == 0 ? small(rng) : large(rng);
+  if (n % 2 == 0)
+    f += Mat3<Real>::Identity();
+  return f;
+}
+
+// The first 1,000 draws that satisfy inDomain.
+auto SampleFsWhere(bool (*inDomain)(const Mat3<Real> &))
+    -> std::vector<Mat3<Real>> {
+  std::mt19937 rng(7);
+  std::vector<Mat3<Real>> out;
+  for (int n = 0; out.size() < 1000; ++n) {
+    const Mat3<Real> f = DrawF(rng, n);
+    if (inDomain(f))
       out.push_back(f);
-    }
-    return out;
-  }();
+  }
+  return out;
+}
+
+auto AnyF(const Mat3<Real> & /*f*/) -> bool { return true; }
+
+auto SampleFs() -> const std::vector<Mat3<Real>> & {
+  static const std::vector<Mat3<Real>> fs = SampleFsWhere(AnyF);
   return fs;
 }
 
@@ -87,23 +100,47 @@ auto ProjectPsd(const Mat9<Real> &h) -> Mat9<Real> {
          eig.eigenvectors().transpose();
 }
 
-// One F worked out by hand per energy.
+// What the suite asserts about an energy's symmetry. kIsotropic: Psi(R F) =
+// Psi(F R) = Psi(F) for every rotation R, and every rotation is at rest.
+enum class Symmetry { kIsotropic };
+
+// How the suite builds an energy and where it samples F. An energy that is
+// singular somewhere samples only the part of its domain kept away from the
+// singularity, so finite differences stay meaningful.
+template <typename E> struct Traits {
+  static constexpr Symmetry symmetry = Symmetry::kIsotropic;
+  static auto Make(const Lame &lame) -> E { return E{lame}; }
+  static auto InDomain(const Mat3<Real> &f) -> bool { return AnyF(f); }
+};
+
+template <typename E> auto DomainFs() -> const std::vector<Mat3<Real>> & {
+  static const std::vector<Mat3<Real>> fs = SampleFsWhere(Traits<E>::InDomain);
+  return fs;
+}
+
+// One F worked out by hand per energy. Unless a specialization says
+// otherwise, F = diag(2, 1, 1), mu = 1 and lambda = 2.
+template <typename E> struct HandDerivedInput {
+  static auto Make() -> E { return Traits<E>::Make({.mu = 1, .lambda = 2}); }
+  static auto F() -> Mat3<Real> { return Vec3<Real>(2, 1, 1).asDiagonal(); }
+};
 template <typename E> struct HandDerived;
 
-// F = diag(2, 1, 1), mu = 1, lambda = 2, so l = lambda + mu = 3.
-// |F|^2 = 6 and J = 2: Psi = 1/2 (6 - 3) - (2 - 1) + 3/2 (2 - 1)^2 = 2.
+// l = lambda + mu = 3. |F|^2 = 6 and J = 2:
+// Psi = 1/2 (6 - 3) - (2 - 1) + 3/2 (2 - 1)^2 = 2.
 // dJ/dF = cof F = diag(1, 2, 2) and l (J - 1) - mu = 2:
 // P = diag(2, 1, 1) + 2 diag(1, 2, 2) = diag(4, 5, 5).
-template <> struct HandDerived<StableNeoHookean> {
-  static constexpr Real psi = 2;
+template <>
+struct HandDerived<StableNeoHookean> : HandDerivedInput<StableNeoHookean> {
+  static auto Psi() -> Real { return 2; }
   static auto Pk1() -> Mat3<Real> { return Vec3<Real>(4, 5, 5).asDiagonal(); }
 };
 
-// F = diag(2, 1, 1), mu = 1, lambda = 2. E = diag(3/2, 0, 0), |E|^2 = 9/4 and
-// tr E = 3/2: Psi = 9/4 + 9/4 = 9/2. S = 2 E + 2 (3/2) I = diag(6, 3, 3):
-// P = F S = diag(12, 3, 3).
-template <> struct HandDerived<StVenantKirchhoff> {
-  static constexpr Real psi = 4.5;
+// E = diag(3/2, 0, 0), |E|^2 = 9/4 and tr E = 3/2: Psi = 9/4 + 9/4 = 9/2.
+// S = 2 E + 2 (3/2) I = diag(6, 3, 3): P = F S = diag(12, 3, 3).
+template <>
+struct HandDerived<StVenantKirchhoff> : HandDerivedInput<StVenantKirchhoff> {
+  static auto Psi() -> Real { return 4.5; }
   static auto Pk1() -> Mat3<Real> { return Vec3<Real>(12, 3, 3).asDiagonal(); }
 };
 
@@ -120,12 +157,12 @@ TEST(EnergySamples, IncludeInvertedF) {
 }
 
 TYPED_TEST(EnergyTest, Pk1MatchesFdOfPsi) {
-  const TypeParam e{kLame};
+  const TypeParam e = Traits<TypeParam>::Make(kLame);
+  const std::vector<Mat3<Real>> &fs = DomainFs<TypeParam>();
   Real worst = 0;
   std::size_t worstAt = 0;
-  for (std::size_t n = 0; n < SampleFs().size(); ++n) {
-    const Mat3<Real> &f = SampleFs()[n];
-    const Real err = RelErr(e.Pk1(f), FdPk1(e, f));
+  for (std::size_t n = 0; n < fs.size(); ++n) {
+    const Real err = RelErr(e.Pk1(fs[n]), FdPk1(e, fs[n]));
     if (err > worst) {
       worst = err;
       worstAt = n;
@@ -135,12 +172,12 @@ TYPED_TEST(EnergyTest, Pk1MatchesFdOfPsi) {
 }
 
 TYPED_TEST(EnergyTest, HessianMatchesFdOfPk1) {
-  const TypeParam e{kLame};
+  const TypeParam e = Traits<TypeParam>::Make(kLame);
+  const std::vector<Mat3<Real>> &fs = DomainFs<TypeParam>();
   Real worst = 0;
   std::size_t worstAt = 0;
-  for (std::size_t n = 0; n < SampleFs().size(); ++n) {
-    const Mat3<Real> &f = SampleFs()[n];
-    const Real err = RelErr(e.Hessian(f), FdHessian(e, f));
+  for (std::size_t n = 0; n < fs.size(); ++n) {
+    const Real err = RelErr(e.Hessian(fs[n]), FdHessian(e, fs[n]));
     if (err > worst) {
       worst = err;
       worstAt = n;
@@ -150,10 +187,10 @@ TYPED_TEST(EnergyTest, HessianMatchesFdOfPk1) {
 }
 
 TYPED_TEST(EnergyTest, ClampedHessianIsPsd) {
-  const TypeParam e{kLame};
-  for (std::size_t n = 0; n < SampleFs().size(); ++n) {
-    const Mat3<Real> &f = SampleFs()[n];
-    const Mat9<Real> h = e.ClampedHessian(f, RotationVariantSvd(f));
+  const TypeParam e = Traits<TypeParam>::Make(kLame);
+  const std::vector<Mat3<Real>> &fs = DomainFs<TypeParam>();
+  for (std::size_t n = 0; n < fs.size(); ++n) {
+    const Mat9<Real> h = e.ClampedHessian(fs[n], RotationVariantSvd(fs[n]));
     const Real minEigenvalue =
         Eigen::SelfAdjointEigenSolver<Mat9<Real>>(h).eigenvalues().minCoeff();
     ASSERT_GE(minEigenvalue, -1e-10 * h.norm()) << "sample " << n;
@@ -163,13 +200,13 @@ TYPED_TEST(EnergyTest, ClampedHessianIsPsd) {
 // PSD alone passes for a zero matrix. The analytic eigensystem must give the
 // same projection as an eigendecomposition of the exact Hessian.
 TYPED_TEST(EnergyTest, ClampedHessianIsPsdProjectionOfHessian) {
-  const TypeParam e{kLame};
+  const TypeParam e = Traits<TypeParam>::Make(kLame);
+  const std::vector<Mat3<Real>> &fs = DomainFs<TypeParam>();
   Real worst = 0;
   std::size_t worstAt = 0;
-  for (std::size_t n = 0; n < SampleFs().size(); ++n) {
-    const Mat3<Real> &f = SampleFs()[n];
-    const Real err = RelErr(e.ClampedHessian(f, RotationVariantSvd(f)),
-                            ProjectPsd(e.Hessian(f)));
+  for (std::size_t n = 0; n < fs.size(); ++n) {
+    const Real err = RelErr(e.ClampedHessian(fs[n], RotationVariantSvd(fs[n])),
+                            ProjectPsd(e.Hessian(fs[n])));
     if (err > worst) {
       worst = err;
       worstAt = n;
@@ -179,7 +216,7 @@ TYPED_TEST(EnergyTest, ClampedHessianIsPsdProjectionOfHessian) {
 }
 
 TYPED_TEST(EnergyTest, RotationsAreAtRest) {
-  const TypeParam e{kLame};
+  const TypeParam e = Traits<TypeParam>::Make(kLame);
   const Real scale = kLame.mu + kLame.lambda;
   std::mt19937 rng(8);
   for (int n = 0; n < 100; ++n) {
@@ -190,10 +227,11 @@ TYPED_TEST(EnergyTest, RotationsAreAtRest) {
 }
 
 TYPED_TEST(EnergyTest, PsiIsRotationInvariant) {
-  const TypeParam e{kLame};
+  const TypeParam e = Traits<TypeParam>::Make(kLame);
+  const std::vector<Mat3<Real>> &fs = DomainFs<TypeParam>();
   std::mt19937 rng(9);
-  for (std::size_t n = 0; n < SampleFs().size(); ++n) {
-    const Mat3<Real> &f = SampleFs()[n];
+  for (std::size_t n = 0; n < fs.size(); ++n) {
+    const Mat3<Real> &f = fs[n];
     const Mat3<Real> r = RandomRotation(rng);
     const Real psi = e.Psi(f);
     EXPECT_NEAR(e.Psi(r * f), psi, 1e-12 * std::abs(psi)) << "sample " << n;
@@ -202,10 +240,10 @@ TYPED_TEST(EnergyTest, PsiIsRotationInvariant) {
 }
 
 TYPED_TEST(EnergyTest, MatchesHandDerivedValue) {
-  const TypeParam e{Lame{.mu = 1, .lambda = 2}};
-  const Mat3<Real> f = Vec3<Real>(2, 1, 1).asDiagonal();
-  EXPECT_NEAR(e.Psi(f), HandDerived<TypeParam>::psi, 1e-14);
-  EXPECT_LE((e.Pk1(f) - HandDerived<TypeParam>::Pk1()).norm(), 1e-14);
+  using Hand = HandDerived<TypeParam>;
+  const TypeParam e = Hand::Make();
+  EXPECT_NEAR(e.Psi(Hand::F()), Hand::Psi(), 1e-14);
+  EXPECT_LE((e.Pk1(Hand::F()) - Hand::Pk1()).norm(), 1e-14);
 }
 
 TEST(RotationVariantSvd, ReconstructsWithRotations) {
