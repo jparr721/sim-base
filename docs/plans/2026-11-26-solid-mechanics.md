@@ -144,12 +144,13 @@ Baseline for every perf box: measure on trunk before the PR. The metric is ms pe
 ---
 
 ### M0. Land the current branch (prerequisite, plan `2026-11-26-glut-removal-scene-api.md`)
-- [ ] The DER math fixes are merged. Strand-drop runs past step 30 without exploding, which is the operator's report, and the goldens are regenerated and finite.
-- [ ] P4b (namespace `sim`, `SIM_` macros, target `sim`) and P5 docs are done.
-- [ ] Mass-spring Hessian (operator request, 2026-11-26). `MassSpring` becomes its own module, `sim_energy_mass_spring`, satisfying an `ElementEnergy<6>` concept over one edge's endpoints: `Psi(x)`, `Gradient(x)`, `Hessian(x)` and `ClampedHessian(x)`. The clamped Hessian uses the closed-form eigensystem. The axial eigenvalue is the stiffness along the edge. The two transverse eigenvalues are tension divided by length and go negative under compression, so they clamp to 0. The energy and force stay exactly as today, including the audit's per-edge rest lengths.
+- [x] The DER math fixes are merged. Strand-drop runs past step 30 without exploding, which is the operator's report, and the goldens are regenerated and finite.
+- [x] P4b (namespace `sim`, `SIM_` macros, target `sim`) and P5 docs are done.
+- [x] Mass-spring Hessian (operator request, 2026-11-26). `MassSpring` becomes its own module, `sim_energy_mass_spring`, satisfying an `ElementEnergy<6>` concept over one edge's endpoints: `Psi(x)`, `Gradient(x)`, `Hessian(x)` and `ClampedHessian(x)`. The clamped Hessian uses the closed-form eigensystem. The axial eigenvalue is the stiffness along the edge. The two transverse eigenvalues are tension divided by length and go negative under compression, so they clamp to 0. The energy and force stay exactly as today, including the audit's per-edge rest lengths.
   - Verify: the gradient matches FD of Psi and the Hessian matches FD of the gradient, both ≤1e-6 relative. The clamped Hessian is PSD on random stretched and compressed edges. The unclamped Hessian has a negative eigenvalue under compression; that's the control. Strand goldens are unchanged bit for bit, because forces don't change.
-- [ ] DER bending stiffness switched to the paper's per-vertex 2α/l̄_i, with α = 0.1 and l̄_i = |ē^{i-1}| + |ē^i| (operator decision 2026-11-26, audit finding 11). Goldens regenerated once after this and the DER fixes.
+- [x] DER bending stiffness switched to the paper's per-vertex 2α/l̄_i, with α = 0.1 and l̄_i = |ē^{i-1}| + |ē^i| (operator decision 2026-11-26, audit finding 11). Goldens regenerated once after this and the DER fixes.
 - [ ] Verify: everything in that plan's boxes, plus `strand-drop` in `sim_viewer` played for 20,000 steps with no NaN (Stats shows a finite step count, and the screenshot shows strands hanging under the comb).
+- **Result (2026-11-26):** merged to `main` in PR #3 (`modernize-sim-core`). The DER fixes are 3f2cf43 (the bending force scatters all three kb blocks, so strand-bend no longer goes NaN), P4b is 9067ea9, the P5 docs are 3029f0e, the mass-spring module is 833642a and the paper's bending stiffness is 76c97e1. `TestSceneGolden` runs strand-drop finite through step 20500 headless. The last box stays open, because no commit records the 20,000-step viewer run or its screenshot.
 
 ### H1. Energy concept, SVD, and the test suite every energy must pass
 - **Depends on:** M0.
@@ -164,6 +165,7 @@ Baseline for every perf box: measure on trunk before the PR. The metric is ms pe
   - RotationVariantSvd reconstructs F to 1e-12, with det U = det V = 1.
 - **Live:** `bunny-drop` golden still passes bit for bit. The SNH force formula is unchanged, so any diff is a bug.
 - **Perf:** bunny ms/step within 10% of trunk.
+- **Result (2026-11-26):** branch `h1a-energy-concept` (landed as `land-h1a` and merged into `wave2-base`), then `h1b-wire-material` on top. `TestEnergies` runs StableNeoHookean and StVenantKirchhoff on 1,000 random F, about half inverted (b9224f6). After `Material` became a variant and the legacy classes were deleted, bunny-drop's positions after 600 steps hash identically, and its golden passes unregenerated (e06b0a1). StVK landed as `Lib/Energy/Volume/StVenantKirchhoff.{h,cc}`. No commit records the perf number.
 
 ### H2. ElasticSystem: assembly of forces, stiffness, damping, mass
 - **Depends on:** H1.
@@ -176,6 +178,7 @@ Baseline for every perf box: measure on trunk before the PR. The metric is ms pe
   - Filter zeroes pinned DOFs and is idempotent (S² = S).
 - **Live:** `ForwardEuler` re-expressed over `ElasticSystem` reproduces the `bunny-drop` golden bit for bit.
 - **Perf:** bunny ms/step within 10%. Stiffness assembly time is reported separately (new number, no gate).
+- **Result (2026-11-26):** branch `h2-elastic-system`. On the bunny (710 tets) at a random deformation, `Stiffness` matches central FD of `Forces` to 7.5e-11 (SNH) and 9.2e-11 (StVK) relative, and is symmetric to 1.5e-14. The clamped matrix is PSD, and the unclamped one has eigenvalue -86.5 (SNH) and -0.98 (StVK) (70b7971). ForwardEulerVolume over `ElasticSystem` kept bunny-drop bit-identical, with FNV-1a 8edf3548a3b6b2d7 after 600 steps and bce8487b12ae57a8 after 6000. Median ms/step over 5 interleaved 6000-step runs fell from 0.0460 to 0.0294 (19f5107). No commit reports stiffness assembly time separately.
 
 ### H3. Time integrators
 - **Depends on:** H2.
@@ -191,6 +194,7 @@ Baseline for every perf box: measure on trunk before the PR. The metric is ms pe
   - Newton converges within maxNewtonIterations on every step. If it doesn't, the step reports failure instead of returning garbage.
 - **Live:** `sim_viewer` with `bunny-drop-implicit`, played 600 steps (10 s simulated). Screenshot shows the bunny hanging and deformed, with Stats finite. Compare the screenshot with the forward-Euler bunny at the same simulated time.
 - **Perf:** report ms per simulated second for the implicit bunny vs the explicit one. That's the number that matters for a game. It's new, so there's no gate, but it gets explained per the benchmark checklist.
+- **Result (2026-11-26):** branch `h3-integrators`, with the energy catalog merged in through `wave-h3e`. The five integrators live in `Lib/Solid/Integrators.{h,cc}` (module `sim_integrators`), and `SoftBody` gained a required `integrator` (51b9337). bunny-drop names ForwardEuler and stays bit-identical by FNV-1a hash after 600 and 14000 steps. At 37c9496, BackwardEuler at 1/60 runs 600 steps finite, and the bunny's worst one-step energy rise is 0. ForwardEuler at 1/60 blows up at step 4 (tet) and step 5 (bunny). Quasistatic lands within 4.1e-5 of BackwardEuler at rest, on a bunny displacement of 0.53. bunny-drop-implicit runs at dt 1/20, larger than the 1/60 above. It stays finite, never sinks past its epsilon, and rests past the ramp's foot (5d7aa1e). No commit records ms per simulated second. The worst 20 Hz tick took 38.3 to 38.5 ms over 5 runs after C1b (3305ccd). No commit records a viewer screenshot.
 
 ### H4. Green damping
 - **Depends on:** H3.
@@ -200,6 +204,7 @@ Baseline for every perf box: measure on trunk before the PR. The metric is ms pe
   - Damping force is zero under rigid motion (Ḟ = ωF with ω skew).
   - Energy decays monotonically in a damped BackwardEuler run.
 - **Live:** `bunny-drop-implicit` with damping visibly settles faster. Report steps until max velocity < 1e-3, damped vs undamped.
+- **Result (2026-11-26):** branch `h4-damping`. `GreenDamping` landed as its own module, `sim_damping_green`, in `Lib/Energy/Damping/`, with its tests in `Tests/TestDamping.cc` on 1,000 random (F, Ḟ) (cc3b626). `Damping` is `NoDamping`, `GreenDamping` or `Rayleigh`, and `SoftBody::damping` is required (19fdc82). bunny-drop-implicit-damped (`GreenDamping{.mu = 2}`) keeps its max vertex speed below 1e-3 from step 275 (13.75 s). Undamped, the bunny stays above it until step 370 (18.5 s). Newton's worst step falls from 14 iterations to 7 (15b28d0). At 37c9496 under BackwardEuler, the damped energy falls on every step, from 0.00395 to 3.5e-8 on the tet and from 0.00304 to 8.7e-9 on the bunny.
 
 ### H5. Strands on the shared integrators
 - **Depends on:** H3.
@@ -210,19 +215,21 @@ Baseline for every perf box: measure on trunk before the PR. The metric is ms pe
   - Strand-twist under the generic ForwardEuler reproduces the post-M0 golden bit for bit.
 - **Live:** strand-drop under BackwardEuler at dt = 1/60 runs 600 steps finite in `sim_viewer`, with a screenshot.
 - **Perf:** ms per simulated second, explicit vs implicit strand-drop.
+- **Result (2026-11-26):** branch `h5-strands-shared-integrators`. `DerSystem` (`Lib/Strand/`, module `sim_strand`) is one strand as a `System`, and `Strand` gained required `integrator` and `damping` fields. `ForwardEulerStrand.h` and `StrandIntegrator.h` are deleted (738117e). strand-drop-implicit runs the hair under BackwardEuler at dt 1/60. Over 600 steps every strand-step converges. Newton takes 2.03 iterations on average and 3 at worst, with 134 CG iterations per strand-step. At t = 10 s it is within 6.9e-3 of the explicit run, on strands 7.75 long (7c3e515). The check is headless, in `TestWorld` and a new golden. No commit records a viewer screenshot or the perf number.
 
 ### E1 to E6. More solid-mechanics energies (one PR each, after H3)
 Each one adds a struct satisfying `sim::Energy`, a `Material` alternative, a line in the H1 typed suite (so it gets FD, PSD, rest-state and rotation tests automatically), and a catalog scene that swaps the bunny's material.
-- [ ] **E1 Linear elasticity** (small-strain, for reference and validation).
-- [ ] **E2 Neo-Hookean (Bonet & Wood)**, with an inversion guard tested on det F → 0⁺.
-- [ ] **E3 ARAP**, with analytic eigensystem clamping (Smith 2019).
-- [ ] **E4 Symmetric Dirichlet**.
-- [ ] **E5 Anisotropic fiber energies** (anisotropic ARAP, anisotropic StVK, Fung). `SoftBody` gains a per-tet fiber direction (`std::optional<Vec3>` uniform fiber, or per-tet field). The invariant test becomes "Ψ invariant to rotations about the fiber".
-- [ ] **E6 SNH with barrier** (inversion barrier).
+- [x] **E1 Linear elasticity** (small-strain, for reference and validation).
+- [x] **E2 Neo-Hookean (Bonet & Wood)**, with an inversion guard tested on det F → 0⁺.
+- [x] **E3 ARAP**, with analytic eigensystem clamping (Smith 2019).
+- [x] **E4 Symmetric Dirichlet**.
+- [x] **E5 Anisotropic fiber energies** (anisotropic ARAP, anisotropic StVK, Fung). `SoftBody` gains a per-tet fiber direction (`std::optional<Vec3>` uniform fiber, or per-tet field). The invariant test becomes "Ψ invariant to rotations about the fiber".
+- [x] **E6 SNH with barrier** (inversion barrier).
 - **Verify each:**
   - **Unit:** the typed suite passes. Energy-specific known values are checked against a hand derivation for one F.
   - **Live:** the catalog scene runs 600 implicit steps finite, with a screenshot in the PR.
   - **Perf:** ms/step vs SNH on the same scene.
+- **Result (2026-11-26):** the energies are on branch `e-energy-catalog` (49f2652 to 43d3882), and the fiber term and scenes are on `e-catalog-scenes` (74c624f, 37c9496). Each energy is its own module, joined through `sim_volume_energies`, so a new energy is one CMake line. `TestEnergies` runs all ten types. Each catalog scene is bunny-drop-implicit-damped with its material swapped, under BackwardEuler at dt 1/20. `TestWorld` checks that each stays finite, converges on every step, never passes the ramp or floor by its epsilon, and rests past the ramp's foot. A new golden pins each. bunny-snh-barrier matches bunny-drop-implicit-damped to 2e-11, because no tet comes below J = 0.55. Each fiber moves the bunny's vertices at most 0.023. No commit records a screenshot or the ms/step comparison.
 
 ## Review gates
 - H3 and H5 change how scenes are authored (bodies gain required fields), so they wait for the operator's review before merge.
@@ -244,6 +251,7 @@ Each one adds a struct satisfying `sim::Energy`, a `Material` alternative, a lin
   - Pin regions and `MoveCollider` paths are body-local, so moving a body doesn't break them.
   - `MoveCollider` moves `place.centroid`.
 - **Unit:** a placed body's rest centroid equals `place.centroid` to 1e-12, rotation keeps edge lengths and tet volumes to 1e-12, and identity placement reproduces every current golden bit for bit.
+- **Result (2026-11-26):** branch `s1-centroid-placement`, landed as `land-s1`. A placed tet mesh, strand and `Box` rest on `place.centroid` to 1e-12. Rotation and scale keep edge lengths and tet volumes, a pin region moves with its body, `Box` faces wind outward, and a non-positive scale is rejected (10158d8). Every golden passes unregenerated at 1e-12.
 
 ### C1. Soft bodies collide with static colliders (operator request, 2026-11-26)
 - **Depends on:** H2, because contact forces and stiffness are assembled in `ElasticSystem` so explicit and implicit integrators both get them.
@@ -259,6 +267,10 @@ Each one adds a struct satisfying `sim::Energy`, a `Material` alternative, a lin
   - A single tet dropped on a floor comes to rest with no vertex below the floor minus the envelope.
   - On a frictionless ramp, the tet's centroid acceleration along the slope matches g·sin θ within 2%.
 - **Live:** `just demo` shows the bunny falling, sliding down the ramp and resting on the floor. Stats stay finite, and the bunny never passes through either collider.
+- **Result (2026-11-26):** branch `c1-soft-contact`. `VertexFaceSqrtCollision` is an `ElementEnergy<12>` in its own module, `sim_energy_vertex_face_collision`, and passes the typed suite plus 300 random contacts across the face, edge and corner regions (750bd61). A tilted tet dropped on a floor rests with max speed 5e-5 and never sinks below the floor's top. A face-down tet on a frictionless 30 degree ramp accelerates at 0.99999 of g sin θ (ae3ae31). bunny-drop is unpinned. It falls onto a `Box` ramp, slides down it, and rests on a `Box` floor with its centroid 0.79 past the ramp's foot after 14 s. No vertex enters either box (deepest -0.0065), and the bunny moves 1 mm over its last second. Its golden was regenerated for the new scene (6ed4700). The check is headless, in `TestWorld`. No commit records the `just demo` run.
+
+### C1b. Continuous contact off the face (2026-11-26)
+- **Result (2026-11-26):** branch `c1b-contact-continuity`, after H3. Contacts are found once per step and held through Newton, so a vertex can slide off its triangle and cross the triangle's plane beside it. The old energy jumped there, by 0.030 on the new test's path. It now stays continuous everywhere except on the triangle's boundary (4bffb39). bunny-drop-implicit went back from collisionEpsilon 0.03 to the default 0.02. Every step converges, with Newton at most 14 and 3.50 on average. The worst 20 Hz tick fell from 50.4 to 50.6 ms at 0.03 to 38.3 to 38.5 ms (5 runs each, 3305ccd).
 
 ## Open calls (operator)
 1. **Volume collisions.** Static-collider contact for soft bodies is now C1 (operator, 2026-11-26). Edge-edge contact, self-collision and friction remain out of scope. The voxel game wants a static ray query against voxel chunks first.
