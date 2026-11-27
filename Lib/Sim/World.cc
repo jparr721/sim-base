@@ -157,6 +157,17 @@ auto ContactAt(int vertex, const VertexFaceCollision &hit) -> SoftContact {
                        hit.faceVertices[2]}};
 }
 
+template <System S>
+auto StepWith(const Integrator &integrator, const S &system,
+              IntegratorState &state, const Vec<Real> &external, Real dt)
+    -> StepReport {
+  return std::visit(
+      [&](const auto &method) {
+        return Step(method, system, state, external, dt);
+      },
+      static_cast<const IntegratorMethod &>(integrator));
+}
+
 // One strand: its rod, the system over it and the integrator that steps it.
 // The system refers to the rod, so it never moves.
 struct StrandSim {
@@ -455,12 +466,8 @@ struct World::Impl {
       for (int vertex = 0; vertex < external.size() / 3; ++vertex) {
         external.segment<3>(3 * vertex) = gravity;
       }
-      reports[strand.index] = std::visit(
-          [&](const auto &method) {
-            return sim::Step(method, strand.system, strand.state, external,
-                             desc.dt);
-          },
-          static_cast<const IntegratorMethod &>(strand.integrator));
+      reports[strand.index] = StepWith(strand.integrator, strand.system,
+                                       strand.state, external, desc.dt);
       strand.mesh->der->Advance(strand.state.x, desc.dt);
     });
     contacts.clear();
@@ -476,12 +483,8 @@ struct World::Impl {
       for (int ii = 0; ii < std::ssize(body->vertexAreas); ++ii) {
         external.segment<3>(3 * ii) = body->vertexAreas[ii] * gravity;
       }
-      reports[body->index] = std::visit(
-          [&](const auto &method) {
-            return sim::Step(method, body->system, body->state, external,
-                             desc.dt);
-          },
-          static_cast<const IntegratorMethod &>(body->integrator));
+      reports[body->index] = StepWith(body->integrator, body->system,
+                                      body->state, external, desc.dt);
       body->mesh->SetPositions(body->state.x);
     }
     steps = step;
