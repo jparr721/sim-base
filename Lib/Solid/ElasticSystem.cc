@@ -76,6 +76,23 @@ auto ElasticSystem::ContactEnergy(int vertex) const -> VertexFaceSqrtCollision {
   return {VertexMass(vertex) * contact.stiffness, contact.epsilon};
 }
 
+// Sum over tets of V Psi(F), plus each contact's collision energy.
+auto ElasticSystem::Energy(const Vec<Real> &x) const -> Real {
+  Real energy = 0;
+  std::visit(
+      [&](const auto &density) {
+        for (int tt = 0; tt < mesh.t.rows(); ++tt) {
+          energy += mesh.RestVolumes()[tt] *
+                    density.Psi(DeformationGradient(x, tt));
+        }
+      },
+      material);
+  for (const SoftContact &c : contacts) {
+    energy += ContactEnergy(c.vertex).Psi(ContactDofs(x, c));
+  }
+  return energy;
+}
+
 // The force on a tet's corners is -V vec(dF/dx)^T vec(P(F))
 // (Dynamic Deformables, "Force Computation"). A contact pushes its vertex by
 // minus the vertex block of the collision gradient and damps its velocity

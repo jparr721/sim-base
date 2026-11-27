@@ -29,6 +29,7 @@ public:
 
   [[nodiscard]] auto Dofs() const -> int { return mesh.DOFs(); }
   [[nodiscard]] auto Mass() const -> const SparseMat<Real> & { return mesh.m; }
+  [[nodiscard]] auto Energy(const Vec<Real> &x) const -> Real;
   [[nodiscard]] auto Forces(const Vec<Real> &x, const Vec<Real> &v) const
       -> Vec<Real>;
   [[nodiscard]] auto Stiffness(const Vec<Real> &x, bool clamped) const

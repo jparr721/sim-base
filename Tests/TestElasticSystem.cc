@@ -165,6 +165,32 @@ TEST(TestElasticSystem, ForcesAreMinusEnergyGradient) {
   }
 }
 
+// Energy is the potential Forces descends: -dEnergy/dx = Forces(x, 0), with
+// contacts, on the perturbed tet. ElasticEnergy above is the independent
+// elastic-only check.
+TEST(TestElasticSystem, ForcesAreMinusEnergyGradientWithContacts) {
+  for (const Material &material : Materials()) {
+    const TetMesh mesh = OneTet();
+    ElasticSystem system(mesh, material, kContact);
+    const Vec<Real> x = Perturbed(mesh.Positions(), 0.05);
+    EXPECT_NEAR(system.Energy(x), ElasticEnergy(mesh, material, x),
+                1e-14 * std::abs(system.Energy(x)));
+    system.SetContacts(ContactsNear(x, 4));
+    const Vec<Real> forces = system.Forces(x, Vec<Real>::Zero(12));
+    const Real h = 1e-6;
+    Vec<Real> fd(12);
+    for (int i = 0; i < 12; ++i) {
+      Vec<Real> plus = x;
+      Vec<Real> minus = x;
+      plus(i) += h;
+      minus(i) -= h;
+      fd(i) = -(system.Energy(plus) - system.Energy(minus)) / (2 * h);
+    }
+    EXPECT_GT(forces.norm(), 0.1) << material.index();
+    EXPECT_LE((forces - fd).norm(), 1e-6 * forces.norm()) << material.index();
+  }
+}
+
 // The bunny, deformed by a random perturbation, for every Material.
 class BunnyStiffness : public testing::TestWithParam<int> {
 protected:
