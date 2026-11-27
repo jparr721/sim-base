@@ -18,8 +18,8 @@ struct SoftContact {
 // damping are per unit vertex mass, so every vertex has the same contact
 // frequency whatever the size of its tets.
 struct ContactModel {
-  // 1/s^2. Vertex i stores m_i stiffness (d - eps)^2, with d its distance to
-  // the triangle (VertexFaceSqrtCollision).
+  // 1/s^2. Vertex i stores m_i stiffness (phi - eps)^2, with phi its signed
+  // distance to the triangle (VertexFaceSqrtCollision).
   Real stiffness = 0;
   Real epsilon = 0;
   // 1/s. Vertex i feels -m_i damping (n . v_i) n, with n the triangle normal.
