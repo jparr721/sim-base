@@ -502,4 +502,28 @@ SIM_INLINE auto TriangleArea(const Vec3<Real> &v0, const Vec3<Real> &v1,
   return cross.norm() * 0.5;
 }
 
+// F = u diag(sigma) v^T with u and v rotations (det = 1). Any reflection is
+// moved into sigma(2), the smallest singular value, so it is negative exactly
+// when det F < 0 (the rotation-variant SVD of Irving et al. 2004).
+struct Svd {
+  Mat3<Real> u;
+  Vec3<Real> sigma;
+  Mat3<Real> v;
+};
+
+SIM_INLINE auto RotationVariantSvd(const Mat3<Real> &f) -> Svd {
+  const Eigen::JacobiSVD<Mat3<Real>> svd(f, Eigen::ComputeFullU |
+                                                Eigen::ComputeFullV);
+  Svd out{svd.matrixU(), svd.singularValues(), svd.matrixV()};
+  if (out.u.determinant() < 0) {
+    out.u.col(2) *= -1;
+    out.sigma(2) *= -1;
+  }
+  if (out.v.determinant() < 0) {
+    out.v.col(2) *= -1;
+    out.sigma(2) *= -1;
+  }
+  return out;
+}
+
 } // namespace sim

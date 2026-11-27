@@ -10,8 +10,10 @@ file(GLOB INTEGRATOR_SOURCES "Integrator/*.cc")
 file(GLOB ENERGY_STRAND_HEADERS "Energy/Strand/*.h")
 file(GLOB ENERGY_STRAND_SOURCES "Energy/Strand/*.cc")
 
-file(GLOB ENERGY_VOLUME_HEADERS "Energy/Volume/*.h")
-file(GLOB ENERGY_VOLUME_SOURCES "Energy/Volume/*.cc")
+# Listed by name: the other Energy/Volume files build as their own modules below.
+set(ENERGY_VOLUME_HEADERS Energy/Volume/HyperelasticMaterial.h
+        Energy/Volume/SNH.h Energy/Volume/STVK.h)
+set(ENERGY_VOLUME_SOURCES Energy/Volume/SNH.cc Energy/Volume/STVK.cc)
 
 file(GLOB ENERGY_COLLISION_HEADERS "Energy/Collision/*.h")
 file(GLOB ENERGY_COLLISION_SOURCES "Energy/Collision/*.cc")
@@ -27,6 +29,19 @@ target_include_directories(sim_energy_mass_spring PUBLIC
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 target_compile_options(sim_energy_mass_spring PRIVATE ${SIM_WARNINGS})
 target_link_libraries(sim_energy_mass_spring PUBLIC Eigen3::Eigen)
+
+# A volume energy module: Energy/Volume/<file>.{h,cc} as sim_energy_<name>.
+function(sim_volume_energy name file)
+    add_library(sim_energy_${name} STATIC Energy/Volume/Energy.h
+            Energy/Volume/${file}.h Energy/Volume/${file}.cc)
+    target_include_directories(sim_energy_${name} PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
+    target_compile_options(sim_energy_${name} PRIVATE ${SIM_WARNINGS})
+    target_link_libraries(sim_energy_${name} PUBLIC Eigen3::Eigen)
+endfunction()
+sim_volume_energy(stable_neo_hookean StableNeoHookean)
+sim_volume_energy(stvk StVenantKirchhoff)
 
 add_library(sim STATIC
         ${HEADERS} ${SOURCES}
