@@ -271,6 +271,75 @@ INSTANTIATE_TEST_SUITE_P(EveryMaterial, BunnyStiffness, testing::Values(0, 1),
                                                   : "StVenantKirchhoff";
                          });
 
+// SNH plus each fiber energy, on the bunny under a smooth deformation, with a
+// fiber off every axis. A smooth map bounds F on every tet. BunnyStiffness's
+// random perturbation stretches the bunny's slivers so far (fiber Green strain
+// up to 2e3) that Fung's exp(k E^2) overflows. The fiber's own terms are
+// checked apart from SNH's, which would otherwise swamp them.
+auto Fibers() -> std::vector<FiberMaterial> {
+  const Vec3<Real> a = Vec3<Real>(1, 2, 3).normalized();
+  return {AnisotropicStVenantKirchhoff{.lame = kLame, .fiber = a},
+          AnisotropicArap{.lame = kLame, .fiber = a},
+          AnisotropicFung{.lame = kLame, .fiber = a}};
+}
+
+class FiberStiffness : public testing::TestWithParam<int> {
+protected:
+  static void SetUpTestSuite() {
+    mesh = std::make_unique<TetMesh>(Bunny());
+    x = mesh->Positions();
+    for (int ii = 0; ii < mesh->v.rows(); ++ii) {
+      const Vec3<Real> p = x.segment<3>(3 * ii);
+      x.segment<3>(3 * ii) +=
+          0.1 * Vec3<Real>(std::sin(3 * p.y()), std::sin(3 * p.z()),
+                           std::sin(3 * p.x()));
+    }
+  }
+  static void TearDownTestSuite() { mesh.reset(); }
+
+  static std::unique_ptr<TetMesh> mesh;
+  static Vec<Real> x;
+};
+std::unique_ptr<TetMesh> FiberStiffness::mesh;
+Vec<Real> FiberStiffness::x;
+
+TEST_P(FiberStiffness, IsMinusForceJacobian) {
+  const Material material = StableNeoHookean{kLame};
+  const ElasticSystem bare(*mesh, material, NoDamping{});
+  const ElasticSystem system(*mesh, material, NoDamping{}, {}, 0,
+                             Fibers()[GetParam()]);
+  const Mat<Real> k(system.Stiffness(x, false));
+  const Mat<Real> fd = FdStiffness(system, x);
+  const Mat<Real> fiberK = k - Mat<Real>(bare.Stiffness(x, false));
+  const Mat<Real> fiberFd = fd - FdStiffness(bare, x);
+  std::cout << "[ measured ] |K_fiber| " << fiberK.norm() << ", |K| "
+            << k.norm() << ", fiber error "
+            << (fiberK - fiberFd).norm() / fiberK.norm() << ", total error "
+            << (k - fd).norm() / k.norm() << "\n";
+  EXPECT_GT(fiberK.norm(), 1e-2 * k.norm());
+  EXPECT_LE((fiberK - fiberFd).norm(), 1e-6 * fiberK.norm());
+  EXPECT_LE((k - fd).norm(), 1e-6 * k.norm());
+}
+
+TEST_P(FiberStiffness, ClampedIsPsd) {
+  const Material material = StableNeoHookean{kLame};
+  const ElasticSystem system(*mesh, material, NoDamping{}, {}, 0,
+                             Fibers()[GetParam()]);
+  const SparseMat<Real> clamped = system.Stiffness(x, true);
+  EXPECT_GE(SmallestEigenvalue(clamped),
+            -1e-10 * LargestMagnitudeEigenvalue(clamped));
+}
+
+auto FiberName(const testing::TestParamInfo<int> &info) -> std::string {
+  const std::array<std::string, 3> names = {"AnisotropicStVenantKirchhoff",
+                                            "AnisotropicArap",
+                                            "AnisotropicFung"};
+  return names[info.param];
+}
+
+INSTANTIATE_TEST_SUITE_P(EveryFiber, FiberStiffness, testing::Values(0, 1, 2),
+                         FiberName);
+
 TEST(TestElasticSystem, DampingMatrixIsZeroUntilDampingExists) {
   const TetMesh mesh = OneTet();
   const Material material = Materials()[0];

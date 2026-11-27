@@ -1,8 +1,5 @@
 #pragma once
 
-#include <Energy/Volume/AnisotropicArap.h>
-#include <Energy/Volume/AnisotropicFung.h>
-#include <Energy/Volume/AnisotropicStVenantKirchhoff.h>
 #include <Energy/Volume/Arap.h>
 #include <Energy/Volume/LinearElasticity.h>
 #include <Energy/Volume/NeoHookeanBonetWood.h>
@@ -16,19 +13,15 @@
 namespace sim {
 
 // Each alternative is built from Lame parameters, e.g.
-// StableNeoHookean{.lame = Lame::FromYoungs(5.0, 0.45)}. The fiber energies
-// (AnisotropicArap, AnisotropicStVenantKirchhoff, AnisotropicFung) also take a
-// uniform unit fiber direction.
-using Material =
-    std::variant<StableNeoHookean,
-                 StVenantKirchhoff,
-                 LinearElasticity,
-                 NeoHookeanBonetWood,
-                 Arap,
-                 SymmetricDirichlet,
-                 AnisotropicStVenantKirchhoff,
-                 AnisotropicArap,
-                 AnisotropicFung,
-                 StableNeoHookeanBarrier>;
+// StableNeoHookean{.lame = Lame::FromYoungs(5.0, 0.45)}, and resists
+// deformation in every direction. The fiber energies, which do not, are a
+// separate FiberMaterial that adds to one of these.
+using Material = std::variant<StableNeoHookean,
+                              StVenantKirchhoff,
+                              LinearElasticity,
+                              NeoHookeanBonetWood,
+                              Arap,
+                              SymmetricDirichlet,
+                              StableNeoHookeanBarrier>;
 
 } // namespace sim

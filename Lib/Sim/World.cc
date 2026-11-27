@@ -54,6 +54,23 @@ auto Placed(const Placement &place, const Mat<Real> &local) -> Mat<Real> {
   return (local * linear.transpose()).rowwise() + place.centroid.transpose();
 }
 
+// A SoftBody's fiber, turned from body-local into world axes by its
+// placement. The direction must be unit length.
+auto PlacedFiber(const Placement &place, std::optional<FiberMaterial> fiber)
+    -> std::optional<FiberMaterial> {
+  if (fiber) {
+    std::visit(
+        [&](auto &energy) {
+          if (!(std::abs(energy.fiber.norm() - 1) <= 1e-12)) {
+            Malformed("a fiber direction must be unit length");
+          }
+          energy.fiber = place.rotation * energy.fiber;
+        },
+        *fiber);
+  }
+  return fiber;
+}
+
 auto Recentered(const Mat<Real> &v, const Vec3<Real> &centroid) -> Mat<Real> {
   return v.rowwise() - centroid.transpose();
 }
@@ -181,7 +198,7 @@ struct SoftBodySim {
                ContactModel{.stiffness = desc.collisionStiffness,
                             .epsilon = desc.collisionEpsilon,
                             .damping = desc.collisionDamping},
-               desc.drag),
+               desc.drag, PlacedFiber(desc.place, desc.fiber)),
         integrator(desc.integrator),
         state{.x = mesh->Positions(), .v = Vec<Real>::Zero(mesh->DOFs())},
         surface(std::move(surfaceVertices)),

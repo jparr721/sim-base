@@ -293,6 +293,54 @@ TEST(World, NegativeDampingIsRejected) {
   EXPECT_NO_THROW(Placed(bunny));
 }
 
+TEST(World, NonUnitFiberIsRejected) {
+  auto bunny = Bunny({});
+  bunny.fiber = sim::AnisotropicArap{.lame = sim::Lame::FromYoungs(5, 0.45),
+                                     .fiber = Vec3<Real>(1, 1, 0)};
+  EXPECT_THROW(Placed(bunny), std::invalid_argument);
+  bunny.fiber = sim::AnisotropicArap{.lame = sim::Lame::FromYoungs(5, 0.45),
+                                     .fiber = Vec3<Real>(1, 1, 0).normalized()};
+  EXPECT_NO_THROW(Placed(bunny));
+}
+
+// A fiber is body-local, so a body hanging from its pins sags the same way in
+// its own frame however it is placed. The bunny placed with rotation R and
+// gravity R g ends as R times the unrotated bunny under g. The control
+// places the rotated bunny with its fiber already turned by R, which turns
+// it twice.
+TEST(World, FiberTurnsWithItsBody) {
+  const Vec3<Real> centroid(0.5, 2, -1);
+  const Eigen::Quaternion<Real> rotation(
+      Eigen::AngleAxis<Real>(0.7, Vec3<Real>(1, -2, 0.5).normalized()));
+  const Mat3<Real> r = rotation.toRotationMatrix();
+  const Vec3<Real> fiber = Vec3<Real>(1, 2, 3).normalized();
+  const auto hang = [&](const sim::Placement &place, const Vec3<Real> &local,
+                        const Vec3<Real> &gravity, int steps) {
+    auto bunny = Bunny(place);
+    bunny.fiber = sim::AnisotropicStVenantKirchhoff{
+        .lame = sim::Lame::FromYoungs(50, 0.45), .fiber = local};
+    sim::World world(sim::SceneDesc{
+        .name = "hang", .dt = 1e-3, .gravity = gravity, .bodies = {bunny}});
+    for (int step = 0; step < steps; ++step) {
+      world.Step();
+    }
+    return Mat<Real>(Only<TetMesh>(world).v.rowwise() - centroid.transpose());
+  };
+  const Vec3<Real> g(0, -0.981, 0);
+  const sim::Placement upright{.centroid = centroid};
+  const sim::Placement turned{.centroid = centroid, .rotation = rotation};
+  const Mat<Real> hung = hang(upright, fiber, g, 300);
+  const Mat<Real> expected = hung * r.transpose();
+  const Real sag = (hung - hang(upright, fiber, g, 0)).norm();
+  const Real error = (hang(turned, fiber, r * g, 300) - expected).norm();
+  const Real control = (hang(turned, r * fiber, r * g, 300) - expected).norm();
+  std::cout << "[ measured ] sag " << sag << ", turned error " << error
+            << ", twice-turned error " << control << "\n";
+  EXPECT_GT(sag, 1e-2);
+  EXPECT_LE(error, 1e-9 * expected.norm());
+  EXPECT_GT(control, 1e-2 * sag);
+}
+
 // A strand has no deformation gradient for GreenDamping, and the same
 // coefficient checks apply to its damping and to SetDamping's.
 TEST(World, StrandDampingIsRejectedWhenGreenOrNegative) {
@@ -534,12 +582,15 @@ TEST_P(BunnyRamp, SlidesDownRampAndRestsOnFloor) {
   EXPECT_LT(speed, 5e-3);
 }
 
+auto SceneName(const testing::TestParamInfo<std::string> &info)
+    -> std::string {
+  std::string name = info.param;
+  std::ranges::replace(name, '-', '_');
+  return name;
+}
+
 INSTANTIATE_TEST_SUITE_P(Scenes, BunnyRamp,
                          testing::Values("bunny-drop", "bunny-drop-implicit"),
-                         [](const auto &info) {
-                           std::string name = info.param;
-                           std::ranges::replace(name, '-', '_');
-                           return name;
-                         });
+                         SceneName);
 
 } // namespace

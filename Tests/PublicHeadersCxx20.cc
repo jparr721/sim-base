@@ -7,6 +7,7 @@
 #include <Energy/Volume/AnisotropicStVenantKirchhoff.h>
 #include <Energy/Volume/Arap.h>
 #include <Energy/Volume/Energy.h>
+#include <Energy/Volume/FiberMaterial.h>
 #include <Energy/Volume/LinearElasticity.h>
 #include <Energy/Volume/Material.h>
 #include <Energy/Volume/NeoHookeanBonetWood.h>

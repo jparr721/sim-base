@@ -65,9 +65,10 @@ auto TetValues(const Mat<int> &t, int tet, const Vec<Real> &y) -> Vec12<Real> {
 } // namespace
 
 ElasticSystem::ElasticSystem(const TetMesh &mesh, const Material &material,
-                             Damping damping, ContactModel contact, Real drag)
+                             Damping damping, ContactModel contact, Real drag,
+                             std::optional<FiberMaterial> fiber)
     : mesh(mesh), material(material), damping(std::move(damping)),
-      contact(contact), drag(drag),
+      contact(contact), drag(drag), fiber(std::move(fiber)),
       constraints{.dofs = mesh.DOFs()} {
   for (int ii = 0; ii < mesh.pinned.size(); ++ii) {
     if (mesh.pinned(ii) == 1) {
@@ -98,17 +99,17 @@ auto ElasticSystem::ContactEnergy(int vertex) const -> VertexFaceSqrtCollision {
   return {VertexMass(vertex) * contact.stiffness, contact.epsilon};
 }
 
-// Sum over tets of V Psi(F), plus each contact's collision energy.
+// Sum over tets and densities of V Psi(F), plus each contact's collision
+// energy.
 auto ElasticSystem::Energy(const Vec<Real> &x) const -> Real {
   Real energy = 0;
-  std::visit(
+  ForEachDensity(
       [&](const auto &density) {
         for (int tt = 0; tt < mesh.t.rows(); ++tt) {
           energy += mesh.RestVolumes()[tt] *
                     density.Psi(DeformationGradient(x, tt));
         }
-      },
-      material);
+      });
   for (const SoftContact &c : contacts) {
     energy += ContactEnergy(c.vertex).Psi(ContactDofs(x, c));
   }
@@ -122,7 +123,7 @@ auto ElasticSystem::Energy(const Vec<Real> &x) const -> Real {
 auto ElasticSystem::Forces(const Vec<Real> &x, const Vec<Real> &v) const
     -> Vec<Real> {
   Vec<Real> forces = Vec<Real>::Zero(Dofs());
-  std::visit(
+  ForEachDensity(
       [&](const auto &energy) {
         for (int tt = 0; tt < mesh.t.rows(); ++tt) {
           const Mat3<Real> p = energy.Pk1(DeformationGradient(x, tt));
@@ -135,8 +136,7 @@ auto ElasticSystem::Forces(const Vec<Real> &x, const Vec<Real> &v) const
             }
           }
         }
-      },
-      material);
+      });
   for (const SoftContact &c : contacts) {
     const Vec3<Real> n = UnitNormal(c);
     forces.segment<3>(3 * c.vertex) -=
@@ -175,12 +175,13 @@ auto ElasticSystem::Forces(const Vec<Real> &x, const Vec<Real> &v) const
 
 // Each tet adds V (dF/dx)^T H (dF/dx), a 12x12 block, where H is the energy's
 // Hessian over vec(F) (Dynamic Deformables, "Hessian Computation"). Clamping H
-// per element keeps every block, and so their sum, PSD.
+// per element keeps every block, and so their sum, PSD. A fiber adds its own
+// block per tet, so the clamped sum is PSD with no projection of the total.
 auto ElasticSystem::ElasticStiffness(const Vec<Real> &x, bool clamped) const
     -> std::vector<Eigen::Triplet<Real>> {
   std::vector<Eigen::Triplet<Real>> triplets;
-  triplets.reserve(144 * mesh.t.rows());
-  std::visit(
+  triplets.reserve(144 * mesh.t.rows() * (fiber ? 2 : 1));
+  ForEachDensity(
       [&](const auto &energy) {
         for (int tt = 0; tt < mesh.t.rows(); ++tt) {
           const Mat3<Real> f = DeformationGradient(x, tt);
@@ -191,8 +192,7 @@ auto ElasticSystem::ElasticStiffness(const Vec<Real> &x, bool clamped) const
           AddTetBlock(triplets, mesh.t, tt,
                       mesh.RestVolumes()[tt] * (dfdx.transpose() * h * dfdx));
         }
-      },
-      material);
+      });
   return triplets;
 }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Energy/Damping/Damping.h>
+#include <Energy/Volume/FiberMaterial.h>
 #include <Energy/Volume/Material.h>
 #include <LibMath.h>
 #include <Solid/Integrators.h>
@@ -56,6 +57,10 @@ struct SoftBody {
   MeshFile mesh;
   Placement place;
   Material material;
+  // Added to `material` in every tet. Its fiber direction is uniform,
+  // body-local and unit length, and Placement's rotation turns it with the
+  // body.
+  std::optional<FiberMaterial> fiber;
   // Required: Integrator has no default, so leaving this out does not compile.
   Integrator integrator;
   // Required, the same way: NoDamping{}, GreenDamping{.mu = ...} or
